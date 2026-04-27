@@ -10,9 +10,10 @@ import { homedir } from "os";
 import { join, basename } from "path";
 import type { InstallState, EngineEventHandler, DetectionResult } from "./types";
 import { PAI_VERSION, ALGORITHM_VERSION } from "./types";
-import { detectSystem, validateElevenLabsKey } from "./detect";
+import { detectSystem, validateElevenLabsKey, type DetectSystemOptions } from "./detect";
 import { generateSettingsJson } from "./config-gen";
 import { includesTargetPlatform } from "./options";
+import { buildCodexPrerequisiteMissingMessage, CodexPrerequisiteMissingError } from "./platform-boundary";
 
 /**
  * Remove duplicate bun PATH entries from shell config.
@@ -259,12 +260,13 @@ async function migrateUserContext(
 
 export async function runSystemDetect(
   state: InstallState,
-  emit: EngineEventHandler
+  emit: EngineEventHandler,
+  detectOptions: DetectSystemOptions = {},
 ): Promise<DetectionResult> {
   await emit({ event: "step_start", step: "system-detect" });
   await emit({ event: "progress", step: "system-detect", percent: 10, detail: "Detecting operating system..." });
 
-  const detection = detectSystem({ platform: state.platform });
+  const detection = detectSystem({ ...detectOptions, platform: state.platform });
   state.detection = detection;
 
   await emit({ event: "progress", step: "system-detect", percent: 50, detail: "Checking installed tools..." });
@@ -285,7 +287,7 @@ export async function runSystemDetect(
   // Skip values that are unresolved template placeholders like {PRINCIPAL.NAME}
   const isPlaceholder = (v: string) => /^\{.+\}$/.test(v);
 
-  if (detection.existing.paiInstalled && detection.existing.settingsPath) {
+  if (!includesTargetPlatform(state, "codex") && detection.existing.paiInstalled && detection.existing.settingsPath) {
     try {
       const settings = JSON.parse(readFileSync(detection.existing.settingsPath, "utf-8"));
       if (settings.principal?.name && !isPlaceholder(settings.principal.name)) state.collected.principalName = settings.principal.name;
@@ -322,15 +324,10 @@ export async function runPrerequisites(
     });
 
     if (!det.tools.codex.installed) {
-      const message = [
-        "Codex CLI is required for the selected platform but was not found.",
-        "Install it manually with one of:",
-        "  npm install -g @openai/codex",
-        "  brew install codex",
-      ].join("\n");
+      const message = buildCodexPrerequisiteMissingMessage();
 
       await emit({ event: "message", content: message });
-      throw new Error(message);
+      throw new CodexPrerequisiteMissingError(message);
     }
 
     await emit({ event: "progress", step: "prerequisites", percent: 70, detail: `Codex CLI found: v${det.tools.codex.version}` });

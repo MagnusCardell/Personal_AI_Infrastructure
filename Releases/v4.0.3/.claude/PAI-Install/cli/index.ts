@@ -12,6 +12,7 @@ import {
   saveState,
   clearState,
   completeStep,
+  completeStepInMemory,
 } from "../engine/state";
 import {
   runSystemDetect,
@@ -23,7 +24,11 @@ import {
   runVoiceSetup,
 } from "../engine/actions";
 import { runValidation, generateSummary } from "../engine/validate";
-import { normalizeInstallerOptions } from "../engine/options";
+import { includesTargetPlatform, normalizeInstallerOptions } from "../engine/options";
+import {
+  isPlatformBoundaryStop,
+  maybeStopForUnsupportedCodexInstall,
+} from "../engine/platform-boundary";
 import {
   printBanner,
   printStep,
@@ -112,33 +117,37 @@ export async function runCLI(options: Partial<InstallerOptions> = {}): Promise<v
   printBanner();
 
   const emit = createEventHandler();
+  const normalizedOptions = normalizeInstallerOptions({ ...options, mode: "cli" });
+  const codexRequested = includesTargetPlatform(normalizedOptions, "codex");
 
   // Check for resume
   let state: InstallState;
 
-  if (hasSavedState()) {
+  if (codexRequested) {
+    state = createFreshState("cli", normalizedOptions);
+  } else if (hasSavedState()) {
     const saved = loadState();
     if (saved) {
-      print(`  ${c.yellow}Found previous installation in progress.${c.reset}`);
-      print(`  ${c.gray}Started: ${saved.startedAt}${c.reset}`);
-      print(`  ${c.gray}Progress: ${getProgress(saved)}% (${saved.completedSteps.length} steps completed)${c.reset}`);
-      print("");
+      if (!statePlatformMatchesOptions(saved, options)) {
+        printWarning(
+          `Saved install platform (${saved.platform}) does not match requested platform; starting a fresh ${normalizedOptions.platform} install.`,
+        );
+        clearState();
+        state = createFreshState("cli", options);
+      } else {
+        print(`  ${c.yellow}Found previous installation in progress.${c.reset}`);
+        print(`  ${c.gray}Started: ${saved.startedAt}${c.reset}`);
+        print(`  ${c.gray}Progress: ${getProgress(saved)}% (${saved.completedSteps.length} steps completed)${c.reset}`);
+        print("");
 
-      const resume = await promptConfirm("Resume previous installation?");
-      if (resume) {
-        if (!statePlatformMatchesOptions(saved, options)) {
-          printWarning(
-            `Saved install platform (${saved.platform}) does not match requested platform; starting a fresh ${normalizeInstallerOptions({ ...options, mode: "cli" }).platform} install.`,
-          );
-          clearState();
-          state = createFreshState("cli", options);
-        } else {
+        const resume = await promptConfirm("Resume previous installation?");
+        if (resume) {
           state = saved;
           state.mode = "cli";
           print(`\n  ${c.green}Resuming from step: ${state.currentStep}${c.reset}\n`);
+        } else {
+          state = createFreshState("cli", options);
         }
-      } else {
-        state = createFreshState("cli", options);
       }
     } else {
       state = createFreshState("cli", options);
@@ -148,13 +157,19 @@ export async function runCLI(options: Partial<InstallerOptions> = {}): Promise<v
   }
 
   try {
+    const codexSelected = includesTargetPlatform(state, "codex");
+
     // ── Step 1: System Detection ──
     if (!state.completedSteps.includes("system-detect")) {
       const step = STEPS[0];
       printStep(step.number, 8, step.name);
       const detection = await runSystemDetect(state, emit);
       printDetection(detection);
-      completeStep(state, "system-detect");
+      if (codexSelected) {
+        completeStepInMemory(state, "system-detect");
+      } else {
+        completeStep(state, "system-detect");
+      }
       state.currentStep = "prerequisites";
     }
 
@@ -163,9 +178,15 @@ export async function runCLI(options: Partial<InstallerOptions> = {}): Promise<v
       const step = STEPS[1];
       printStep(step.number, 8, step.name);
       await runPrerequisites(state, emit);
-      completeStep(state, "prerequisites");
-      state.currentStep = "api-keys";
+      if (codexSelected) {
+        completeStepInMemory(state, "prerequisites");
+      } else {
+        completeStep(state, "prerequisites");
+        state.currentStep = "api-keys";
+      }
     }
+
+    await maybeStopForUnsupportedCodexInstall(state, emit);
 
     // ── Step 3: API Keys ──
     if (!state.completedSteps.includes("api-keys")) {
@@ -241,7 +262,15 @@ export async function runCLI(options: Partial<InstallerOptions> = {}): Promise<v
 
     process.exit(0);
   } catch (error: any) {
+    if (isPlatformBoundaryStop(error)) {
+      process.exit(error.exitCode);
+    }
+
     printError(`\nInstallation failed: ${error.message}`);
+    if (includesTargetPlatform(state, "codex")) {
+      process.exit(1);
+    }
+
     printInfo("Your progress has been saved. Run the installer again to resume.");
     saveState(state);
     process.exit(1);

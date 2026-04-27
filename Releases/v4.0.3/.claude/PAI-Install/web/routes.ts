@@ -3,7 +3,7 @@
  * HTTP + WebSocket API for the web installer.
  */
 
-import type { InstallState, EngineEvent, ServerMessage, ClientMessage } from "../engine/types";
+import type { InstallState, EngineEvent, ServerMessage, ClientMessage, InstallerOptions } from "../engine/types";
 import {
   runSystemDetect,
   runPrerequisites,
@@ -13,8 +13,9 @@ import {
   runConfiguration,
   runVoiceSetup,
 } from "../engine/actions";
+import type { DetectSystemOptions } from "../engine/detect";
 import { runValidation, generateSummary } from "../engine/validate";
-import { normalizeInstallerOptions } from "../engine/options";
+import { includesTargetPlatform, normalizeInstallerOptions } from "../engine/options";
 import {
   createFreshState,
   hasSavedState,
@@ -22,9 +23,14 @@ import {
   saveState,
   clearState,
   completeStep,
+  completeStepInMemory,
   skipStep,
 } from "../engine/state";
 import { STEPS, getProgress, getStepStatuses } from "../engine/steps";
+import {
+  isPlatformBoundaryStop,
+  maybeStopForUnsupportedCodexInstall,
+} from "../engine/platform-boundary";
 
 // ─── State ───────────────────────────────────────────────────────
 
@@ -167,28 +173,47 @@ export function handleWsMessage(ws: any, raw: string): void {
 
 // ─── Installation Flow ───────────────────────────────────────────
 
-async function startInstallation(): Promise<void> {
-  // Always start fresh — GUI should not silently resume stale state
-  if (hasSavedState()) clearState();
-  installState = createFreshState("web", installerOptions);
+export async function startInstallation(
+  options: Partial<InstallerOptions> = installerOptions,
+  detectOptions: DetectSystemOptions = {},
+): Promise<void> {
+  const normalizedOptions = normalizeInstallerOptions({ ...options, mode: "web" });
+  const codexRequested = includesTargetPlatform(normalizedOptions, "codex");
+
+  // Always start fresh — GUI should not silently resume stale state.
+  // Unsupported Codex-selected boundary runs must leave saved Claude state untouched.
+  if (!codexRequested && hasSavedState()) clearState();
+  installState = createFreshState("web", normalizedOptions);
 
   const emit = createWsEmitter();
 
   try {
+    const codexSelected = includesTargetPlatform(installState, "codex");
+
     // Step 1: System Detection
     if (!installState.completedSteps.includes("system-detect")) {
-      await runSystemDetect(installState, emit);
+      await runSystemDetect(installState, emit, detectOptions);
       broadcast({ type: "detection_result", data: installState.detection! });
-      completeStep(installState, "system-detect");
+      if (codexSelected) {
+        completeStepInMemory(installState, "system-detect");
+      } else {
+        completeStep(installState, "system-detect");
+      }
       installState.currentStep = "prerequisites";
     }
 
     // Step 2: Prerequisites
     if (!installState.completedSteps.includes("prerequisites")) {
       await runPrerequisites(installState, emit);
-      completeStep(installState, "prerequisites");
-      installState.currentStep = "api-keys";
+      if (codexSelected) {
+        completeStepInMemory(installState, "prerequisites");
+      } else {
+        completeStep(installState, "prerequisites");
+        installState.currentStep = "api-keys";
+      }
     }
+
+    await maybeStopForUnsupportedCodexInstall(installState, emit);
 
     // Step 3: API Keys
     if (!installState.completedSteps.includes("api-keys")) {
@@ -245,7 +270,16 @@ async function startInstallation(): Promise<void> {
 
     clearState();
   } catch (error: any) {
+    if (isPlatformBoundaryStop(error)) {
+      broadcast({ type: "error", message: error.message });
+      return;
+    }
+
     broadcast({ type: "error", message: error.message });
+    if (installState && includesTargetPlatform(installState, "codex")) {
+      return;
+    }
+
     saveState(installState);
   }
 }
@@ -262,4 +296,15 @@ export function removeClient(ws: any): void {
 
 export function getState(): InstallState | null {
   return installState;
+}
+
+export function getMessageHistory(): ServerMessage[] {
+  return [...messageHistory];
+}
+
+export function resetForTests(): void {
+  installState = null;
+  wsClients = new Set<any>();
+  messageHistory = [];
+  pendingRequests = new Map<string, { resolve: (value: string) => void }>();
 }

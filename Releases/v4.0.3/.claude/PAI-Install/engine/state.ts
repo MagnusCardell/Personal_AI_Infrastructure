@@ -125,6 +125,17 @@ export function completeStep(state: InstallState, step: StepId): void {
 }
 
 /**
+ * Mark a step complete without persisting resumable state.
+ * Used by deliberate non-resumable platform boundary stops.
+ */
+export function completeStepInMemory(state: InstallState, step: StepId): void {
+  if (!state.completedSteps.includes(step)) {
+    state.completedSteps.push(step);
+  }
+  state.updatedAt = new Date().toISOString();
+}
+
+/**
  * Mark a step as skipped.
  */
 export function skipStep(state: InstallState, step: StepId, reason?: string): void {
