@@ -1,8 +1,8 @@
 # Codex Adapter Compatibility Matrix
 
-This matrix is intentionally conservative. PR-01 does not implement Codex
-runtime behavior; it records what is known from inventory and where fixtures or
-adapter work are required.
+This matrix is intentionally conservative. PR-02 adds a tested platform/path
+primitive only; it does not implement Codex installer, hook, config, skill,
+agent, transcript, or release runtime behavior.
 
 Labels follow the repository guidance:
 
@@ -14,15 +14,17 @@ Labels follow the repository guidance:
 - `breaking-for-codex`: Claude feature cannot be mapped without changed
   semantics.
 
-The `Label` column applies to current Codex compatibility. Because PR-01 does
-not implement Codex runtime behavior, rows must not use `partial` unless a
-future PR has implemented that Codex path with known semantic gaps.
+The `Label` column applies to current Codex compatibility. PR-02 uses `partial`
+only for rows explicitly scoped to the path resolver primitive because that
+primitive is implemented and tested but not wired into runtime installer or hook
+behavior.
 
 | Area | Claude Status | Codex Status | Label | Evidence | Required Before Raising Claim |
 |---|---|---|---|---|---|
 | Existing Claude release artifacts | Current release shape under `Releases/*/.claude/` | Not applicable as Codex runtime | `claude-only` | Release settings, hooks, skills, and tools are stored under `.claude` | Keep untouched unless a Claude adapter task explicitly requires changes |
-| Default PAI application home | `~/.claude` through settings and path helpers | Must default to `~/.pai`, not `~/.codex` | `breaking-for-codex` | `settings.json`, `hooks/lib/paths.ts`, `SessionHarvester.ts`, pack installers | Platform path abstraction with temp-HOME tests |
-| `PAI_DIR` compatibility alias | Used widely and points at Claude home by default | Not implemented for Codex; must remain the legacy alias and keep priority over `PAI_HOME` where legacy behavior requires it. Codex's default PAI app home is `~/.pai`; `~/.codex` remains Codex CLI state/config space | `breaking-for-codex` | Settings env, hooks, installer config generation | Path precedence tests for `PAI_DIR`, `PAI_HOME`, Claude home, and Codex home |
+| Platform path resolver primitive | Not wired into Claude runtime; tested resolver preserves Claude default paths | Tested primitive resolves Codex PAI home to `~/.pai` and Codex adapter/config home to `CODEX_HOME` or `~/.codex`; no Codex files are written | `partial` | `Tools/platform/paths.ts`, `Tools/platform/paths.test.ts` | Wire callers in later phases without changing Claude defaults |
+| Default PAI application home runtime | `~/.claude` through settings and path helpers | Codex installer/runtime is not wired; only the resolver primitive returns `~/.pai` for future Codex use | `breaking-for-codex` | `settings.json`, `hooks/lib/paths.ts`, `SessionHarvester.ts`, pack installers, `Tools/platform/paths.test.ts` | Platform-selecting installer path usage with temp-HOME tests |
+| `PAI_DIR` compatibility alias runtime | Used widely and points at Claude home by default | Codex runtime usage is not wired; only resolver precedence is tested | `breaking-for-codex` | Settings env, hooks, installer config generation, `Tools/platform/paths.test.ts` | Runtime path migration tests proving `PAI_DIR` compatibility remains intact |
 | Claude CLI detection | Installer detects `claude --version`; older hooks check Claude package updates | Codex detection not implemented | `unsupported` | `PAI-Install/engine/detect.ts`, older `CheckVersion.hook.ts` | Platform-selecting detection that preserves Claude default |
 | Claude CLI prompt execution | Any `claude -p` use is Claude non-interactive prompt execution, not detection | Codex execution mapping not implemented | `breaking-for-codex` | Inventory pattern for `claude -p` | Explicit Codex execution contract and fixtures before mapping |
 | Settings/config generation | Claude `settings.json` template and generated fallback | Codex `config.toml` merge not implemented | `breaking-for-codex` | Release `settings.json`, `config-gen.ts` | Idempotent Codex config merge with backup tests |
@@ -63,7 +65,8 @@ categories:
 
 ## Current Codex Compatibility Summary
 
-Codex support is not implemented by PR-01. The only `codex-equivalent` findings
-are planning signals, such as CLI detection having an eventual Codex analogue.
-The high-risk areas remain path resolution, config merge, hook lifecycle,
-security policy split, skills, agents, and transcript/session parsing.
+PR-02 implements only the platform/path resolver primitive. Codex installer,
+hook, config, skill, agent, transcript, memory, release, and runtime behavior
+remain unimplemented unless separately labeled in this matrix. The high-risk
+areas remain runtime path wiring, config merge, hook lifecycle, security policy
+split, skills, agents, and transcript/session parsing.

@@ -1,10 +1,11 @@
 # Codex Adapter Adaptation Plan
 
-PR-01 scope is inventory and compatibility planning only. This document records
+PR-01 established the inventory and compatibility baseline. PR-02 adds only a
+neutral platform/path primitive for future adapter work. This document records
 the evidence base for adapting PAI from a Claude Code-only release shape into
-peer Claude and Codex adapters without changing runtime behavior.
+peer Claude and Codex adapters without changing current runtime behavior.
 
-## Non-Goals For PR-01
+## Non-Goals Through PR-02
 
 - No installer behavior changes.
 - No hook behavior changes.
@@ -12,7 +13,7 @@ peer Claude and Codex adapters without changing runtime behavior.
 - No release artifact edits under `Releases/*/.claude/`.
 - No protected governance file edits.
 - No claim that Codex support is implemented.
-- Existing Claude Code users have no migration action in PR-01, and current
+- Existing Claude Code users have no migration action through PR-02, and current
   Claude defaults remain unchanged.
 
 ## Inventory Command
@@ -129,15 +130,38 @@ deduplicates those findings into the highest-risk coupling themes for planning.
 - Unsupported or unverified Codex behavior must stay labeled as such in
   `COMPATIBILITY_MATRIX.md`.
 
+## PR-02 Path Resolver Primitive
+
+The shared path primitive lives at `Tools/platform/paths.ts`. It is intentionally
+additive and is not wired into the installer, hooks, release packaging, or any
+runtime writer in PR-02.
+
+Current tested semantics:
+
+- Supported adapter identifiers are `claude` and `codex`.
+- PAI application home precedence is `PAI_DIR`, then `PAI_HOME`, then the
+  platform default.
+- Claude defaults resolve both the PAI application home and adapter home to
+  `~/.claude`, preserving the current Claude shape.
+- Codex defaults resolve the PAI application home to `~/.pai` and the Codex
+  adapter/config home to `CODEX_HOME` when set, otherwise `~/.codex`.
+- `~/.codex` is treated as Codex CLI state/config space, not as the default PAI
+  application home.
+- Home expansion covers `~`, `$HOME`, and `${HOME}`. Tests use temp-home style
+  paths and do not write real user homes.
+- Windows path behavior is explicitly rejected as unsupported for this phase.
+
 ## Suggested Evidence For Architect Review
 
-Capture these after PR-01 implementation:
+Capture these after PR-02 implementation:
 
 ```bash
 git status --short
 git diff --stat
 bun Tools/platform-inventory.ts --format markdown --top 10
 bun Tools/platform-inventory.ts --root Tools/fixtures/platform-inventory --format json
+bun test Tools/platform/paths.test.ts
 ```
 
-This package is sufficient to review PR-01 without advancing into PR-02.
+This package is sufficient to review the path abstraction without advancing
+into PR-03.
