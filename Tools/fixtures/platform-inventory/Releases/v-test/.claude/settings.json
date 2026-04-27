@@ -1,0 +1,37 @@
+{
+  "env": {
+    "PAI_DIR": "${HOME}/.claude",
+    "CLAUDE_DIR": "$HOME/.claude"
+  },
+  "permissions": {
+    "allow": ["Read", "Write", "Edit", "MultiEdit", "Task", "Skill"],
+    "ask": ["Write(~/.claude/settings.json)"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/VoiceCompletion.hook.ts"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "$PAI_DIR/statusline-command.sh"
+  }
+}
