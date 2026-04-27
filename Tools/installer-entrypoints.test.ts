@@ -169,6 +169,7 @@ exit 79
 function runBootstrap(
   scriptPath: string,
   args: string[],
+  displayState: "empty" | "unset" = "empty",
 ): { bunArgs: string[] | null; stdout: string; stderr: string; status: number | null } {
   const tempRoot = mkdtempSync(join(tmpdir(), "pai-entrypoint-tools-"));
   const binDir = join(tempRoot, "bin");
@@ -180,14 +181,19 @@ function runBootstrap(
   makeToolStubs(binDir, argsFile, forbiddenFile);
 
   try {
+    const childEnv = {
+      ...env.env,
+      BUN_ARGS_FILE: argsFile,
+      FORBIDDEN_COMMANDS_FILE: forbiddenFile,
+    };
+
+    if (displayState === "empty") {
+      childEnv.DISPLAY = "";
+      childEnv.WAYLAND_DISPLAY = "";
+    }
+
     const result = runCommand("bash", [scriptPath, ...args], {
-      env: {
-        ...env.env,
-        BUN_ARGS_FILE: argsFile,
-        FORBIDDEN_COMMANDS_FILE: forbiddenFile,
-        DISPLAY: "",
-        WAYLAND_DISPLAY: "",
-      },
+      env: childEnv,
     });
 
     const forbiddenCalls = existsSync(forbiddenFile) ? readFileSync(forbiddenFile, "utf-8").trim() : "";
@@ -253,6 +259,14 @@ describe("installer entrypoint syntax guards", () => {
         expected: ["run", MAIN_TS, "--platform", "both", "--mode", "cli"],
       },
       {
+        args: ["--platform", "codex", "--mode", "gui"],
+        expected: ["run", MAIN_TS, "--platform", "codex", "--mode", "gui"],
+      },
+      {
+        args: ["--platform=codex", "--mode=gui"],
+        expected: ["run", MAIN_TS, "--platform=codex", "--mode=gui"],
+      },
+      {
         args: ["--platform", "codex"],
         expected: ["run", MAIN_TS, "--mode", "cli", "--platform", "codex"],
       },
@@ -273,6 +287,40 @@ describe("installer entrypoint syntax guards", () => {
     for (const scriptPath of [OUTER_INSTALL, INNER_INSTALL]) {
       for (const testCase of cases) {
         const result = runBootstrap(scriptPath, testCase.args);
+
+        expect(result.status).toBe(0);
+        expect(result.bunArgs).toEqual(testCase.expected);
+        expect(result.stdout).toContain("Codex platform selection is read-only in PR-03A");
+        expect(result.stdout).toContain("Skipping Git bootstrap for Codex-selected PR-03A run.");
+        expect(result.stdout).toContain("Skipping Claude Code bootstrap for Codex-selected PR-03A run.");
+        expect(result.stderr).toBe("");
+      }
+    }
+  });
+
+  test("Codex-selected bootstrap scripts tolerate unset display variables", () => {
+    const cases = [
+      {
+        args: ["--platform", "codex"],
+        expected: ["run", MAIN_TS, "--mode", "cli", "--platform", "codex"],
+      },
+      {
+        args: ["--platform=codex"],
+        expected: ["run", MAIN_TS, "--mode", "cli", "--platform=codex"],
+      },
+      {
+        args: ["--platform", "both"],
+        expected: ["run", MAIN_TS, "--mode", "cli", "--platform", "both"],
+      },
+      {
+        args: ["--platform=both"],
+        expected: ["run", MAIN_TS, "--mode", "cli", "--platform=both"],
+      },
+    ];
+
+    for (const scriptPath of [OUTER_INSTALL, INNER_INSTALL]) {
+      for (const testCase of cases) {
+        const result = runBootstrap(scriptPath, testCase.args, "unset");
 
         expect(result.status).toBe(0);
         expect(result.bunArgs).toEqual(testCase.expected);

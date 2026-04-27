@@ -220,7 +220,7 @@ elif [ "$HAS_MODE_ARG" -eq 1 ]; then
 else
   # Preserve default GUI launch for no-arg runs, but avoid implicit GUI mode
   # when arguments are supplied in a headless shell.
-  if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$(uname)" != "Darwin" ]; then
+  if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && [ "$(uname)" != "Darwin" ]; then
     exec bun run "$INSTALLER_DIR/main.ts" --mode cli "$@"
   else
     exec bun run "$INSTALLER_DIR/main.ts" --mode gui "$@"
