@@ -72,6 +72,7 @@ SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 # bootstrap must not auto-install Git, Bun, or Claude Code first.
 REQUESTED_PLATFORM="claude"
 EXPECT_PLATFORM_VALUE=0
+HAS_MODE_ARG=0
 for arg in "$@"; do
   if [ "$EXPECT_PLATFORM_VALUE" -eq 1 ]; then
     REQUESTED_PLATFORM="$arg"
@@ -80,6 +81,9 @@ for arg in "$@"; do
   fi
 
   case "$arg" in
+    --mode|--mode=*)
+      HAS_MODE_ARG=1
+      ;;
     --platform)
       EXPECT_PLATFORM_VALUE=1
       ;;
@@ -211,6 +215,14 @@ info "Launching installer..."
 echo ""
 if [ "$#" -eq 0 ]; then
   exec bun run "$INSTALLER_DIR/main.ts" --mode gui
-else
+elif [ "$HAS_MODE_ARG" -eq 1 ]; then
   exec bun run "$INSTALLER_DIR/main.ts" "$@"
+else
+  # Preserve default GUI launch for no-arg runs, but avoid implicit GUI mode
+  # when arguments are supplied in a headless shell.
+  if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$(uname)" != "Darwin" ]; then
+    exec bun run "$INSTALLER_DIR/main.ts" --mode cli "$@"
+  else
+    exec bun run "$INSTALLER_DIR/main.ts" --mode gui "$@"
+  fi
 fi
