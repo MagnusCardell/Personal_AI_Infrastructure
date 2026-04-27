@@ -66,7 +66,12 @@ function waitForServer(port, timeout = 15000) {
 
 function startServer() {
   const mainTs = path.join(INSTALLER_DIR, "main.ts");
-  serverProcess = spawn("bun", ["run", mainTs, "--mode", "web"], {
+  const args = ["run", mainTs, "--mode", "web"];
+  if (process.env.PAI_INSTALL_PLATFORM) {
+    args.push("--platform", process.env.PAI_INSTALL_PLATFORM);
+  }
+
+  serverProcess = spawn("bun", args, {
     cwd: INSTALLER_DIR,
     env: { ...process.env, PAI_INSTALL_PORT: String(PORT) },
     stdio: ["ignore", "pipe", "pipe"],

@@ -3,6 +3,25 @@
  * Shared types for engine, CLI, and web frontends.
  */
 
+import type { PaiPlatform, PlatformPaths } from "../../PAI/Tools/platform/paths";
+
+// ─── Installer Options ──────────────────────────────────────────
+
+export type InstallerMode = "cli" | "web" | "gui";
+export type InstallerPlatform = PaiPlatform | "both";
+
+export interface InstallerOptions {
+  mode: InstallerMode;
+  platform: InstallerPlatform;
+  targetPlatforms: PaiPlatform[];
+}
+
+export interface ToolStatus {
+  installed: boolean;
+  version?: string;
+  path?: string;
+}
+
 // ─── System Detection ────────────────────────────────────────────
 
 export interface DetectionResult {
@@ -18,10 +37,11 @@ export interface DetectionResult {
     path: string;
   };
   tools: {
-    bun: { installed: boolean; version?: string; path?: string };
-    git: { installed: boolean; version?: string; path?: string };
-    claude: { installed: boolean; version?: string; path?: string };
-    node: { installed: boolean; version?: string; path?: string };
+    bun: ToolStatus;
+    git: ToolStatus;
+    claude: ToolStatus;
+    codex: ToolStatus;
+    node: ToolStatus;
     brew: { installed: boolean; path?: string }; // macOS only
   };
   existing: {
@@ -32,9 +52,12 @@ export interface DetectionResult {
     elevenLabsKeyFound: boolean;
     backupPaths: string[];
   };
+  platform: InstallerPlatform;
+  targetPlatforms: PaiPlatform[];
+  platformPaths: Partial<Record<PaiPlatform, PlatformPaths>>;
   timezone: string;
   homeDir: string;
-  paiDir: string; // resolved ~/.claude
+  paiDir: string; // primary selected PAI home; defaults to ~/.claude for Claude
   configDir: string; // resolved ~/.config/PAI
 }
 
@@ -72,6 +95,8 @@ export interface InstallState {
   completedSteps: StepId[];
   skippedSteps: StepId[];
   mode: "cli" | "web";
+  platform: InstallerPlatform;
+  targetPlatforms: PaiPlatform[];
 
   // Detection cache
   detection: DetectionResult | null;

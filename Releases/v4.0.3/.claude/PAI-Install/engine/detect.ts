@@ -8,11 +8,23 @@ import { execSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-import type { DetectionResult } from "./types";
+import { resolveHomeDir, resolvePlatformPaths, type PaiPlatform, type PlatformPathEnv, type PlatformPaths } from "../../PAI/Tools/platform/paths";
+import type { DetectionResult, InstallerPlatform, ToolStatus } from "./types";
+import { includesTargetPlatform, normalizeInstallerOptions } from "./options";
 
-function tryExec(cmd: string): string | null {
+export type CommandRunner = (cmd: string, timeout?: number) => string | null;
+
+export interface DetectSystemOptions {
+  platform?: InstallerPlatform;
+  env?: PlatformPathEnv;
+  homeDir?: string;
+  osPlatform?: string;
+  runner?: CommandRunner;
+}
+
+function defaultRunner(cmd: string, timeout = 5000): string | null {
   try {
-    return execSync(cmd, { timeout: 5000, stdio: ["pipe", "pipe", "pipe"] })
+    return execSync(cmd, { timeout, stdio: ["pipe", "pipe", "pipe"] })
       .toString()
       .trim();
   } catch {
@@ -20,42 +32,49 @@ function tryExec(cmd: string): string | null {
   }
 }
 
-function detectOS(): DetectionResult["os"] {
-  const platform = process.platform === "darwin" ? "darwin" : "linux";
+function isSafeShellExecutablePath(path: string): boolean {
+  return path.startsWith("/") && !/[\s"'`$\\;&|<>(){}\[\]\n\r]/.test(path);
+}
+
+function detectOS(runner: CommandRunner, osPlatform = process.platform): DetectionResult["os"] {
+  const platform = osPlatform === "darwin" ? "darwin" : "linux";
   const arch = process.arch;
 
   let version = "";
   let name = "";
 
   if (platform === "darwin") {
-    const swVers = tryExec("sw_vers -productVersion");
+    const swVers = runner("sw_vers -productVersion");
     version = swVers || "";
     name = `macOS ${version}`;
   } else {
-    const release = tryExec("cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"'");
+    const release = runner("cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"'");
     name = release || "Linux";
-    version = tryExec("uname -r") || "";
+    version = runner("uname -r") || "";
   }
 
   return { platform, arch, version, name };
 }
 
-function detectShell(): DetectionResult["shell"] {
-  const shellPath = process.env.SHELL || "/bin/sh";
+function detectShell(runner: CommandRunner, env: PlatformPathEnv): DetectionResult["shell"] {
+  const shellPath = env.SHELL || "/bin/sh";
   const shellName = shellPath.split("/").pop() || "sh";
-  const version = tryExec(`${shellPath} --version 2>&1 | head -1`) || "";
+  const version = isSafeShellExecutablePath(shellPath)
+    ? runner(`${shellPath} --version 2>&1 | head -1`) || ""
+    : "";
 
   return { name: shellName, version, path: shellPath };
 }
 
 function detectTool(
   name: string,
-  versionCmd: string
-): { installed: boolean; version?: string; path?: string } {
-  const path = tryExec(`which ${name}`);
+  versionCmd: string,
+  runner: CommandRunner,
+): ToolStatus {
+  const path = runner(`which ${name}`);
   if (!path) return { installed: false };
 
-  const versionOutput = tryExec(versionCmd);
+  const versionOutput = runner(versionCmd);
   // Extract version number from output
   const versionMatch = versionOutput?.match(/(\d+\.\d+[\.\d]*)/);
   const version = versionMatch?.[1] || versionOutput || undefined;
@@ -124,25 +143,57 @@ function detectExisting(
 /**
  * Run full system detection. Safe, read-only, non-destructive.
  */
-export function detectSystem(): DetectionResult {
-  const home = homedir();
-  const paiDir = join(home, ".claude");
-  const configDir = process.env.PAI_CONFIG_DIR || join(home, ".config", "PAI");
+export function detectSystem(options: DetectSystemOptions = {}): DetectionResult {
+  const installerOptions = normalizeInstallerOptions({
+    platform: options.platform || "claude",
+    mode: "cli",
+  });
+  const runner = options.runner || defaultRunner;
+  const env = options.env ?? process.env;
+  const home = resolveHomeDir({ env, homeDir: options.homeDir }).path || homedir();
+  const platformPaths: Partial<Record<PaiPlatform, PlatformPaths>> = {};
+
+  for (const platform of installerOptions.targetPlatforms) {
+    platformPaths[platform] = resolvePlatformPaths({
+      platform,
+      env,
+      homeDir: home,
+      osPlatform: options.osPlatform,
+    });
+  }
+
+  const primaryPlatform = installerOptions.targetPlatforms[0];
+  const primaryPaths = platformPaths[primaryPlatform]!;
+  const paiDir = primaryPlatform === "claude"
+    ? primaryPaths.sources.paiHome === "PAI_DIR"
+      ? primaryPaths.paiHome
+      : primaryPaths.adapterHome
+    : primaryPaths.paiHome;
+  const configDir = env.PAI_CONFIG_DIR || join(home, ".config", "PAI");
+  const brewPath = runner("which brew") || undefined;
 
   return {
-    os: detectOS(),
-    shell: detectShell(),
+    os: detectOS(runner, options.osPlatform),
+    shell: detectShell(runner, env),
     tools: {
-      bun: detectTool("bun", "bun --version"),
-      git: detectTool("git", "git --version"),
-      claude: detectTool("claude", "claude --version 2>&1"),
-      node: detectTool("node", "node --version"),
+      bun: detectTool("bun", "bun --version", runner),
+      git: detectTool("git", "git --version", runner),
+      claude: includesTargetPlatform(installerOptions, "claude")
+        ? detectTool("claude", "claude --version 2>&1", runner)
+        : { installed: false },
+      codex: includesTargetPlatform(installerOptions, "codex")
+        ? detectTool("codex", "codex --version 2>&1", runner)
+        : { installed: false },
+      node: detectTool("node", "node --version", runner),
       brew: {
-        installed: tryExec("which brew") !== null,
-        path: tryExec("which brew") || undefined,
+        installed: !!brewPath,
+        path: brewPath,
       },
     },
     existing: detectExisting(home, paiDir, configDir),
+    platform: installerOptions.platform,
+    targetPlatforms: installerOptions.targetPlatforms,
+    platformPaths,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     homeDir: home,
     paiDir,

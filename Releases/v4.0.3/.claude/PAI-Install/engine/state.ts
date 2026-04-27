@@ -6,18 +6,42 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from "fs";
 import { homedir } from "os";
 import { join, dirname } from "path";
-import type { InstallState, StepId } from "./types";
+import type { InstallerOptions, InstallState, StepId } from "./types";
 import { INSTALLER_VERSION } from "./types";
+import { normalizeInstallerOptions } from "./options";
 
-const STATE_FILE = join(
-  process.env.PAI_CONFIG_DIR || join(homedir(), ".config", "PAI"),
-  "install-state.json"
-);
+function stateFilePath(): string {
+  return join(
+    process.env.PAI_CONFIG_DIR || join(homedir(), ".config", "PAI"),
+    "install-state.json"
+  );
+}
+
+/**
+ * Normalize persisted state from older installers that did not record target
+ * platforms. Legacy saved state resumes as Claude-only.
+ */
+export function normalizeInstallState(state: InstallState): InstallState {
+  const options = normalizeInstallerOptions({
+    mode: state.mode,
+    platform: state.platform || "claude",
+    targetPlatforms: state.targetPlatforms,
+  });
+
+  state.platform = options.platform;
+  state.targetPlatforms = options.targetPlatforms;
+  return state;
+}
 
 /**
  * Create a fresh install state.
  */
-export function createFreshState(mode: "cli" | "web"): InstallState {
+export function createFreshState(mode: "cli" | "web", options: Partial<InstallerOptions> = {}): InstallState {
+  const normalizedOptions = normalizeInstallerOptions({
+    ...options,
+    mode,
+  });
+
   return {
     version: INSTALLER_VERSION,
     startedAt: new Date().toISOString(),
@@ -26,6 +50,8 @@ export function createFreshState(mode: "cli" | "web"): InstallState {
     completedSteps: [],
     skippedSteps: [],
     mode,
+    platform: normalizedOptions.platform,
+    targetPlatforms: normalizedOptions.targetPlatforms,
     detection: null,
     collected: {},
     installType: null,
@@ -37,7 +63,7 @@ export function createFreshState(mode: "cli" | "web"): InstallState {
  * Check if a saved state exists.
  */
 export function hasSavedState(): boolean {
-  return existsSync(STATE_FILE);
+  return existsSync(stateFilePath());
 }
 
 /**
@@ -45,10 +71,11 @@ export function hasSavedState(): boolean {
  * Returns null if no state exists or it's corrupted.
  */
 export function loadState(): InstallState | null {
-  if (!existsSync(STATE_FILE)) return null;
+  const stateFile = stateFilePath();
+  if (!existsSync(stateFile)) return null;
 
   try {
-    const raw = readFileSync(STATE_FILE, "utf-8");
+    const raw = readFileSync(stateFile, "utf-8");
     const state = JSON.parse(raw) as InstallState;
 
     // Validate basic structure
@@ -56,7 +83,7 @@ export function loadState(): InstallState | null {
       return null;
     }
 
-    return state;
+    return normalizeInstallState(state);
   } catch {
     return null;
   }
@@ -68,20 +95,22 @@ export function loadState(): InstallState | null {
 export function saveState(state: InstallState): void {
   state.updatedAt = new Date().toISOString();
 
-  const dir = dirname(STATE_FILE);
+  const stateFile = stateFilePath();
+  const dir = dirname(stateFile);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
 
-  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), { mode: 0o600 });
+  writeFileSync(stateFile, JSON.stringify(state, null, 2), { mode: 0o600 });
 }
 
 /**
  * Remove saved state (after successful install).
  */
 export function clearState(): void {
-  if (existsSync(STATE_FILE)) {
-    unlinkSync(STATE_FILE);
+  const stateFile = stateFilePath();
+  if (existsSync(stateFile)) {
+    unlinkSync(stateFile);
   }
 }
 

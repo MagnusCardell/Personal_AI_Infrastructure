@@ -3,7 +3,7 @@
  * Interactive command-line installation experience.
  */
 
-import type { EngineEvent, InstallState, StepId } from "../engine/types";
+import type { EngineEvent, InstallerOptions, InstallState, StepId } from "../engine/types";
 import { STEPS, getProgress } from "../engine/steps";
 import {
   createFreshState,
@@ -23,6 +23,7 @@ import {
   runVoiceSetup,
 } from "../engine/actions";
 import { runValidation, generateSummary } from "../engine/validate";
+import { normalizeInstallerOptions } from "../engine/options";
 import {
   printBanner,
   printStep,
@@ -99,7 +100,15 @@ async function getChoice(
 /**
  * Run the full CLI installation wizard.
  */
-export async function runCLI(): Promise<void> {
+export function statePlatformMatchesOptions(state: InstallState, options: Partial<InstallerOptions>): boolean {
+  const requested = normalizeInstallerOptions({
+    ...options,
+    mode: "cli",
+  });
+  return state.platform === requested.platform;
+}
+
+export async function runCLI(options: Partial<InstallerOptions> = {}): Promise<void> {
   printBanner();
 
   const emit = createEventHandler();
@@ -117,17 +126,25 @@ export async function runCLI(): Promise<void> {
 
       const resume = await promptConfirm("Resume previous installation?");
       if (resume) {
-        state = saved;
-        state.mode = "cli";
-        print(`\n  ${c.green}Resuming from step: ${state.currentStep}${c.reset}\n`);
+        if (!statePlatformMatchesOptions(saved, options)) {
+          printWarning(
+            `Saved install platform (${saved.platform}) does not match requested platform; starting a fresh ${normalizeInstallerOptions({ ...options, mode: "cli" }).platform} install.`,
+          );
+          clearState();
+          state = createFreshState("cli", options);
+        } else {
+          state = saved;
+          state.mode = "cli";
+          print(`\n  ${c.green}Resuming from step: ${state.currentStep}${c.reset}\n`);
+        }
       } else {
-        state = createFreshState("cli");
+        state = createFreshState("cli", options);
       }
     } else {
-      state = createFreshState("cli");
+      state = createFreshState("cli", options);
     }
   } else {
-    state = createFreshState("cli");
+    state = createFreshState("cli", options);
   }
 
   try {

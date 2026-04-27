@@ -161,16 +161,35 @@ function renderDetection(data) {
   const chat = document.getElementById('chat-messages');
   if (!chat) return;
 
+  const targetPlatforms = data.targetPlatforms || ['claude'];
   const items = [
     { icon: 'check', label: 'OS', value: data.os?.name + ' (' + data.os?.arch + ')' },
     { icon: 'check', label: 'Shell', value: data.shell?.name },
     { icon: data.tools?.bun?.installed ? 'check' : 'cross', label: 'Bun', value: data.tools?.bun?.installed ? 'v' + data.tools.bun.version : 'Not found' },
     { icon: data.tools?.git?.installed ? 'check' : 'cross', label: 'Git', value: data.tools?.git?.installed ? 'v' + data.tools.git.version : 'Not found' },
-    { icon: data.tools?.claude?.installed ? 'check' : 'info', label: 'Claude Code', value: data.tools?.claude?.installed ? 'v' + data.tools.claude.version : 'Will install' },
+  ];
+
+  if (targetPlatforms.includes('claude')) {
+    items.push({
+      icon: data.tools?.claude?.installed ? 'check' : 'info',
+      label: 'Claude Code',
+      value: data.tools?.claude?.installed ? 'v' + data.tools.claude.version : 'Will install',
+    });
+  }
+
+  if (targetPlatforms.includes('codex')) {
+    items.push({
+      icon: data.tools?.codex?.installed ? 'check' : 'info',
+      label: 'Codex CLI',
+      value: data.tools?.codex?.installed ? 'v' + data.tools.codex.version : 'Install manually',
+    });
+  }
+
+  items.push(
     { icon: 'info', label: 'Timezone', value: data.timezone },
     { icon: data.existing?.paiInstalled ? 'info' : 'check', label: 'Existing PAI', value: data.existing?.paiInstalled ? 'v' + (data.existing.paiVersion || '?') : 'Fresh install' },
     { icon: data.existing?.hasApiKeys ? 'check' : 'info', label: 'ElevenLabs Key', value: data.existing?.elevenLabsKeyFound ? 'Found' : 'Not found' },
-  ];
+  );
 
   const grid = document.createElement('div');
   grid.className = 'detection-grid';

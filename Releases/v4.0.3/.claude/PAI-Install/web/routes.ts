@@ -4,7 +4,6 @@
  */
 
 import type { InstallState, EngineEvent, ServerMessage, ClientMessage } from "../engine/types";
-import { detectSystem, validateElevenLabsKey } from "../engine/detect";
 import {
   runSystemDetect,
   runPrerequisites,
@@ -15,6 +14,7 @@ import {
   runVoiceSetup,
 } from "../engine/actions";
 import { runValidation, generateSummary } from "../engine/validate";
+import { normalizeInstallerOptions } from "../engine/options";
 import {
   createFreshState,
   hasSavedState,
@@ -32,6 +32,10 @@ let installState: InstallState | null = null;
 let wsClients = new Set<any>();
 let messageHistory: ServerMessage[] = [];
 let pendingRequests = new Map<string, { resolve: (value: string) => void }>();
+const installerOptions = normalizeInstallerOptions({
+  mode: "web",
+  platform: process.env.PAI_INSTALL_PLATFORM as any,
+});
 
 // ─── Broadcasting ────────────────────────────────────────────────
 
@@ -166,7 +170,7 @@ export function handleWsMessage(ws: any, raw: string): void {
 async function startInstallation(): Promise<void> {
   // Always start fresh — GUI should not silently resume stale state
   if (hasSavedState()) clearState();
-  installState = createFreshState("web");
+  installState = createFreshState("web", installerOptions);
 
   const emit = createWsEmitter();
 

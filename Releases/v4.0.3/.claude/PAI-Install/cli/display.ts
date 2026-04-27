@@ -111,10 +111,20 @@ export function printDetection(det: DetectionResult): void {
     printError("Git: not found — will install");
   }
 
-  if (det.tools.claude.installed) {
-    printSuccess(`Claude Code: v${det.tools.claude.version}`);
-  } else {
-    printWarning("Claude Code: not found — will install");
+  if (det.targetPlatforms.includes("claude")) {
+    if (det.tools.claude.installed) {
+      printSuccess(`Claude Code: v${det.tools.claude.version}`);
+    } else {
+      printWarning("Claude Code: not found — will install");
+    }
+  }
+
+  if (det.targetPlatforms.includes("codex")) {
+    if (det.tools.codex.installed) {
+      printSuccess(`Codex CLI: v${det.tools.codex.version}`);
+    } else {
+      printWarning("Codex CLI: not found — install manually with: npm install -g @openai/codex");
+    }
   }
 
   if (det.existing.paiInstalled) {

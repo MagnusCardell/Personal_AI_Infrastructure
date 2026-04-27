@@ -12,6 +12,7 @@ import type { InstallState, EngineEventHandler, DetectionResult } from "./types"
 import { PAI_VERSION, ALGORITHM_VERSION } from "./types";
 import { detectSystem, validateElevenLabsKey } from "./detect";
 import { generateSettingsJson } from "./config-gen";
+import { includesTargetPlatform } from "./options";
 
 /**
  * Remove duplicate bun PATH entries from shell config.
@@ -152,6 +153,21 @@ function tryExec(cmd: string, timeout = 30000): string | null {
   }
 }
 
+function assertCodexWritePathNotImplemented(state: InstallState, step: string): void {
+  if (!includesTargetPlatform(state, "codex")) return;
+
+  throw new Error(
+    `Codex installation is not implemented in PR-03A. Stopping before ${step} writes. ` +
+    `Re-run with --platform claude for the current Claude installer path.`,
+  );
+}
+
+function assertShellSafePath(path: string, label: string): void {
+  if (/['"`$\\\n\r\0]/.test(path)) {
+    throw new Error(`${label} contains characters that are unsafe for installer shell commands: ${path}`);
+  }
+}
+
 // ─── User Context Migration (v2.5/v3.0 → v4.x) ─────────────────
 //
 // In v2.5–v3.0, user context (ABOUTME.md, TELOS/, CONTACTS.md, etc.)
@@ -248,7 +264,7 @@ export async function runSystemDetect(
   await emit({ event: "step_start", step: "system-detect" });
   await emit({ event: "progress", step: "system-detect", percent: 10, detail: "Detecting operating system..." });
 
-  const detection = detectSystem();
+  const detection = detectSystem({ platform: state.platform });
   state.detection = detection;
 
   await emit({ event: "progress", step: "system-detect", percent: 50, detail: "Checking installed tools..." });
@@ -296,6 +312,41 @@ export async function runPrerequisites(
 ): Promise<void> {
   await emit({ event: "step_start", step: "prerequisites" });
   const det = state.detection!;
+
+  if (includesTargetPlatform(state, "codex")) {
+    await emit({
+      event: "progress",
+      step: "prerequisites",
+      percent: 20,
+      detail: "Codex-selected PR-03A run: skipping mutating prerequisite installs.",
+    });
+
+    if (!det.tools.codex.installed) {
+      const message = [
+        "Codex CLI is required for the selected platform but was not found.",
+        "Install it manually with one of:",
+        "  npm install -g @openai/codex",
+        "  brew install codex",
+      ].join("\n");
+
+      await emit({ event: "message", content: message });
+      throw new Error(message);
+    }
+
+    await emit({ event: "progress", step: "prerequisites", percent: 70, detail: `Codex CLI found: v${det.tools.codex.version}` });
+    if (includesTargetPlatform(state, "claude")) {
+      const claudeDetail = det.tools.claude.installed
+        ? `Claude Code found: v${det.tools.claude.version}`
+        : "Claude Code not found; PR-03A will not auto-install it for Codex-selected runs.";
+      await emit({ event: "progress", step: "prerequisites", percent: 80, detail: claudeDetail });
+    } else {
+      await emit({ event: "progress", step: "prerequisites", percent: 80, detail: "Claude Code not required for codex-only platform selection." });
+    }
+
+    await emit({ event: "progress", step: "prerequisites", percent: 100, detail: "Read-only platform prerequisites checked" });
+    await emit({ event: "step_complete", step: "prerequisites" });
+    return;
+  }
 
   // Install Git if missing
   if (!det.tools.git.installed) {
@@ -500,7 +551,9 @@ export async function runRepository(
   emit: EngineEventHandler
 ): Promise<void> {
   await emit({ event: "step_start", step: "repository" });
+  assertCodexWritePathNotImplemented(state, "repository");
   const paiDir = state.detection?.paiDir || join(homedir(), ".claude");
+  assertShellSafePath(paiDir, "PAI directory");
 
   if (state.installType === "upgrade") {
     await emit({ event: "progress", step: "repository", percent: 20, detail: "Existing installation found, updating..." });
@@ -585,7 +638,9 @@ export async function runConfiguration(
   emit: EngineEventHandler
 ): Promise<void> {
   await emit({ event: "step_start", step: "configuration" });
+  assertCodexWritePathNotImplemented(state, "configuration");
   const paiDir = state.detection?.paiDir || join(homedir(), ".claude");
+  assertShellSafePath(paiDir, "PAI directory");
   const configDir = state.detection?.configDir || join(homedir(), ".config", "PAI");
 
   // Generate settings.json
@@ -933,6 +988,7 @@ export async function runVoiceSetup(
   getInput: (id: string, prompt: string, type: "text" | "password" | "key", placeholder?: string) => Promise<string>
 ): Promise<void> {
   await emit({ event: "step_start", step: "voice" });
+  assertCodexWritePathNotImplemented(state, "voice setup");
 
   // ── Collect ElevenLabs key if not already found ──
   if (!state.collected.elevenLabsKey) {

@@ -1,8 +1,9 @@
 # Codex Adapter Compatibility Matrix
 
-This matrix is intentionally conservative. PR-02 adds a tested platform/path
-primitive only; it does not implement Codex installer, hook, config, skill,
-agent, transcript, or release runtime behavior.
+This matrix is intentionally conservative. PR-02 added a tested platform/path
+primitive. PR-03A adds installer platform selection state and read-only Codex
+CLI detection only; it does not implement Codex installer writes, hook, config,
+skill, agent, transcript, or release runtime behavior.
 
 Labels follow the repository guidance:
 
@@ -14,18 +15,18 @@ Labels follow the repository guidance:
 - `breaking-for-codex`: Claude feature cannot be mapped without changed
   semantics.
 
-The `Label` column applies to current Codex compatibility. PR-02 uses `partial`
-only for rows explicitly scoped to the path resolver primitive because that
-primitive is implemented and tested but not wired into runtime installer or hook
-behavior.
+The `Label` column applies to current Codex compatibility. `partial` is used
+only for rows explicitly scoped to implemented primitives that still have known
+runtime gaps.
 
 | Area | Claude Status | Codex Status | Label | Evidence | Required Before Raising Claim |
 |---|---|---|---|---|---|
-| Existing Claude release artifacts | Current release shape under `Releases/*/.claude/` | Not applicable as Codex runtime | `claude-only` | Release settings, hooks, skills, and tools are stored under `.claude` | Keep untouched unless a Claude adapter task explicitly requires changes |
-| Platform path resolver primitive | Not wired into Claude runtime; tested resolver preserves Claude default paths | Tested primitive resolves Codex PAI home to `~/.pai` and Codex adapter/config home to `CODEX_HOME` or `~/.codex`; no Codex files are written | `partial` | `Tools/platform/paths.ts`, `Tools/platform/paths.test.ts` | Wire callers in later phases without changing Claude defaults |
+| Existing Claude runtime artifacts | Current runtime shape under `Releases/*/.claude/` | Not applicable as Codex runtime | `claude-only` | Release settings, hooks, skills, agents, transcript tools, and generated instruction templates are stored under `.claude` | Keep non-installer runtime artifacts untouched unless a Claude adapter task explicitly requires changes |
+| Platform path resolver primitive | Tested resolver preserves Claude default paths and Claude `PAI_DIR` compatibility | Tested primitive resolves Codex PAI home to `~/.pai` and Codex adapter/config home to `CODEX_HOME` or `~/.codex`; no Codex files are written | `partial` | `Releases/v4.0.3/.claude/PAI/Tools/platform/paths.ts`, `Tools/platform/paths.ts`, `Tools/platform/paths.test.ts` | Wire runtime writers in later phases without changing Claude defaults |
+| Installer platform selection primitive | Default installer platform is Claude; legacy saved state normalizes to Claude | `--platform codex` and `--platform both` parse and are stored; Codex-containing selections skip mutating prerequisite installs and fail before shared writer phases | `partial` | `PAI-Install/engine/options.ts`, `PAI-Install/engine/state.ts`, `Tools/installer-platform.test.ts`, `Tools/installer-platform-guards.test.ts` | Implement platform-specific Codex installer writers with temp-HOME tests |
 | Default PAI application home runtime | `~/.claude` through settings and path helpers | Codex installer/runtime is not wired; only the resolver primitive returns `~/.pai` for future Codex use | `breaking-for-codex` | `settings.json`, `hooks/lib/paths.ts`, `SessionHarvester.ts`, pack installers, `Tools/platform/paths.test.ts` | Platform-selecting installer path usage with temp-HOME tests |
 | `PAI_DIR` compatibility alias runtime | Used widely and points at Claude home by default | Codex runtime usage is not wired; only resolver precedence is tested | `breaking-for-codex` | Settings env, hooks, installer config generation, `Tools/platform/paths.test.ts` | Runtime path migration tests proving `PAI_DIR` compatibility remains intact |
-| Claude CLI detection | Installer detects `claude --version`; older hooks check Claude package updates | Codex detection not implemented | `unsupported` | `PAI-Install/engine/detect.ts`, older `CheckVersion.hook.ts` | Platform-selecting detection that preserves Claude default |
+| CLI detection primitives | Installer detects `claude --version` by default; older hooks check Claude package updates | Read-only Codex detection runs only for `codex` or `both`; missing Codex reports manual install hints; no Codex auto-install | `partial` | `PAI-Install/engine/detect.ts`, `PAI-Install/engine/actions.ts`, older `CheckVersion.hook.ts`, `Tools/installer-platform.test.ts`, `Tools/installer-platform-guards.test.ts` | Platform-specific install flow that never treats `~/.codex` as PAI home |
 | Claude CLI prompt execution | Any `claude -p` use is Claude non-interactive prompt execution, not detection | Codex execution mapping not implemented | `breaking-for-codex` | Inventory pattern for `claude -p` | Explicit Codex execution contract and fixtures before mapping |
 | Settings/config generation | Claude `settings.json` template and generated fallback | Codex `config.toml` merge not implemented | `breaking-for-codex` | Release `settings.json`, `config-gen.ts` | Idempotent Codex config merge with backup tests |
 | Instruction file | `CLAUDE.md` generated and loaded by Claude Code | Codex `AGENTS.md` router not implemented | `breaking-for-codex` | `BuildCLAUDE.ts`, settings `contextFiles`, hooks/handlers/BuildCLAUDE.ts | Split instruction builder and fixture-test generated outputs |
@@ -44,7 +45,7 @@ behavior.
 | Pack READMEs | Describe current Claude/PAI usage | Codex pack docs not added outside adapter docs | `unsupported` | `Packs/*/README.md` | Update in later documentation phase after behavior exists |
 | Agents/subagents | Claude `Task` tool and `.claude/Agents` assumptions | Codex custom-agent TOML not implemented | `breaking-for-codex` | Agent hooks, agent pack docs, `CLAUDE_PROJECT_DIR`, `CLAUDE_AGENT_TYPE` | Codex agent TOML generator or curated TOML files |
 | Skills runtime format | Claude skill locations and `SKILL.md` frontmatter | Codex skill packaging not implemented | `breaking-for-codex` | Release skills and pack installers | Codex skill metadata validation and install destination tests |
-| Backup/restore tooling | Backs up/restores `~/.claude` | Codex/neutral PAI backup not implemented | `claude-only` | `Tools/BackupRestore.ts` | Decide whether to keep Claude-only or introduce platform backup mode |
+| Backup/restore tooling | Backs up/restores `~/.claude` | Codex/neutral PAI backup not implemented | `unsupported` | `Tools/BackupRestore.ts` | Decide whether to keep Claude-only or introduce platform backup mode |
 | Release packaging | Current release packages include `.claude` artifacts | Codex packaging not implemented | `unsupported` | Release tree inventory | Packaging tests excluding development `.codex` governance files |
 | Windows platform support | Not supported in existing platform docs | Not in Codex adapter scope yet | `unsupported` | `PLATFORM.md` | Separate platform support plan |
 
@@ -65,8 +66,9 @@ categories:
 
 ## Current Codex Compatibility Summary
 
-PR-02 implements only the platform/path resolver primitive. Codex installer,
-hook, config, skill, agent, transcript, memory, release, and runtime behavior
-remain unimplemented unless separately labeled in this matrix. The high-risk
-areas remain runtime path wiring, config merge, hook lifecycle, security policy
-split, skills, agents, and transcript/session parsing.
+PR-03A implements only the platform/path resolver primitive plus installer
+platform selection and read-only Codex detection. Codex installer writes, hook,
+config, skill, agent, transcript, memory, release, and runtime behavior remain
+unimplemented unless separately labeled in this matrix. The high-risk areas
+remain runtime path wiring, config merge, hook lifecycle, security policy split,
+skills, agents, and transcript/session parsing.

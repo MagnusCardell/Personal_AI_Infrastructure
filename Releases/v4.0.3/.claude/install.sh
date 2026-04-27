@@ -67,6 +67,46 @@ while [ -L "$SOURCE" ]; do
 done
 SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 
+# ─── Platform Argument Pre-Parse ─────────────────────────
+# PR-03A may only parse/detect Codex. If Codex is selected, this
+# bootstrap must not auto-install Git, Bun, or Claude Code first.
+REQUESTED_PLATFORM="claude"
+EXPECT_PLATFORM_VALUE=0
+for arg in "$@"; do
+  if [ "$EXPECT_PLATFORM_VALUE" -eq 1 ]; then
+    REQUESTED_PLATFORM="$arg"
+    EXPECT_PLATFORM_VALUE=0
+    continue
+  fi
+
+  case "$arg" in
+    --platform)
+      EXPECT_PLATFORM_VALUE=1
+      ;;
+    --platform=*)
+      REQUESTED_PLATFORM="${arg#--platform=}"
+      ;;
+  esac
+done
+
+if [ "$EXPECT_PLATFORM_VALUE" -eq 1 ]; then
+  error "Unsupported installer platform: (missing). Expected one of: claude, codex, both."
+  exit 1
+fi
+
+case "$REQUESTED_PLATFORM" in
+  claude|codex|both) ;;
+  *)
+    error "Unsupported installer platform: ${REQUESTED_PLATFORM:-"(missing)"}. Expected one of: claude, codex, both."
+    exit 1
+    ;;
+esac
+
+PLATFORM_INCLUDES_CODEX=0
+case "$REQUESTED_PLATFORM" in
+  codex|both) PLATFORM_INCLUDES_CODEX=1 ;;
+esac
+
 # ─── OS Detection ─────────────────────────────────────────
 OS="$(uname -s)"
 ARCH="$(uname -m)"
@@ -78,15 +118,21 @@ case "$OS" in
 esac
 
 # ─── Check curl ───────────────────────────────────────────
-if ! command -v curl &>/dev/null; then
-  error "curl is required but not found."
-  echo "  Please install curl and try again."
-  exit 1
+if [ "$PLATFORM_INCLUDES_CODEX" -eq 1 ]; then
+  info "Codex platform selection is read-only in PR-03A; bootstrap will not install Git, Bun, or Claude Code."
+else
+  if ! command -v curl &>/dev/null; then
+    error "curl is required but not found."
+    echo "  Please install curl and try again."
+    exit 1
+  fi
+  success "curl found"
 fi
-success "curl found"
 
 # ─── Check/Install Git ───────────────────────────────────
-if command -v git &>/dev/null; then
+if [ "$PLATFORM_INCLUDES_CODEX" -eq 1 ]; then
+  info "Skipping Git bootstrap for Codex-selected PR-03A run."
+elif command -v git &>/dev/null; then
   success "Git found: $(git --version 2>&1 | head -1)"
 else
   warn "Git not found — attempting to install..."
@@ -115,7 +161,15 @@ else
 fi
 
 # ─── Check/Install Bun ───────────────────────────────────
-if command -v bun &>/dev/null; then
+if [ "$PLATFORM_INCLUDES_CODEX" -eq 1 ]; then
+  if command -v bun &>/dev/null; then
+    success "Bun found: v$(bun --version 2>/dev/null || echo 'unknown')"
+  else
+    error "Bun is required to run PR-03A read-only platform detection."
+    echo "  Codex-selected runs will not install Bun automatically. Install Bun manually: https://bun.sh"
+    exit 1
+  fi
+elif command -v bun &>/dev/null; then
   success "Bun found: v$(bun --version 2>/dev/null || echo 'unknown')"
 else
   info "Installing Bun runtime..."
@@ -133,7 +187,9 @@ else
 fi
 
 # ─── Check Claude Code ───────────────────────────────────
-if command -v claude &>/dev/null; then
+if [ "$PLATFORM_INCLUDES_CODEX" -eq 1 ]; then
+  info "Skipping Claude Code bootstrap for Codex-selected PR-03A run."
+elif command -v claude &>/dev/null; then
   success "Claude Code found"
 else
   warn "Claude Code not found — will install during setup"
@@ -153,4 +209,8 @@ fi
 
 info "Launching installer..."
 echo ""
-exec bun run "$INSTALLER_DIR/main.ts" --mode gui
+if [ "$#" -eq 0 ]; then
+  exec bun run "$INSTALLER_DIR/main.ts" --mode gui
+else
+  exec bun run "$INSTALLER_DIR/main.ts" "$@"
+fi
