@@ -206,14 +206,14 @@ describe("installer platform guard coverage", () => {
       "codex --version 2>&1": "codex 0.5.0",
     }, {}, [], home);
 
-    await expect(runRepository(state, async () => {})).rejects.toThrow("Codex installation is not implemented in PR-03A");
-    await expect(runConfiguration(state, async () => {})).rejects.toThrow("Codex installation is not implemented in PR-03A");
+    await expect(runRepository(state, async () => {})).rejects.toThrow("Codex installer writer support is not implemented yet");
+    await expect(runConfiguration(state, async () => {})).rejects.toThrow("Codex installer writer support is not implemented yet");
     await expect(runVoiceSetup(
       state,
       async () => {},
       async () => "disabled",
       async () => "",
-    )).rejects.toThrow("Codex installation is not implemented in PR-03A");
+    )).rejects.toThrow("Codex installer writer support is not implemented yet");
 
     expect(existsSync(join(home, ".claude", "settings.json"))).toBe(false);
     expect(existsSync(join(home, ".pai"))).toBe(false);
@@ -243,15 +243,17 @@ describe("installer platform guard coverage", () => {
     );
 
     expect(innerScript).toContain('exec bun run "$INSTALLER_DIR/main.ts" --mode "$INSTALL_MODE" "$@"');
-    expect(innerScript).toContain("Codex platform selection is read-only in PR-03A");
-    expect(innerScript).toContain("Skipping Git bootstrap for Codex-selected PR-03A run.");
-    expect(innerScript).toContain("Skipping Claude Code bootstrap for Codex-selected PR-03A run.");
+    expect(innerScript).toContain("Codex platform selection is read-only");
+    expect(innerScript).toContain("Skipping Git bootstrap for Codex-selected installer boundary.");
+    expect(innerScript).toContain("Skipping Claude Code bootstrap for Codex-selected installer boundary.");
     expect(innerScript).toContain("Unsupported installer platform: (missing)");
+    expect(innerScript).not.toContain("PR-03A");
 
-    expect(outerScript).toContain("Codex platform selection is read-only in PR-03A");
-    expect(outerScript).toContain("Skipping Git bootstrap for Codex-selected PR-03A run.");
-    expect(outerScript).toContain("Skipping Claude Code bootstrap for Codex-selected PR-03A run.");
+    expect(outerScript).toContain("Codex platform selection is read-only");
+    expect(outerScript).toContain("Skipping Git bootstrap for Codex-selected installer boundary.");
+    expect(outerScript).toContain("Skipping Claude Code bootstrap for Codex-selected installer boundary.");
     expect(outerScript).toContain("Unsupported installer platform: (missing)");
+    expect(outerScript).not.toContain("PR-03A");
   });
 
   test("Codex GUI mode cannot trigger Electron dependency npm install", () => {
@@ -265,6 +267,6 @@ describe("installer platform guard coverage", () => {
     expect(guardIndex).toBeGreaterThan(-1);
     expect(npmInstallIndex).toBeGreaterThan(-1);
     expect(guardIndex).toBeLessThan(npmInstallIndex);
-    expect(main).toContain("PR-03A will not run npm install for Codex-selected platforms");
+    expect(main).toContain("Codex-selected GUI runs do not auto-install GUI dependencies yet");
   });
 });

@@ -290,9 +290,10 @@ describe("installer entrypoint syntax guards", () => {
 
         expect(result.status).toBe(0);
         expect(result.bunArgs).toEqual(testCase.expected);
-        expect(result.stdout).toContain("Codex platform selection is read-only in PR-03A");
-        expect(result.stdout).toContain("Skipping Git bootstrap for Codex-selected PR-03A run.");
-        expect(result.stdout).toContain("Skipping Claude Code bootstrap for Codex-selected PR-03A run.");
+        expect(result.stdout).toContain("Codex platform selection is read-only");
+        expect(result.stdout).toContain("Skipping Git bootstrap for Codex-selected installer boundary.");
+        expect(result.stdout).toContain("Skipping Claude Code bootstrap for Codex-selected installer boundary.");
+        expect(result.stdout).not.toContain("PR-03A");
         expect(result.stderr).toBe("");
       }
     }
@@ -324,9 +325,10 @@ describe("installer entrypoint syntax guards", () => {
 
         expect(result.status).toBe(0);
         expect(result.bunArgs).toEqual(testCase.expected);
-        expect(result.stdout).toContain("Codex platform selection is read-only in PR-03A");
-        expect(result.stdout).toContain("Skipping Git bootstrap for Codex-selected PR-03A run.");
-        expect(result.stdout).toContain("Skipping Claude Code bootstrap for Codex-selected PR-03A run.");
+        expect(result.stdout).toContain("Codex platform selection is read-only");
+        expect(result.stdout).toContain("Skipping Git bootstrap for Codex-selected installer boundary.");
+        expect(result.stdout).toContain("Skipping Claude Code bootstrap for Codex-selected installer boundary.");
+        expect(result.stdout).not.toContain("PR-03A");
         expect(result.stderr).toBe("");
       }
     }

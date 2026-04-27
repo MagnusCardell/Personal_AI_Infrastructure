@@ -216,7 +216,7 @@ describe("installer read-only platform detection", () => {
     }
 
     expect(error).toBeInstanceOf(Error);
-    expect(String(error)).toContain("Codex installation is not implemented in PR-03A");
+    expect(String(error)).toContain("Codex installer writer support is not implemented yet");
     expect(events[0]).toEqual({ event: "step_start", step: "repository" });
   });
 });

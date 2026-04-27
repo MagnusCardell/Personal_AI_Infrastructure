@@ -68,8 +68,9 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 
 # ─── Platform Argument Pre-Parse ─────────────────────────
-# PR-03A may only parse/detect Codex. If Codex is selected, this
-# bootstrap must not auto-install Git, Bun, or Claude Code first.
+# Codex-selected installer runs are read-only through the Phase 3 boundary. If
+# Codex is selected, this bootstrap must not auto-install Git, Bun, or Claude
+# Code first.
 REQUESTED_PLATFORM="claude"
 EXPECT_PLATFORM_VALUE=0
 HAS_MODE_ARG=0
@@ -123,7 +124,7 @@ esac
 
 # ─── Check curl ───────────────────────────────────────────
 if [ "$PLATFORM_INCLUDES_CODEX" -eq 1 ]; then
-  info "Codex platform selection is read-only in PR-03A; bootstrap will not install Git, Bun, or Claude Code."
+  info "Codex platform selection is read-only; bootstrap will not install Git, Bun, or Claude Code."
 else
   if ! command -v curl &>/dev/null; then
     error "curl is required but not found."
@@ -135,7 +136,7 @@ fi
 
 # ─── Check/Install Git ───────────────────────────────────
 if [ "$PLATFORM_INCLUDES_CODEX" -eq 1 ]; then
-  info "Skipping Git bootstrap for Codex-selected PR-03A run."
+  info "Skipping Git bootstrap for Codex-selected installer boundary."
 elif command -v git &>/dev/null; then
   success "Git found: $(git --version 2>&1 | head -1)"
 else
@@ -169,7 +170,7 @@ if [ "$PLATFORM_INCLUDES_CODEX" -eq 1 ]; then
   if command -v bun &>/dev/null; then
     success "Bun found: v$(bun --version 2>/dev/null || echo 'unknown')"
   else
-    error "Bun is required to run PR-03A read-only platform detection."
+    error "Bun is required to run read-only Codex platform detection."
     echo "  Codex-selected runs will not install Bun automatically. Install Bun manually: https://bun.sh"
     exit 1
   fi
@@ -192,7 +193,7 @@ fi
 
 # ─── Check Claude Code ───────────────────────────────────
 if [ "$PLATFORM_INCLUDES_CODEX" -eq 1 ]; then
-  info "Skipping Claude Code bootstrap for Codex-selected PR-03A run."
+  info "Skipping Claude Code bootstrap for Codex-selected installer boundary."
 elif command -v claude &>/dev/null; then
   success "Claude Code found"
 else

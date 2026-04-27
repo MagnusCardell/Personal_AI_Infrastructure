@@ -276,6 +276,52 @@ function runCliMain(platform: InstallerPlatform, scenario: Scenario): SpawnSyncR
   });
 }
 
+function runWebSocketStartInstall(platform: InstallerPlatform, scenario: Scenario): SpawnSyncReturns<string> {
+  const routesPath = join(
+    REPO_ROOT,
+    "Releases",
+    "v4.0.3",
+    ".claude",
+    "PAI-Install",
+    "web",
+    "routes.ts",
+  );
+  const script = `
+const routes = await import(${JSON.stringify(routesPath)});
+const messages = [];
+const ws = { send(raw) { messages.push(JSON.parse(raw)); } };
+routes.resetForTests();
+routes.addClient(ws);
+routes.handleWsMessage(ws, JSON.stringify({ type: "start_install" }));
+await new Promise((resolve) => {
+  const deadline = Date.now() + 2000;
+  const tick = () => {
+    if (messages.some((message) => message.type === "error" || message.type === "install_complete")) {
+      resolve(undefined);
+      return;
+    }
+    if (Date.now() >= deadline) {
+      resolve(undefined);
+      return;
+    }
+    setTimeout(tick, 10);
+  };
+  tick();
+});
+console.log(JSON.stringify(messages));
+`;
+
+  return spawnSync(process.execPath, ["-e", script], {
+    cwd: REPO_ROOT,
+    env: {
+      ...scenario.env,
+      PATH: makeCliToolPath(scenario),
+      PAI_INSTALL_PLATFORM: platform,
+    },
+    encoding: "utf-8",
+  });
+}
+
 async function runCliBoundaryFlow(
   platform: InstallerPlatform,
   scenario: Scenario,
@@ -363,6 +409,10 @@ function messageText(messages: ServerMessage[]): string {
     .join("\n");
 }
 
+function expectNoPr03aText(text: string): void {
+  expect(text).not.toContain("PR-03A");
+}
+
 describe("Codex-selected installer boundary", () => {
   test("CLI flow stops after read-only prerequisites when Codex is installed", async () => {
     const scenario = makeScenario();
@@ -377,6 +427,7 @@ describe("Codex-selected installer boundary", () => {
       expect(existsSync(join(scenario.env.PAI_CONFIG_DIR, "install-state.json"))).toBe(false);
 
       const text = eventText(result.events);
+      expectNoPr03aText(text);
       expect(text).toContain("Codex CLI detected");
       expect(text).toContain("Selected platform = codex");
       expect(text).toContain(`Planned PAI home = ${scenario.env.PAI_DIR}`);
@@ -407,6 +458,7 @@ describe("Codex-selected installer boundary", () => {
       expect(existsSync(join(scenario.env.PAI_CONFIG_DIR, "install-state.json"))).toBe(false);
 
       const text = eventText(result.events);
+      expectNoPr03aText(text);
       expect(text).toContain("Selected platform = both");
       expect(text).toContain("Both-mode installation is not implemented yet");
       expect(text).toContain("Run --platform claude");
@@ -437,6 +489,7 @@ describe("Codex-selected installer boundary", () => {
         expect(existsSync(join(scenario.env.PAI_CONFIG_DIR, "install-state.json"))).toBe(false);
 
         const text = eventText(result.events);
+        expectNoPr03aText(text);
         expect(text).toContain("Codex CLI is required for the selected platform");
         expect(text).toContain("npm install -g @openai/codex");
         expect(text).toContain("brew install codex");
@@ -457,6 +510,7 @@ describe("Codex-selected installer boundary", () => {
         const output = `${result.stdout}\n${result.stderr}`;
 
         expect(result.status).toBe(2);
+        expectNoPr03aText(output);
         expect(output).toContain(`Selected platform = ${platform}`);
         expect(output).toContain("No files were written");
         expect(output).not.toContain("Resume previous installation?");
@@ -492,6 +546,7 @@ describe("Codex-selected installer boundary", () => {
         const messages = getMessageHistory();
         const types = messages.map((message) => message.type);
         const text = messageText(messages);
+        expectNoPr03aText(text);
 
         expect(types).toContain("detection_result");
         expect(types).toContain("error");
@@ -507,6 +562,41 @@ describe("Codex-selected installer boundary", () => {
         expect(getState()?.currentStep).toBe("prerequisites");
         expect(loadState()).toBeNull();
         assertNoRuntimeWrites(scenario);
+      } finally {
+        scenario.cleanup();
+      }
+    }
+  });
+
+  test("web start_install message honors PAI_INSTALL_PLATFORM Codex boundary", () => {
+    for (const platform of ["codex", "both"] as const) {
+      const scenario = makeScenario();
+      try {
+        const savedState = seedSavedState(scenario, "claude");
+        const seeds = seedRuntimeFiles(scenario);
+        const result = runWebSocketStartInstall(platform, scenario);
+
+        expect(result.status).toBe(0);
+        expect(result.stderr).toBe("");
+
+        const messages = JSON.parse(result.stdout.trim()) as ServerMessage[];
+        const types = messages.map((message) => message.type);
+        const text = messageText(messages);
+
+        expectNoPr03aText(text);
+        expect(types).toContain("detection_result");
+        expect(types).toContain("error");
+        expect(types).not.toContain("input_request");
+        expect(types).not.toContain("choice_request");
+        expect(types).not.toContain("install_complete");
+        expect(types).not.toContain("validation_result");
+        expect(text).toContain(`Selected platform = ${platform}`);
+        expect(text).toContain(platform === "both"
+          ? "Both-mode installation is not implemented yet"
+          : "Codex installer support is not implemented yet");
+        expect(text).toContain("No files were written");
+        expect(readFileSync(stateFilePath(scenario), "utf-8")).toBe(savedState);
+        expectSeededFilesUnchanged(seeds);
       } finally {
         scenario.cleanup();
       }
@@ -537,6 +627,7 @@ describe("Codex-selected installer boundary", () => {
         const messages = getMessageHistory();
         const types = messages.map((message) => message.type);
         const text = messageText(messages);
+        expectNoPr03aText(text);
 
         expect(types).toContain("error");
         expect(types).not.toContain("input_request");
@@ -573,6 +664,7 @@ describe("Codex-selected installer boundary", () => {
         const messages = getMessageHistory();
         const types = messages.map((message) => message.type);
         const text = messageText(messages);
+        expectNoPr03aText(text);
 
         expect(types).toContain("error");
         expect(types).not.toContain("input_request");
@@ -608,6 +700,7 @@ describe("Codex-selected installer boundary", () => {
       const messages = getMessageHistory();
       const types = messages.map((message) => message.type);
       const text = messageText(messages);
+      expectNoPr03aText(text);
 
       expect(types).toContain("error");
       expect(text).toContain("fixture detection failure");
@@ -631,6 +724,7 @@ describe("Codex-selected installer boundary", () => {
       });
 
       const message = buildCodexBoundaryMessage(state);
+      expectNoPr03aText(message);
       expect(message).toContain(`Planned PAI home = ${scenario.env.PAI_DIR}`);
       expect(message).toContain(`Planned Codex adapter/config home = ${scenario.env.CODEX_HOME}`);
     } finally {

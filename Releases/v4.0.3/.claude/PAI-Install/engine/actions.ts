@@ -158,7 +158,7 @@ function assertCodexWritePathNotImplemented(state: InstallState, step: string): 
   if (!includesTargetPlatform(state, "codex")) return;
 
   throw new Error(
-    `Codex installation is not implemented in PR-03A. Stopping before ${step} writes. ` +
+    `Codex installer writer support is not implemented yet. Stopping before ${step} writes. ` +
     `Re-run with --platform claude for the current Claude installer path.`,
   );
 }
@@ -320,7 +320,7 @@ export async function runPrerequisites(
       event: "progress",
       step: "prerequisites",
       percent: 20,
-      detail: "Codex-selected PR-03A run: skipping mutating prerequisite installs.",
+      detail: "Codex-selected installer boundary: skipping mutating prerequisite installs.",
     });
 
     if (!det.tools.codex.installed) {
@@ -334,7 +334,7 @@ export async function runPrerequisites(
     if (includesTargetPlatform(state, "claude")) {
       const claudeDetail = det.tools.claude.installed
         ? `Claude Code found: v${det.tools.claude.version}`
-        : "Claude Code not found; PR-03A will not auto-install it for Codex-selected runs.";
+        : "Claude Code not found; Codex-selected installs do not auto-install it yet.";
       await emit({ event: "progress", step: "prerequisites", percent: 80, detail: claudeDetail });
     } else {
       await emit({ event: "progress", step: "prerequisites", percent: 80, detail: "Claude Code not required for codex-only platform selection." });

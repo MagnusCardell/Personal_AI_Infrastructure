@@ -1,13 +1,15 @@
 # Codex Adapter Adaptation Plan
 
 PR-01 established the inventory and compatibility baseline. PR-02 added the
-neutral platform/path primitive for future adapter work. PR-03A adds installer
-platform selection state and read-only Codex CLI detection only; it does not
-install or generate Codex runtime files. This document records the evidence
-base for adapting PAI from a Claude Code-only release shape into peer Claude
-and Codex adapters without changing default Claude behavior.
+neutral platform/path primitive for future adapter work. Phase 3 now includes
+PR-03A platform parsing plus read-only Codex CLI detection, and PR-03B's
+first-class Codex-selected installer boundary after detection and prerequisite
+reporting. Phase 3 does not install or generate Codex runtime files. This
+document records the evidence base for adapting PAI from a Claude Code-only
+release shape into peer Claude and Codex adapters without changing default
+Claude behavior.
 
-## Non-Goals Through PR-03A
+## Non-Goals Through Phase 3
 
 - No Codex installation path.
 - No hook behavior changes.
@@ -16,7 +18,7 @@ and Codex adapters without changing default Claude behavior.
 - No non-installer release runtime behavior changes.
 - No protected governance file edits.
 - No claim that Codex support is implemented.
-- Existing Claude Code users have no migration action through PR-03A, and the
+- Existing Claude Code users have no migration action through Phase 3, and the
   default installer path remains Claude.
 
 ## Inventory Command
@@ -82,14 +84,15 @@ deduplicates those findings into the highest-risk coupling themes for planning.
    Release hooks call `BuildCLAUDE.ts`, settings reference `CLAUDE.md`, and
    docs assume Claude Code loads that file. Codex needs compact `AGENTS.md`
    routing plus config merge behavior later; it is not implemented through
-   PR-03A.
+   Phase 3.
 
 5. **Transcript and session tools assume Claude JSONL shape and paths.**
    `TranscriptParser.ts`, `SessionHarvester.ts`, `GetTranscript.ts`, and hook
    helpers use `transcript_path`, `.jsonl`, `message.content`, `tool_use`, and
    `~/.claude/projects` assumptions. Codex transcript support needs fixtures
-   before memory, learning, voice, or status integration can be labeled beyond
-   `unsupported` or `unknown-needs-fixture`.
+   before memory, learning, voice, or status integration can be claimed beyond
+   `unsupported`; inventory findings should remain `unknown-needs-fixture`
+   until those fixtures exist.
 
 6. **Permissions and hooks depend on Claude tool names.**
    Tool names such as `Read`, `Write`, `Edit`, `MultiEdit`, `Task`, `Skill`,
@@ -118,7 +121,7 @@ deduplicates those findings into the highest-risk coupling themes for planning.
     `@anthropic-ai/claude-code`, and any `claude -p` use is Claude prompt
    execution rather than detection. Codex detection can be analogous, but
     prompt execution needs an explicit Codex execution contract before mapping.
-    None of this is implemented through PR-03A, and none of it may change
+    None of this is implemented through Phase 3, and none of it may change
     Claude default detection or require Codex for existing Claude users.
 
 ## Adapter Boundary Notes
@@ -126,7 +129,7 @@ deduplicates those findings into the highest-risk coupling themes for planning.
 - Non-installer Claude runtime artifacts under `Releases/*/.claude/`, including
   settings, hooks, skills, agents, transcript tools, and generated instruction
   templates, are treated as Claude adapter evidence and remain out of scope for
-  PR-03A. PR-03A mutates only release installer files plus the
+  Phase 3. Phase 3 mutates only release installer files plus the
   product-consumable platform path primitive needed by those installer files.
 - `PAI_DIR` remains the legacy compatibility alias and has priority over
   `PAI_HOME` where legacy behavior requires it. Codex's default PAI application
@@ -142,8 +145,8 @@ deduplicates those findings into the highest-risk coupling themes for planning.
 The canonical path primitive lives in the product-consumable release tree at
 `Releases/v4.0.3/.claude/PAI/Tools/platform/paths.ts`, with
 `Tools/platform/paths.ts` kept as a repository-tooling re-export shim. PR-02
-kept it unwired; PR-03A uses it for read-only installer detection and platform
-path planning only.
+kept it unwired; Phase 3 uses it for read-only installer detection, platform
+path planning, and boundary reporting only.
 
 Current tested semantics:
 
@@ -163,48 +166,61 @@ Current tested semantics:
   paths and do not write real user homes.
 - Windows path behavior is explicitly rejected as unsupported for this phase.
 
-## PR-03A Installer Selection And Detection Primitives
+## Phase 3 Installer Selection, Detection, And Boundary
 
 PR-03A adds installer platform option parsing and state for `claude`, `codex`,
 and `both`. If no platform is specified, the installer normalizes to
 `platform = claude`, preserving the existing default behavior.
 
-Current PR-03A semantics:
+PR-03A selection and detection semantics:
 
-- `install.sh` forwards user-supplied arguments to the TypeScript installer and
-  still launches GUI mode when no arguments are supplied.
+- The outer release `install.sh` forwards user-supplied arguments to the
+  TypeScript installer and still launches GUI mode when no arguments are
+  supplied. The nested installer script keeps its existing headless fallback.
 - Codex-containing selections skip bootstrap auto-installs for Git, Bun, and
   Claude Code. Bun must already be present so the TypeScript installer can run
-  read-only detection.
+  read-only detection and boundary reporting.
 - `main.ts` parses `--platform claude`, `--platform codex`, `--platform both`,
   and equals-form variants. Unknown values fail with a clear parser error.
 - Installer state records the selected platform and normalized target platform
   list. Legacy saved state without platform fields resumes as Claude-only.
 - For Claude writer-facing installer paths, `PAI_DIR` remains the legacy
   combined PAI/Claude home. `PAI_HOME` is retained as neutral PAI planning
-  metadata in PR-03A and does not move Claude writer targets.
+  metadata and does not move Claude writer targets.
 - Read-only detection checks Codex only when the selected platform includes
   Codex, using `codex --version 2>&1`.
 - Missing Codex CLI for `codex` or `both` reports the task-required manual
   install hints:
   `npm install -g @openai/codex` and `brew install codex`.
 - Claude-only installs do not require or probe Codex.
-- Codex-selected installs skip mutating prerequisite installs and fail closed
-  before PAI repository, configuration, Codex runtime, or voice setup writes
-  because Codex installation is not implemented in PR-03A.
-- `both` is selection and detection state only in PR-03A. It does not mean
-  "complete the Claude install and skip Codex"; any Codex-containing selection
-  fails before the shared installer writer phases.
+
+PR-03B boundary semantics:
+
+- Codex-selected CLI and web installs run system detection and read-only
+  prerequisites, then stop at a first-class platform boundary before API key,
+  identity, repository, configuration, voice, or validation steps are reached.
+- `both` mode is not a partial Claude install. It runs detection and read-only
+  prerequisite reporting, then stops at the same boundary with an explicit
+  both-mode not-implemented message.
+- Deliberate Codex boundary stops do not save resumable installer state. If a
+  Claude saved state already exists, Codex-selected runs ignore it without
+  clearing or overwriting it.
+- Existing Claude saved-state resume and cleanup behavior remains Claude-only.
+- Writer-phase fail-closed guards remain in place as a second line of defense:
+  Codex-selected runs still throw before repository, configuration, or voice
+  writes if those paths are reached unexpectedly.
 - `install.sh --platform codex` is not a full Codex install or a supported dry
   run. It forwards the selected platform into the installer, performs read-only
   platform detection when Bun is available, and stops before unsupported Codex
   PAI writes.
 - No `~/.codex`, `~/.pai`, `~/.claude`, `AGENTS.md`, `config.toml`, rules,
   hooks, skills, or agent files are generated for Codex.
+- Codex installer support remains unimplemented beyond selection, detection,
+  prerequisite reporting, and the not-implemented boundary.
 
 ## Suggested Evidence For Architect Review
 
-Capture these after PR-03A implementation:
+Capture these after Phase 3 implementation:
 
 ```bash
 git status --short
@@ -214,7 +230,10 @@ bun Tools/platform-inventory.ts --root Tools/fixtures/platform-inventory --forma
 bun test Tools/platform/paths.test.ts
 bun test Tools/installer-platform.test.ts
 bun test Tools/installer-platform-guards.test.ts
+bun test Tools/installer-boundary.test.ts
+bun test Tools/installer-entrypoints.test.ts
 ```
 
-This package is sufficient to review the installer selection and read-only
-detection primitives without advancing into PR-03B or PR-04.
+This package is sufficient to review the Phase 3 installer selection,
+read-only detection, and Codex-selected boundary behavior without advancing
+into PR-04.

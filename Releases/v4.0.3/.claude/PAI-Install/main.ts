@@ -39,7 +39,7 @@ async function main() {
     if (!existsSync(electronPkg)) {
       if (includesTargetPlatform(options, "codex")) {
         throw new Error(
-          "GUI dependencies are not installed. PR-03A will not run npm install for Codex-selected platforms. " +
+          "GUI dependencies are not installed. Codex-selected GUI runs do not auto-install GUI dependencies yet. " +
           "Run with --mode cli for read-only detection, or preinstall GUI dependencies before launching GUI mode.",
         );
       }
