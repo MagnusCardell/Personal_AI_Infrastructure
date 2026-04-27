@@ -4,7 +4,7 @@ import { isAbsolute, join, resolve } from "path";
 export type PaiPlatform = "claude" | "codex";
 
 export type PaiHomeSource = "PAI_DIR" | "PAI_HOME" | "platform-default";
-export type AdapterHomeSource = "PAI_DIR" | "PAI_HOME" | "CODEX_HOME" | "platform-default";
+export type AdapterHomeSource = "PAI_DIR" | "CODEX_HOME" | "platform-default";
 export type HomeDirSource = "explicit" | "HOME" | "os";
 
 export interface PlatformPathEnv {
@@ -150,9 +150,16 @@ export function resolveAdapterHome(
 
   if (platform === "claude") {
     const paiHome = resolvedPaiHome ?? resolvePaiHome(platform, env, homeDir);
+    if (paiHome.source === "PAI_DIR") {
+      return {
+        path: paiHome.path,
+        source: "PAI_DIR",
+      };
+    }
+
     return {
-      path: paiHome.path,
-      source: paiHome.source,
+      path: defaultAdapterHome(platform, homeDir),
+      source: "platform-default",
     };
   }
 

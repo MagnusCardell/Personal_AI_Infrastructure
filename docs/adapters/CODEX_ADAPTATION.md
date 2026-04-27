@@ -142,7 +142,10 @@ Current tested semantics:
 - PAI application home precedence is `PAI_DIR`, then `PAI_HOME`, then the
   platform default.
 - Claude defaults resolve both the PAI application home and adapter home to
-  `~/.claude`, preserving the current Claude shape.
+  `~/.claude`, preserving the current Claude shape. If `PAI_DIR` is set for
+  Claude, it preserves the legacy combined PAI/Claude home. If `PAI_HOME` is
+  set without `PAI_DIR`, it moves only the neutral PAI application home; the
+  Claude adapter home remains `~/.claude`.
 - Codex defaults resolve the PAI application home to `~/.pai` and the Codex
   adapter/config home to `CODEX_HOME` when set, otherwise `~/.codex`.
 - `~/.codex` is treated as Codex CLI state/config space, not as the default PAI

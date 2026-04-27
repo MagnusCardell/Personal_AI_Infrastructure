@@ -73,7 +73,7 @@ describe("platform path resolution", () => {
     expect(paths.sources.adapterHome).toBe("platform-default");
   });
 
-  test("keeps Claude adapter home aligned with the resolved PAI home", () => {
+  test("keeps Claude adapter home at ~/.claude when PAI_HOME moves the neutral PAI home", () => {
     const paths = resolvePlatformPaths({
       platform: "claude",
       env: { PAI_HOME: "~/custom-claude-pai" },
@@ -82,9 +82,10 @@ describe("platform path resolution", () => {
     });
 
     expect(paths.paiHome).toBe(join(HOME, "custom-claude-pai"));
-    expect(paths.adapterHome).toBe(join(HOME, "custom-claude-pai"));
+    expect(paths.adapterHome).toBe(join(HOME, ".claude"));
+    expect(paths.claudeHome).toBe(join(HOME, ".claude"));
     expect(paths.sources.paiHome).toBe("PAI_HOME");
-    expect(paths.sources.adapterHome).toBe("PAI_HOME");
+    expect(paths.sources.adapterHome).toBe("platform-default");
   });
 
   test("uses PAI_DIR before PAI_HOME for legacy compatibility", () => {
@@ -187,6 +188,24 @@ describe("platform path resolution", () => {
     expect(paths.adapterHome).toBe(join(HOME, ".claude"));
     expect(paths.sources.paiHome).toBe("platform-default");
     expect(paths.sources.adapterHome).toBe("platform-default");
+  });
+
+  test("ignores CODEX_HOME for Claude when PAI_DIR preserves legacy combined home", () => {
+    const paths = resolvePlatformPaths({
+      platform: "claude",
+      env: {
+        PAI_DIR: "~/legacy-claude",
+        CODEX_HOME: "~/codex-state",
+      },
+      homeDir: HOME,
+      osPlatform: "linux",
+    });
+
+    expect(paths.paiHome).toBe(join(HOME, "legacy-claude"));
+    expect(paths.adapterHome).toBe(join(HOME, "legacy-claude"));
+    expect(paths.claudeHome).toBe(join(HOME, "legacy-claude"));
+    expect(paths.sources.paiHome).toBe("PAI_DIR");
+    expect(paths.sources.adapterHome).toBe("PAI_DIR");
   });
 
   test("expands supported home forms in path values", () => {
