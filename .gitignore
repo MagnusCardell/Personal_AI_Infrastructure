@@ -62,10 +62,24 @@ private/
 secrets/
 credentials/
 
-AGENTS.md
-.codex/*
-
 # PAI Update System (sideloading)
 .claude/pai_updates/
 .claude/pai_backups/
 .claude/.pai-sync-history
+
+# Codex maintainer local state.
+# The repository governance harness under .codex/ is intentionally tracked.
+.codex/local/
+.codex/tmp/
+.codex/review/
+.codex/sessions/
+.codex/archived_sessions/
+.codex/log/
+.codex/history.jsonl
+.codex/auth.json
+.codex/*.local.toml
+
+# Review artifacts
+REVIEW_*.txt
+REVIEW_*.diff
+pai-codex-review*.zip

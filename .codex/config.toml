@@ -1,0 +1,61 @@
+# PAI Codex development governance
+#
+# This project-scoped Codex config is for developing the PAI Codex adapter.
+# It is not a PAI runtime artifact and must not be installed into a user's
+# ~/.codex, ~/.claude, or ~/.pai directory by the PAI installer.
+
+model = "gpt-5.5"
+model_provider = "openai"
+review_model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
+plan_mode_reasoning_effort = "xhigh"
+model_verbosity = "high"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+project_doc_max_bytes = 65536
+web_search = "cached"
+
+[features]
+multi_agent = true
+undo = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+job_max_runtime_seconds = 3600
+
+[agents.pai_architect]
+description = "Architecture steward for PAI platform-adapter design, migration sequencing, invariants, and PR decomposition. Use before implementation and for design-risk review."
+config_file = "agents/pai_architect.toml"
+
+[agents.pai_explorer]
+description = "Read-only codebase mapper for PAI Claude coupling, installer behavior, hooks, skills, agents, transcript/memory flows, and release packaging."
+config_file = "agents/pai_explorer.toml"
+
+[agents.pai_implementer]
+description = "Focused implementation agent for exactly one approved PAI Codex-adapter PR-sized task. Use after architecture scope is locked."
+config_file = "agents/pai_implementer.toml"
+
+[agents.pai_reviewer]
+description = "Owner-level reviewer for regressions, adapter-boundary violations, behavior changes, missing tests, and overclaimed feature parity."
+config_file = "agents/pai_reviewer.toml"
+
+[agents.pai_security_reviewer]
+description = "Security reviewer for installer writes, Codex/Claude config handling, hooks, rules, path safety, symlinks, secrets, and fail-open behavior."
+config_file = "agents/pai_security_reviewer.toml"
+
+[agents.pai_test_engineer]
+description = "Verification engineer for deterministic tests, temp-HOME install dry-runs, fixture tests, idempotency checks, and regression matrices."
+config_file = "agents/pai_test_engineer.toml"
+
+[agents.pai_docs_reviewer]
+description = "Documentation and compatibility reviewer for README, migration docs, compatibility matrix, breaking-feature flags, and install instructions."
+config_file = "agents/pai_docs_reviewer.toml"
+
+[agents.pai_codex_researcher]
+description = "Codex-platform researcher for current official Codex CLI docs, hooks, rules, skills, subagents, AGENTS.md, and config semantics."
+config_file = "agents/pai_codex_researcher.toml"
+
+[agents.pai_release_manager]
+description = "Release-readiness reviewer for packaging boundaries, release notes, migration flags, release artifacts, and no-product-leak checks."
+config_file = "agents/pai_release_manager.toml"

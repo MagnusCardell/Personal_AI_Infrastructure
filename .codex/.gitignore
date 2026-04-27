@@ -1,0 +1,13 @@
+# Local Codex state must not be committed here.
+# This project .codex directory is a governance harness, not CODEX_HOME.
+
+sessions/
+archived_sessions/
+log/
+logs/
+history.jsonl
+auth.json
+*.local.toml
+*.local.json
+*.tmp
+*.bak
