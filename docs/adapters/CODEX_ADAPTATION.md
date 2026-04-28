@@ -6,22 +6,24 @@ PR-03A platform parsing plus read-only Codex CLI detection, and PR-03B's
 first-class Codex-selected installer boundary after detection and prerequisite
 reporting. PR-04A begins Phase 4 by adding an unwired target-aware instruction
 generation substrate for Claude `CLAUDE.md` compatibility and compact Codex
-`AGENTS.md` router generation. PR-04A does not install or generate Codex
-runtime files. This document records the evidence base for adapting PAI from a
-Claude Code-only release shape into peer Claude and Codex adapters without
-changing default Claude behavior.
+`AGENTS.md` router generation. PR-04B adds an unwired, explicit-path Codex
+`config.toml` merge primitive with conflict detection, backup, idempotency, and
+path-safety tests. Neither PR installs or generates Codex runtime files. This
+document records the evidence base for adapting PAI from a Claude Code-only
+release shape into peer Claude and Codex adapters without changing default
+Claude behavior.
 
-## Non-Goals Through PR-04A
+## Non-Goals Through PR-04B
 
 - No Codex installation path.
 - No hook behavior changes.
-- No Codex settings, rules, hooks, skills, agents, or runtime instruction
-  installation.
+- No Codex runtime config, rules, hooks, skills, agents, or runtime
+  instruction installation.
 - No changes to Claude settings generation output.
 - No non-installer release runtime behavior changes.
 - No protected governance file edits.
 - No claim that Codex support is implemented.
-- Existing Claude Code users have no migration action through PR-04A, and the
+- Existing Claude Code users have no migration action through PR-04B, and the
   default installer path remains Claude.
 
 ## Inventory Command
@@ -260,15 +262,67 @@ file that points to PAI context and algorithm sources when needed, instead of a
 large Claude-specific instruction corpus that embeds Claude tool and lifecycle
 assumptions.
 
+## PR-04B Codex Config Merge Primitive
+
+PR-04B adds an unwired Codex `config.toml` merge primitive at
+`Releases/v4.0.3/.claude/PAI-Install/engine/codex-config-merge.ts`. It is a
+small conservative helper for later installer phases and is not called by CLI,
+web, or install actions in PR-04B.
+
+Current tested PR-04B semantics:
+
+- Merging requires an explicit `configPath` and explicit `allowedRoot`
+  containment path for dry runs and writes.
+- The primitive supports only a small TOML subset for PAI-managed fragments:
+  top-level scalar assignments, simple table headers, nested table headers such
+  as `[mcp_servers.example]`, comments, blank lines, and scalar values retained
+  as raw TOML text.
+- Existing user config is preserved. User model, provider, profile, feature,
+  MCP, agent, and unrelated table settings are not rewritten or removed.
+- Inserted PAI values are wrapped in clear PAI-managed markers inside the
+  relevant table. Existing PAI-managed blocks for the same target table are
+  replaced; running the same merge again is idempotent and reports no change.
+- Existing user-owned table/key conflicts are reported with table, key, line,
+  and reason. Conflicts do not write by default.
+- Dotted-key or array-of-table TOML that overlaps the target table fails closed
+  instead of being rewritten or merged by guesswork.
+- Merged output is validated as TOML before the primitive reports a changed
+  result or writes content.
+- Non-dry-run writes create deterministic backups when `backup: true`,
+  `now` is injected, the target already exists, and content changes. No backup
+  is created for dry runs or no-op merges. Backup path collisions fail closed
+  instead of overwriting earlier backups.
+- Writes use a temporary file in the same target directory and rename over the
+  target. Temp and backup files are created with exclusive semantics. Tests
+  verify no temporary file remains after a successful write.
+- Path safety rejects root repository `.codex/config.toml`, real user
+  `~/.codex/config.toml`, `~/.pai/config.toml`, and
+  `~/.claude/config.toml`, symlink config paths, symlink parent directories,
+  symlink path components, symlink `allowedRoot` paths, non-`config.toml`
+  basenames unless explicitly allowed for tests, and traversal outside an
+  explicit `allowedRoot`.
+- A temp-home `.codex/config.toml` path is accepted only when tests pass an
+  explicit temp `HOME` and matching `allowedRoot`. Temp-home `.pai` and
+  `.claude` paths remain rejected.
+- Replacing an existing file preserves its mode; creating a new config uses
+  restrictive `0600` permissions.
+
+PR-04B does not create a product config fragment, does not enable Codex runtime
+configuration, and does not write `~/.codex/config.toml`. Product config
+fragments, runtime config writes, hooks, rules, skills, agents, MCP enablement,
+model/provider/profile defaults, approval policy, and sandbox defaults remain
+unauthorized for this PR.
+
 ## Suggested Evidence For Architect Review
 
-Capture these after PR-04A implementation:
+Capture these after PR-04B implementation:
 
 ```bash
 git status --short
 git diff --stat
 bun Tools/platform-inventory.ts --format markdown --top 10
 bun Tools/platform-inventory.ts --root Tools/fixtures/platform-inventory --format json
+bun test Tools/codex-config-merge.test.ts
 bun test Tools/instruction-generation.test.ts
 bun test Tools/platform/paths.test.ts
 bun test Tools/installer-platform.test.ts
@@ -277,5 +331,6 @@ bun test Tools/installer-boundary.test.ts
 bun test Tools/installer-entrypoints.test.ts
 ```
 
-This package is sufficient to review PR-04A target-aware instruction generation
-without advancing into Codex config merge or any PR-04B work.
+This package is sufficient to review PR-04B's unwired config merge primitive
+without advancing into runtime config writes, installer wiring, or any later
+Phase 4/5 work.

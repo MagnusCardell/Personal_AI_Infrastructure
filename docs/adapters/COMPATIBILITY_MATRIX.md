@@ -5,8 +5,10 @@ primitive. Phase 3 adds installer platform selection state, read-only Codex CLI
 detection, and a first-class Codex-selected boundary after detection and
 prerequisite reporting. PR-04A adds an unwired target-aware instruction
 generator for Claude `CLAUDE.md` compatibility and compact Codex `AGENTS.md`
-router output. It does not implement Codex installer writes, config merge,
-hook, skill, agent, transcript, or release runtime behavior.
+router output. PR-04B adds an unwired, explicit-path Codex `config.toml` merge
+primitive with conflict detection, backup, idempotency, and path-safety tests.
+It does not implement Codex installer writes, runtime config writes, hook,
+skill, agent, transcript, or release runtime behavior.
 
 Labels follow the repository guidance:
 
@@ -31,7 +33,7 @@ runtime gaps.
 | `PAI_DIR` compatibility alias runtime | Used widely and points at Claude home by default | Codex runtime usage is not wired; only resolver precedence is tested | `breaking-for-codex` | Settings env, hooks, installer config generation, `Tools/platform/paths.test.ts` | Runtime path migration tests proving `PAI_DIR` compatibility remains intact |
 | CLI detection primitives | Installer detects `claude --version` by default; older hooks check Claude package updates | Read-only Codex detection runs only for `codex` or `both`; missing Codex reports manual install hints; no Codex auto-install | `partial` | `PAI-Install/engine/detect.ts`, `PAI-Install/engine/actions.ts`, older `CheckVersion.hook.ts`, `Tools/installer-platform.test.ts`, `Tools/installer-platform-guards.test.ts`, `Tools/installer-boundary.test.ts` | Platform-specific install flow that never treats `~/.codex` as PAI home |
 | Claude CLI prompt execution | Any `claude -p` use is Claude non-interactive prompt execution, not detection | Codex execution mapping not implemented | `breaking-for-codex` | Inventory pattern for `claude -p` | Explicit Codex execution contract and fixtures before mapping |
-| Settings/config generation | Claude `settings.json` template and generated fallback | Codex `config.toml` merge not implemented | `breaking-for-codex` | Release `settings.json`, `config-gen.ts` | Idempotent Codex config merge with backup tests |
+| Settings/config generation | Claude `settings.json` template and generated fallback remain full/current Claude behavior | Codex `config.toml` merge primitive exists as partial/unwired explicit-path helper; runtime writes to `~/.codex/config.toml` remain unsupported | `partial` | Release `settings.json`, `config-gen.ts`, `PAI-Install/engine/codex-config-merge.ts`, `Tools/codex-config-merge.test.ts` | Later installer phase with product config fragments, temp-HOME runtime write tests, backup/idempotency validation, and architect approval |
 | Instruction file generation | `CLAUDE.md` generation remains full/current Claude behavior through the `BuildCLAUDE.ts` compatibility entrypoint and SessionStart hook import path | Codex `AGENTS.md` router generator/template exists but is unwired; dry-run and explicit contained temp-output generation are tested; installer/runtime writes remain unsupported | `partial` | `PAI/Tools/BuildInstructions.ts`, `PAI/Tools/BuildCLAUDE.ts`, `PAI/Adapters/codex/AGENTS.md.template`, `Tools/instruction-generation.test.ts`, hooks/handlers/BuildCLAUDE.ts | Wire Codex instruction output in a later installer phase without writing `~/.codex` as PAI home |
 | Codex instruction runtime install | Not applicable to current Claude runtime | Installer does not write `~/.codex/AGENTS.md`, `~/.pai/AGENTS.md`, or any Codex runtime instruction file | `unsupported` | `Tools/instruction-generation.test.ts`, `Tools/installer-boundary.test.ts`, `Tools/installer-entrypoints.test.ts` | Later installer PR with temp-HOME tests, backup/idempotency rules, and architect approval |
 | Hook lifecycle events | Claude events and matchers are configured | Codex lifecycle mapping not implemented | `breaking-for-codex` | `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, `SessionEnd` | Normalized hook adapter with Claude and Codex fixtures |
@@ -72,9 +74,10 @@ categories:
 
 Current implementation covers the platform/path resolver primitive, installer
 platform selection, read-only Codex detection, prerequisite reporting, the
-first-class Codex-selected not-implemented boundary, and PR-04A's unwired
-target-aware instruction generator. Codex installer writes, config merge, hook,
+first-class Codex-selected not-implemented boundary, PR-04A's unwired
+target-aware instruction generator, and PR-04B's unwired explicit-path Codex
+config merge primitive. Codex installer writes, runtime config writes, hook,
 skill, agent, transcript, memory, release, and runtime behavior remain
 unimplemented unless separately labeled in this matrix. The high-risk areas
-remain runtime path wiring, config merge, hook lifecycle, security policy split,
-skills, agents, and transcript/session parsing.
+remain runtime path wiring, installer config writes, hook lifecycle, security
+policy split, skills, agents, and transcript/session parsing.
