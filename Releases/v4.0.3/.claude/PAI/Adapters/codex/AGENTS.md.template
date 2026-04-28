@@ -1,0 +1,23 @@
+# PAI {{PAI_VERSION}} for Codex
+
+This file is a compact router for PAI under Codex CLI.
+It is not the full PAI corpus.
+
+PAI_HOME: {{PAI_HOME}}
+PAI algorithm: {{ALGO_PATH}}
+PAI algorithm version: {{ALGO_VERSION}}
+Codex adapter/config home: {{ADAPTER_HOME}}
+
+Before substantial work:
+1. Use this file as routing guidance only.
+2. Load `{{CONTEXT_ROUTING_PATH}}` when task-specific PAI context is needed.
+3. For complex, multi-step, investigative, design, implementation, debugging, or refactoring work, load `{{ALGO_PATH}}` and follow the PAI algorithm from there.
+4. Load user/project context only through the routing file or task-relevant PAI files.
+5. Use Codex-native tools and lifecycle behavior. Do not assume Claude Code tool names, Claude settings, Claude hooks, or Claude transcript schemas.
+6. Prefer minimal, reversible changes and preserve user files/config unless an installer phase explicitly authorizes writes.
+
+Codex adapter status:
+- Claude Code remains the stable PAI adapter.
+- Codex support is adapter work in progress and is not full runtime parity.
+- If generated through this branch, Codex installer writer support is not implemented yet.
+- Do not claim Codex runtime parity unless the compatibility matrix says the feature is implemented.

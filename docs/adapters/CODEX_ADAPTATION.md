@@ -1,24 +1,27 @@
 # Codex Adapter Adaptation Plan
 
 PR-01 established the inventory and compatibility baseline. PR-02 added the
-neutral platform/path primitive for future adapter work. Phase 3 now includes
+neutral platform/path primitive for future adapter work. Phase 3 includes
 PR-03A platform parsing plus read-only Codex CLI detection, and PR-03B's
 first-class Codex-selected installer boundary after detection and prerequisite
-reporting. Phase 3 does not install or generate Codex runtime files. This
-document records the evidence base for adapting PAI from a Claude Code-only
-release shape into peer Claude and Codex adapters without changing default
-Claude behavior.
+reporting. PR-04A begins Phase 4 by adding an unwired target-aware instruction
+generation substrate for Claude `CLAUDE.md` compatibility and compact Codex
+`AGENTS.md` router generation. PR-04A does not install or generate Codex
+runtime files. This document records the evidence base for adapting PAI from a
+Claude Code-only release shape into peer Claude and Codex adapters without
+changing default Claude behavior.
 
-## Non-Goals Through Phase 3
+## Non-Goals Through PR-04A
 
 - No Codex installation path.
 - No hook behavior changes.
-- No Codex settings, rules, hooks, skills, agents, or instruction generation.
+- No Codex settings, rules, hooks, skills, agents, or runtime instruction
+  installation.
 - No changes to Claude settings generation output.
 - No non-installer release runtime behavior changes.
 - No protected governance file edits.
 - No claim that Codex support is implemented.
-- Existing Claude Code users have no migration action through Phase 3, and the
+- Existing Claude Code users have no migration action through PR-04A, and the
   default installer path remains Claude.
 
 ## Inventory Command
@@ -82,9 +85,9 @@ deduplicates those findings into the highest-risk coupling themes for planning.
 
 4. **Instruction generation is named and shaped around `CLAUDE.md`.**
    Release hooks call `BuildCLAUDE.ts`, settings reference `CLAUDE.md`, and
-   docs assume Claude Code loads that file. Codex needs compact `AGENTS.md`
-   routing plus config merge behavior later; it is not implemented through
-   Phase 3.
+   docs assume Claude Code loads that file. PR-04A adds an unwired compact
+   Codex `AGENTS.md` router generator and keeps config merge behavior for a
+   later PR.
 
 5. **Transcript and session tools assume Claude JSONL shape and paths.**
    `TranscriptParser.ts`, `SessionHarvester.ts`, `GetTranscript.ts`, and hook
@@ -119,18 +122,18 @@ deduplicates those findings into the highest-risk coupling themes for planning.
 10. **Claude CLI detection, prompt execution, and update checks are embedded in installer/hooks.**
     Installer detection calls `claude --version`; older update checks reference
     `@anthropic-ai/claude-code`, and any `claude -p` use is Claude prompt
-   execution rather than detection. Codex detection can be analogous, but
-    prompt execution needs an explicit Codex execution contract before mapping.
-    None of this is implemented through Phase 3, and none of it may change
+    execution rather than detection. Phase 3 implements read-only Codex CLI
+    detection, but Codex prompt execution and update-check mapping still need
+    explicit contracts before mapping. None of that later mapping may change
     Claude default detection or require Codex for existing Claude users.
 
 ## Adapter Boundary Notes
 
 - Non-installer Claude runtime artifacts under `Releases/*/.claude/`, including
   settings, hooks, skills, agents, transcript tools, and generated instruction
-  templates, are treated as Claude adapter evidence and remain out of scope for
-  Phase 3. Phase 3 mutates only release installer files plus the
-  product-consumable platform path primitive needed by those installer files.
+  templates, are treated as Claude adapter evidence. PR-04A touches only the
+  instruction-generation tool surface and adds an explicit Codex adapter
+  template; it does not wire installer runtime writes.
 - `PAI_DIR` remains the legacy compatibility alias and has priority over
   `PAI_HOME` where legacy behavior requires it. Codex's default PAI application
   home is `~/.pai`; `~/.codex` is Codex CLI state/config space, not the PAI app
@@ -218,15 +221,55 @@ PR-03B boundary semantics:
 - Codex installer support remains unimplemented beyond selection, detection,
   prerequisite reporting, and the not-implemented boundary.
 
+## PR-04A Target-Aware Instruction Generation
+
+PR-04A adds a product-consumable instruction builder at
+`Releases/v4.0.3/.claude/PAI/Tools/BuildInstructions.ts`. The existing
+`BuildCLAUDE.ts` file remains a compatibility entrypoint for the Claude
+SessionStart hook and manual `bun PAI/Tools/BuildCLAUDE.ts` usage.
+
+Current tested PR-04A semantics:
+
+- The Claude target renders the same `CLAUDE.md` content as the legacy
+  `BuildCLAUDE.ts` algorithm for the same `CLAUDE.md.template`,
+  `settings.json`, and `PAI/Algorithm/LATEST` inputs.
+- The Codex target renders a compact `AGENTS.md` router from
+  `Releases/v4.0.3/.claude/PAI/Adapters/codex/AGENTS.md.template`.
+- The Codex router records PAI version, algorithm version/path, PAI home,
+  Codex adapter/config home, and context-routing path. It tells Codex to load
+  the routing file only when task-specific PAI context is needed and to load
+  the algorithm file for substantial work.
+- The Codex router is intentionally not a copy of `CLAUDE.md`. It avoids
+  Claude-only tool names, Claude settings semantics, Claude hook semantics, and
+  Claude transcript assumptions.
+- Codex `AGENTS.md` generation is unwired after PR-04A. The installer does not
+  write `~/.codex/AGENTS.md`, `~/.pai/AGENTS.md`, or any Codex runtime
+  instruction file.
+- Non-dry-run Codex generation requires an explicit output path inside an
+  explicit PAI home containment root. It rejects repository governance paths,
+  default runtime homes, Codex adapter/config home paths, traversal outside the
+  containment root, non-`AGENTS.md` outputs, reserved `.agents`, `.codex`,
+  `agents`, `hooks`, `rules`, and `skills` subpaths, symlink output paths, and
+  symlink path components.
+- Codex config merge remains unauthorized in PR-04A. No `config.toml`, rules,
+  hooks, skills, agents, transcript, memory, voice, or status behavior is
+  generated.
+
+The compact router shape is deliberate. Codex should receive a small routing
+file that points to PAI context and algorithm sources when needed, instead of a
+large Claude-specific instruction corpus that embeds Claude tool and lifecycle
+assumptions.
+
 ## Suggested Evidence For Architect Review
 
-Capture these after Phase 3 implementation:
+Capture these after PR-04A implementation:
 
 ```bash
 git status --short
 git diff --stat
 bun Tools/platform-inventory.ts --format markdown --top 10
 bun Tools/platform-inventory.ts --root Tools/fixtures/platform-inventory --format json
+bun test Tools/instruction-generation.test.ts
 bun test Tools/platform/paths.test.ts
 bun test Tools/installer-platform.test.ts
 bun test Tools/installer-platform-guards.test.ts
@@ -234,6 +277,5 @@ bun test Tools/installer-boundary.test.ts
 bun test Tools/installer-entrypoints.test.ts
 ```
 
-This package is sufficient to review the Phase 3 installer selection,
-read-only detection, and Codex-selected boundary behavior without advancing
-into PR-04.
+This package is sufficient to review PR-04A target-aware instruction generation
+without advancing into Codex config merge or any PR-04B work.
