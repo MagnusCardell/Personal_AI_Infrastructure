@@ -27,6 +27,9 @@ import {
 const REPO_ROOT = resolve(import.meta.dir, "..");
 const HOOK_HANDLER = join(REPO_ROOT, "Releases/v4.0.3/.claude/hooks/handlers/BuildCLAUDE.ts");
 const BUILD_CLAUDE = join(REPO_ROOT, "Releases/v4.0.3/.claude/PAI/Tools/BuildCLAUDE.ts");
+const BUILD_INSTRUCTIONS = join(REPO_ROOT, "Releases/v4.0.3/.claude/PAI/Tools/BuildInstructions.ts");
+const INSTRUCTION_GENERATION_TEST = join(REPO_ROOT, "Tools/instruction-generation.test.ts");
+const CODEX_AGENTS_TEMPLATE = join(REPO_ROOT, "Releases/v4.0.3/.claude/PAI/Adapters/codex/AGENTS.md.template");
 const RELEASE_TEMPLATE = join(REPO_ROOT, "Releases/v4.0.3/.claude/CLAUDE.md.template");
 const RELEASE_ALGORITHM_LATEST = join(REPO_ROOT, "Releases/v4.0.3/.claude/PAI/Algorithm/LATEST");
 const ROOT_AGENTS = join(REPO_ROOT, "AGENTS.md");
@@ -300,7 +303,78 @@ function expectCodexRouterSafe(content: string, fixture: InstructionFixture): vo
   expect(content).not.toContain("Edit tool");
 }
 
+function physicalLines(path: string): string[] {
+  return readFileSync(path, "utf-8").split(/\r?\n/);
+}
+
 describe("target-aware instruction generation", () => {
+  test("instruction generator sources keep valid shebang and physical line structure", () => {
+    expect(physicalLines(BUILD_INSTRUCTIONS)[0]).toBe("#!/usr/bin/env bun");
+    expect(physicalLines(BUILD_CLAUDE)[0]).toBe("#!/usr/bin/env bun");
+
+    for (const path of [BUILD_INSTRUCTIONS, BUILD_CLAUDE, INSTRUCTION_GENERATION_TEST]) {
+      const lines = physicalLines(path);
+      if (lines[0].startsWith("#!")) {
+        expect(lines[0]).toBe("#!/usr/bin/env bun");
+        expect(lines[0]).not.toContain("/**");
+        expect(lines[0]).not.toContain("import ");
+        expect(lines[0]).not.toContain("export ");
+        expect(lines[0]).not.toContain("describe(");
+        expect(lines[0]).not.toContain("test(");
+      }
+    }
+
+    expect(physicalLines(BUILD_INSTRUCTIONS).length).toBeGreaterThan(100);
+    expect(physicalLines(BUILD_CLAUDE).length).toBeGreaterThan(20);
+    expect(physicalLines(INSTRUCTION_GENERATION_TEST).length).toBeGreaterThan(100);
+  });
+
+  test("Codex AGENTS template keeps clean Markdown router formatting", () => {
+    const lines = physicalLines(CODEX_AGENTS_TEMPLATE);
+
+    expect(lines[0]).toBe("# PAI {{PAI_VERSION}} for Codex");
+    expect(lines[1]).toBe("");
+    expect(lines).toContain("## Paths");
+    expect(lines).toContain("## Before Substantial Work");
+    expect(lines).toContain("## Codex Adapter Status");
+    expect(lines.some((line) => line.startsWith("- PAI_HOME: "))).toBe(true);
+    expect(lines.some((line) => line.startsWith("1. Use this file as routing guidance only."))).toBe(true);
+    expect(lines.some((line) => line.startsWith("- Codex support is adapter work in progress"))).toBe(true);
+    expect(lines.filter((line) => line === "").length).toBeGreaterThanOrEqual(4);
+    expect(lines.length).toBeGreaterThan(20);
+  });
+
+  test("BuildInstructions and BuildCLAUDE build as Bun entrypoints", () => {
+    const fixture = makeFixture();
+    const outdir = join(fixture.root, "entrypoint-builds");
+    mkdirSync(outdir, { recursive: true });
+
+    for (const entrypoint of [BUILD_INSTRUCTIONS, BUILD_CLAUDE]) {
+      const result = spawnSync("bun", ["build", entrypoint, "--target=bun", "--outdir", outdir], {
+        cwd: REPO_ROOT,
+        env: {
+          ...process.env,
+          HOME: fixture.home,
+          PAI_HOME: fixture.paiHome,
+          CODEX_HOME: fixture.adapterHome,
+        },
+        encoding: "utf-8",
+      });
+
+      if (result.status !== 0) {
+        throw new Error(
+          [
+            `bun build failed for ${entrypoint}`,
+            `stdout:\n${result.stdout}`,
+            `stderr:\n${result.stderr}`,
+          ].join("\n"),
+        );
+      }
+
+      expect(result.status).toBe(0);
+    }
+  });
+
   test("Claude target renders exactly like legacy BuildCLAUDE behavior", () => {
     const fixture = makeFixture();
     const content = renderInstructionTemplate(readFileSync(fixture.templatePath, "utf-8"), {
