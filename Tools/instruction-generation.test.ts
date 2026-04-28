@@ -303,34 +303,50 @@ function expectCodexRouterSafe(content: string, fixture: InstructionFixture): vo
   expect(content).not.toContain("Edit tool");
 }
 
-function physicalLines(path: string): string[] {
-  return readFileSync(path, "utf-8").split(/\r?\n/);
+function countByte(buffer: Buffer, byte: number): number {
+  let count = 0;
+  for (const value of buffer) {
+    if (value === byte) count++;
+  }
+  return count;
+}
+
+function expectLfOnlyFile(path: string, minLfCount: number): string[] {
+  const bytes = readFileSync(path);
+  const crCount = countByte(bytes, 13);
+  const lfCount = countByte(bytes, 10);
+
+  expect(crCount).toBe(0);
+  expect(lfCount).toBeGreaterThan(minLfCount);
+
+  return bytes.toString("utf-8").split("\n");
 }
 
 describe("target-aware instruction generation", () => {
-  test("instruction generator sources keep valid shebang and physical line structure", () => {
-    expect(physicalLines(BUILD_INSTRUCTIONS)[0]).toBe("#!/usr/bin/env bun");
-    expect(physicalLines(BUILD_CLAUDE)[0]).toBe("#!/usr/bin/env bun");
+  test("instruction generator sources keep LF-only byte and shebang integrity", () => {
+    const buildInstructionsLines = expectLfOnlyFile(BUILD_INSTRUCTIONS, 100);
+    const buildClaudeLines = expectLfOnlyFile(BUILD_CLAUDE, 20);
+    const testLines = expectLfOnlyFile(INSTRUCTION_GENERATION_TEST, 100);
 
-    for (const path of [BUILD_INSTRUCTIONS, BUILD_CLAUDE, INSTRUCTION_GENERATION_TEST]) {
-      const lines = physicalLines(path);
+    expect(buildInstructionsLines[0]).toBe("#!/usr/bin/env bun");
+    expect(buildClaudeLines[0]).toBe("#!/usr/bin/env bun");
+    expect(testLines[0] === "#!/usr/bin/env bun" || testLines[0].startsWith("import ")).toBe(true);
+
+    for (const lines of [buildInstructionsLines, buildClaudeLines, testLines]) {
       if (lines[0].startsWith("#!")) {
         expect(lines[0]).toBe("#!/usr/bin/env bun");
         expect(lines[0]).not.toContain("/**");
+        expect(lines[0]).not.toContain(" import ");
         expect(lines[0]).not.toContain("import ");
         expect(lines[0]).not.toContain("export ");
         expect(lines[0]).not.toContain("describe(");
         expect(lines[0]).not.toContain("test(");
       }
     }
-
-    expect(physicalLines(BUILD_INSTRUCTIONS).length).toBeGreaterThan(100);
-    expect(physicalLines(BUILD_CLAUDE).length).toBeGreaterThan(20);
-    expect(physicalLines(INSTRUCTION_GENERATION_TEST).length).toBeGreaterThan(100);
   });
 
   test("Codex AGENTS template keeps clean Markdown router formatting", () => {
-    const lines = physicalLines(CODEX_AGENTS_TEMPLATE);
+    const lines = expectLfOnlyFile(CODEX_AGENTS_TEMPLATE, 10);
 
     expect(lines[0]).toBe("# PAI {{PAI_VERSION}} for Codex");
     expect(lines[1]).toBe("");
