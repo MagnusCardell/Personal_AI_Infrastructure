@@ -13,7 +13,7 @@
 *.css text eol=lf
 *.vue text eol=lf
 
-# Binary files (don't modify)
+# Binary files
 *.png binary
 *.jpg binary
 *.jpeg binary

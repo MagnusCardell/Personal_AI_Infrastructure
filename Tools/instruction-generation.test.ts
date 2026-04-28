@@ -30,6 +30,7 @@ const BUILD_CLAUDE = join(REPO_ROOT, "Releases/v4.0.3/.claude/PAI/Tools/BuildCLA
 const BUILD_INSTRUCTIONS = join(REPO_ROOT, "Releases/v4.0.3/.claude/PAI/Tools/BuildInstructions.ts");
 const INSTRUCTION_GENERATION_TEST = join(REPO_ROOT, "Tools/instruction-generation.test.ts");
 const CODEX_AGENTS_TEMPLATE = join(REPO_ROOT, "Releases/v4.0.3/.claude/PAI/Adapters/codex/AGENTS.md.template");
+const GITATTRIBUTES = join(REPO_ROOT, ".gitattributes");
 const RELEASE_TEMPLATE = join(REPO_ROOT, "Releases/v4.0.3/.claude/CLAUDE.md.template");
 const RELEASE_ALGORITHM_LATEST = join(REPO_ROOT, "Releases/v4.0.3/.claude/PAI/Algorithm/LATEST");
 const ROOT_AGENTS = join(REPO_ROOT, "AGENTS.md");
@@ -324,10 +325,15 @@ function expectLfOnlyFile(path: string, minLfCount: number): string[] {
 
 describe("target-aware instruction generation", () => {
   test("instruction generator sources keep LF-only byte and shebang integrity", () => {
+    const gitAttributesLines = expectLfOnlyFile(GITATTRIBUTES, 10);
     const buildInstructionsLines = expectLfOnlyFile(BUILD_INSTRUCTIONS, 100);
     const buildClaudeLines = expectLfOnlyFile(BUILD_CLAUDE, 20);
     const testLines = expectLfOnlyFile(INSTRUCTION_GENERATION_TEST, 100);
 
+    expect(gitAttributesLines[0]).toBe("# Auto-detect text files and normalize line endings to LF");
+    expect(gitAttributesLines).toContain("* text=auto eol=lf");
+    expect(gitAttributesLines).toContain("*.ts text eol=lf");
+    expect(gitAttributesLines).toContain("*.md text eol=lf");
     expect(buildInstructionsLines[0]).toBe("#!/usr/bin/env bun");
     expect(buildClaudeLines[0]).toBe("#!/usr/bin/env bun");
     expect(testLines[0] === "#!/usr/bin/env bun" || testLines[0].startsWith("import ")).toBe(true);
