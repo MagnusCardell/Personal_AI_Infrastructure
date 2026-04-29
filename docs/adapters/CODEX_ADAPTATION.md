@@ -8,12 +8,15 @@ reporting. PR-04A begins Phase 4 by adding an unwired target-aware instruction
 generation substrate for Claude `CLAUDE.md` compatibility and compact Codex
 `AGENTS.md` router generation. PR-04B adds an unwired, explicit-path Codex
 `config.toml` merge primitive with conflict detection, backup, idempotency, and
-path-safety tests. Neither PR installs or generates Codex runtime files. This
+path-safety tests. PR-04C adds an unwired Codex adapter install-plan and
+temp-HOME writer primitive for `AGENTS.md`, plus optional test-only integration
+with the PR-04B config merge helper. These PRs do not install or generate Codex
+runtime files through installer flows. This
 document records the evidence base for adapting PAI from a Claude Code-only
 release shape into peer Claude and Codex adapters without changing default
 Claude behavior.
 
-## Non-Goals Through PR-04B
+## Non-Goals Through PR-04C
 
 - No Codex installation path.
 - No hook behavior changes.
@@ -23,7 +26,7 @@ Claude behavior.
 - No non-installer release runtime behavior changes.
 - No protected governance file edits.
 - No claim that Codex support is implemented.
-- Existing Claude Code users have no migration action through PR-04B, and the
+- Existing Claude Code users have no migration action through PR-04C, and the
   default installer path remains Claude.
 
 ## Inventory Command
@@ -313,13 +316,78 @@ fragments, runtime config writes, hooks, rules, skills, agents, MCP enablement,
 model/provider/profile defaults, approval policy, and sandbox defaults remain
 unauthorized for this PR.
 
+## PR-04C Codex Adapter Install-Plan And Temp-HOME Writer
+
+PR-04C adds an unwired installer-engine primitive at
+`Releases/v4.0.3/.claude/PAI-Install/engine/codex-adapter-plan.ts`. It is a
+product-consumable helper for later installer phases, but no CLI, web, shell,
+or installer action imports or calls it in PR-04C.
+
+Current tested PR-04C semantics:
+
+- `runCodexAdapterPlan` requires explicit `paiHome`, `adapterHome`, and
+  `allowedRoot` inputs.
+- Codex `AGENTS.md` content is rendered by calling `BuildInstructions` with
+  `target = "codex"` and `dryRun = true`. The plan exposes the rendered
+  content in its result.
+- The product Codex `AGENTS.md.template` from PR-04A is used by default.
+  Explicit test template paths are allowed only when they are the product
+  template or are contained by an explicit temp `allowedRoot`; root repository
+  `.codex/` is rejected as a template source, including through symlinks.
+- The dedicated PR-04C writer owns `adapterHome/AGENTS.md` writes. It does not
+  use the PR-04A temporary output write path for adapter-home writes.
+- Dry-run plans render content, report a skipped write, and do not create
+  `AGENTS.md`, `config.toml`, or backups.
+- Non-dry-run test calls can write `adapterHome/AGENTS.md` under a temp
+  `HOME/.codex` only when `env.HOME` points at that temp home and
+  `allowedRoot` contains the target path.
+- `PAI_HOME` must remain separate from the Codex adapter/config home. The plan
+  rejects `PAI_HOME` equal to or overlapping `adapterHome`, and rejects
+  repository, configured-home, or real-home `.codex` paths as the PAI
+  application home.
+- Writer path safety rejects root repository `AGENTS.md`, root repository
+  `.codex/**`, real process-home `~/.codex`, `~/.pai`, and `~/.claude`
+  targets, configured temp-home `.pai` and `.claude` targets, traversal outside
+  `allowedRoot`, broad roots such as `/` and the repository root, symlink
+  adapter homes, symlink parents, symlink `AGENTS.md` paths, and symlink path
+  components.
+- Existing `AGENTS.md` mode is preserved when content changes. New
+  `AGENTS.md` files are created with restrictive `0600` permissions.
+- Backups are created only when `backup: true`, the target exists, content
+  changes, and the run is not a dry run. Backup timestamps are deterministic
+  when `now` is injected, using
+  `AGENTS.md.pai-backup-YYYYMMDD-HHMMSS`. Backup collisions fail closed.
+- Writes use a temporary file in the same directory and rename over the target.
+  Tests verify no successful write leaves `.pai-tmp-*` files behind.
+- If `configFragment` is absent, the plan returns a `skip-config` operation
+  with an explicit reason. PR-04C does not define any product Codex config
+  fragment.
+- If a test supplies `configFragment`, the plan calls the PR-04B
+  `mergeCodexConfig` primitive with the explicit `configPath`, `allowedRoot`,
+  `env`, `backup`, `now`, and `sourceLabel`. This is test-only integration
+  coverage and does not introduce PAI Codex runtime defaults. The plan narrows
+  this integration to `adapterHome/config.toml` so PR-04C does not become a
+  generic config writer.
+- Config merge preflight runs before the `AGENTS.md` writer mutates content,
+  including deterministic config backup collision checks, so expected config
+  failures do not leave a partial `AGENTS.md` write.
+- The config merge integration preserves user config, preserves PR-04B conflict
+  behavior, and is idempotent on a second identical merge.
+
+PR-04C still does not write real `~/.codex/AGENTS.md`,
+`~/.codex/config.toml`, `~/.pai`, or `~/.claude`. It does not generate Codex
+hooks, rules, skills, agents, MCP config, transcript integration, memory,
+voice, status, model/provider/profile defaults, approval policy, or sandbox
+defaults. Codex runtime support remains unimplemented.
+
 ## Suggested Evidence For Architect Review
 
-Capture these after PR-04B implementation:
+Capture these after PR-04C implementation:
 
 ```bash
 git status --short
 git diff --stat
+bun test Tools/codex-adapter-plan.test.ts
 bun Tools/platform-inventory.ts --format markdown --top 10
 bun Tools/platform-inventory.ts --root Tools/fixtures/platform-inventory --format json
 bun test Tools/codex-config-merge.test.ts
@@ -331,6 +399,6 @@ bun test Tools/installer-boundary.test.ts
 bun test Tools/installer-entrypoints.test.ts
 ```
 
-This package is sufficient to review PR-04B's unwired config merge primitive
-without advancing into runtime config writes, installer wiring, or any later
-Phase 4/5 work.
+This package is sufficient to review PR-04C's unwired install-plan and
+temp-HOME writer primitive without advancing into runtime config writes,
+installer wiring, or any later Phase 4/5 work.
