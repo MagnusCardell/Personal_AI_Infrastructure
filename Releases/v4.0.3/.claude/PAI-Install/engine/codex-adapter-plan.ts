@@ -26,7 +26,7 @@ import { randomUUID } from "crypto";
 import { homedir, tmpdir } from "os";
 import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "path";
 import { buildInstructions } from "../../PAI/Tools/BuildInstructions";
-import { mergeCodexConfig } from "./codex-config-merge";
+import { mergeCodexConfig, type CodexConfigMergeConflict } from "./codex-config-merge";
 
 export interface CodexAdapterPlanOptions {
   paiHome: string;
@@ -504,6 +504,14 @@ function renderCodexAgents(options: CodexAdapterPlanOptions): string {
   return result.content;
 }
 
+function formatConfigMergeConflicts(conflicts: CodexConfigMergeConflict[]): string | undefined {
+  if (conflicts.length === 0) return undefined;
+
+  return `Codex config merge conflicts: ${conflicts
+    .map((conflict) => `${conflict.table || "<top-level>"}.${conflict.key} at line ${conflict.existingLine}`)
+    .join(", ")}`;
+}
+
 function configOperation(options: CodexAdapterPlanOptions): CodexAdapterPlanOperation {
   if (options.configFragment === undefined) {
     return {
@@ -532,11 +540,10 @@ function configOperation(options: CodexAdapterPlanOptions): CodexAdapterPlanOper
     env: options.env,
   });
 
-  const conflictReason = result.conflicts.length
-    ? `Codex config merge conflicts: ${result.conflicts
-      .map((conflict) => `${conflict.table || "<top-level>"}.${conflict.key} at line ${conflict.existingLine}`)
-      .join(", ")}`
-    : undefined;
+  const conflictReason = formatConfigMergeConflicts(result.conflicts);
+  if (conflictReason && !options.dryRun) {
+    throw new Error(conflictReason);
+  }
 
   return {
     kind: "merge-config",
@@ -567,6 +574,11 @@ function preflightConfigOperation(options: CodexAdapterPlanOptions): void {
     allowedRoot: options.allowedRoot,
     env: options.env,
   });
+
+  const conflictReason = formatConfigMergeConflicts(result.conflicts);
+  if (conflictReason) {
+    throw new Error(conflictReason);
+  }
 
   const configPath = resolve(options.configPath);
   if (result.changed && options.backup && existsSync(configPath)) {

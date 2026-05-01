@@ -168,6 +168,19 @@ function expectNoTempFiles(dir: string): void {
   expect(tempFiles).toEqual([]);
 }
 
+function expectNoMatchingFiles(dir: string, pattern: RegExp): void {
+  const matches = existsSync(dir) ? readdirSync(dir).filter((name) => pattern.test(name)) : [];
+  expect(matches).toEqual([]);
+}
+
+function countByte(data: Buffer, byte: number): number {
+  let count = 0;
+  for (const value of data) {
+    if (value === byte) count += 1;
+  }
+  return count;
+}
+
 function assertThrowsPlan(options: Parameters<typeof runCodexAdapterPlan>[0], message: string): void {
   expect(() => runCodexAdapterPlan(options)).toThrow(message);
 }
@@ -379,25 +392,92 @@ describe("Codex adapter install-plan primitive", () => {
     expect(operation(second, "merge-config")).toMatchObject({ path: fixture.configPath, changed: false });
     expect(existsSync(join(fixture.adapterHome, "config.toml.pai-backup-20260429-030406"))).toBe(false);
 
-    const conflict = makeFixture();
-    mkdirSync(conflict.adapterHome, { recursive: true });
-    writeFileSync(conflict.configPath, "[pai_pr04c_test]\nplan_probe = false\n");
-    const conflictResult = runCodexAdapterPlan(planOptions(conflict, {
-      dryRun: false,
-      backup: true,
-      configFragment: fragment,
-      configPath: conflict.configPath,
-      sourceLabel: "PR-04C test-only fragment",
-    }));
-    expect(operation(conflictResult, "merge-config")).toMatchObject({
-      path: conflict.configPath,
-      changed: false,
-    });
-    expect(operation(conflictResult, "merge-config").reason).toContain("pai_pr04c_test.plan_probe");
-    expect(readFileSync(conflict.configPath, "utf-8")).toBe("[pai_pr04c_test]\nplan_probe = false\n");
-
     expect(existsSync(join(REPO_ROOT, "Releases/v4.0.3/.claude/PAI-Install/engine/codex-config-fragment.toml"))).toBe(false);
     expect(existsSync(join(REPO_ROOT, "Releases/v4.0.3/.claude/PAI-Install/engine/codex-runtime-config.toml"))).toBe(false);
+  });
+
+  test("dry-run config conflicts are reported without AGENTS or config mutation", () => {
+    const fixture = makeFixture();
+    mkdirSync(fixture.adapterHome, { recursive: true });
+    const existingConfig = "[pai_pr04c_test]\nplan_probe = false\n";
+    writeFileSync(fixture.configPath, existingConfig);
+
+    const result = runCodexAdapterPlan(planOptions(fixture, {
+      dryRun: true,
+      backup: true,
+      now: new Date("2026-04-29T03:04:05Z"),
+      configFragment: "[pai_pr04c_test]\nplan_probe = true\n",
+      configPath: fixture.configPath,
+      sourceLabel: "PR-04C dry-run conflict fragment",
+    }));
+
+    expect(operation(result, "write-agents")).toMatchObject({
+      path: join(fixture.adapterHome, "AGENTS.md"),
+      changed: false,
+      reason: "dryRun",
+    });
+    expect(operation(result, "merge-config")).toMatchObject({
+      path: fixture.configPath,
+      changed: false,
+      reason: "Codex config merge conflicts: pai_pr04c_test.plan_probe at line 2",
+    });
+    expect(readFileSync(fixture.configPath, "utf-8")).toBe(existingConfig);
+    expect(existsSync(join(fixture.adapterHome, "AGENTS.md"))).toBe(false);
+    expect(existsSync(join(fixture.adapterHome, "AGENTS.md.pai-backup-20260429-030405"))).toBe(false);
+    expect(existsSync(join(fixture.adapterHome, "config.toml.pai-backup-20260429-030405"))).toBe(false);
+    expectNoMatchingFiles(fixture.adapterHome, /^AGENTS\.md\.pai-backup-/);
+    expectNoMatchingFiles(fixture.adapterHome, /^config\.toml\.pai-backup-/);
+    expectNoTempFiles(fixture.adapterHome);
+  });
+
+  test("non-dry config conflicts fail closed before creating AGENTS.md or backups", () => {
+    const fixture = makeFixture();
+    mkdirSync(fixture.adapterHome, { recursive: true });
+    const existingConfig = "[pai_pr04c_test]\nplan_probe = false\n";
+    writeFileSync(fixture.configPath, existingConfig);
+
+    assertThrowsPlan(planOptions(fixture, {
+      dryRun: false,
+      backup: true,
+      now: new Date("2026-04-29T03:04:05Z"),
+      configFragment: "[pai_pr04c_test]\nplan_probe = true\n",
+      configPath: fixture.configPath,
+      sourceLabel: "PR-04C conflict fragment",
+    }), "Codex config merge conflicts: pai_pr04c_test.plan_probe at line 2");
+
+    expect(readFileSync(fixture.configPath, "utf-8")).toBe(existingConfig);
+    expect(existsSync(join(fixture.adapterHome, "AGENTS.md"))).toBe(false);
+    expect(existsSync(join(fixture.adapterHome, "AGENTS.md.pai-backup-20260429-030405"))).toBe(false);
+    expect(existsSync(join(fixture.adapterHome, "config.toml.pai-backup-20260429-030405"))).toBe(false);
+    expectNoMatchingFiles(fixture.adapterHome, /^AGENTS\.md\.pai-backup-/);
+    expectNoMatchingFiles(fixture.adapterHome, /^config\.toml\.pai-backup-/);
+    expectNoTempFiles(fixture.adapterHome);
+  });
+
+  test("non-dry config conflicts fail closed before changing existing AGENTS.md", () => {
+    const fixture = makeFixture();
+    mkdirSync(fixture.adapterHome, { recursive: true });
+    const existingAgents = "existing agents content\n";
+    const existingConfig = "[pai_pr04c_test]\nplan_probe = false\n";
+    writeFileSync(join(fixture.adapterHome, "AGENTS.md"), existingAgents);
+    writeFileSync(fixture.configPath, existingConfig);
+
+    assertThrowsPlan(planOptions(fixture, {
+      dryRun: false,
+      backup: true,
+      now: new Date("2026-04-29T03:04:05Z"),
+      configFragment: "[pai_pr04c_test]\nplan_probe = true\n",
+      configPath: fixture.configPath,
+      sourceLabel: "PR-04C existing AGENTS conflict fragment",
+    }), "Codex config merge conflicts: pai_pr04c_test.plan_probe at line 2");
+
+    expect(readFileSync(join(fixture.adapterHome, "AGENTS.md"), "utf-8")).toBe(existingAgents);
+    expect(readFileSync(fixture.configPath, "utf-8")).toBe(existingConfig);
+    expect(existsSync(join(fixture.adapterHome, "AGENTS.md.pai-backup-20260429-030405"))).toBe(false);
+    expect(existsSync(join(fixture.adapterHome, "config.toml.pai-backup-20260429-030405"))).toBe(false);
+    expectNoMatchingFiles(fixture.adapterHome, /^AGENTS\.md\.pai-backup-/);
+    expectNoMatchingFiles(fixture.adapterHome, /^config\.toml\.pai-backup-/);
+    expectNoTempFiles(fixture.adapterHome);
   });
 
   test("fresh temp HOME config merge creates adapter AGENTS and config together", () => {
@@ -675,6 +755,20 @@ describe("Codex adapter install-plan primitive", () => {
 
     expect(existsSync(join(backupSymlink.adapterHome, "AGENTS.md"))).toBe(false);
     expect(readFileSync(backupSymlink.configPath, "utf-8")).toBe('model = "gpt-5.5"\n');
+  });
+
+  test("PR-04C source files are LF-only text with meaningful content", () => {
+    const files = [
+      ["Releases/v4.0.3/.claude/PAI-Install/engine/codex-adapter-plan.ts", 200],
+      ["Tools/codex-adapter-plan.test.ts", 250],
+    ] as const;
+
+    for (const [relativePath, minimumLfCount] of files) {
+      const data = readFileSync(join(REPO_ROOT, relativePath));
+      expect(data.length).toBeGreaterThan(1000);
+      expect(countByte(data, 13)).toBe(0);
+      expect(countByte(data, 10)).toBeGreaterThan(minimumLfCount);
+    }
   });
 
   test("CLI, web, and installer actions do not import or call the new primitive", () => {

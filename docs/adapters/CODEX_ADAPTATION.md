@@ -371,8 +371,9 @@ Current tested PR-04C semantics:
 - Config merge preflight runs before the `AGENTS.md` writer mutates content,
   including deterministic config backup collision checks, so expected config
   failures do not leave a partial `AGENTS.md` write.
-- The config merge integration preserves user config, preserves PR-04B conflict
-  behavior, and is idempotent on a second identical merge.
+- The config merge integration preserves user config, reports conflicts in
+  dry-run results, fails closed on non-dry-run conflicts before `AGENTS.md`
+  mutation, and is idempotent on a second identical merge.
 
 PR-04C still does not write real `~/.codex/AGENTS.md`,
 `~/.codex/config.toml`, `~/.pai`, or `~/.claude`. It does not generate Codex
