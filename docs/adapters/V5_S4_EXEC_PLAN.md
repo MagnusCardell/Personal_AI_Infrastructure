@@ -17,6 +17,8 @@ S4 is limited to designing:
 
 S4 may use S0/S1/S2/S3 adapter docs, read-only PAI v5 release evidence, and official OpenAI Codex documentation only if new Codex capability claims are needed.
 
+S4R repairs the five S4 documents so their H1/H2 heading sequences are exact and machine-checkable. It does not create new architecture scope.
+
 S4 does not create the manifest instance, fixture material, tests, runtime config, harness, adapter, installer, launcher, wrapper, Codex project files, or trial output.
 
 ## Approved Write Set
@@ -60,6 +62,16 @@ Protected user-local paths:
 - `~/.codex/`
 - `~/.codex/memories/`
 
+## Source Protocol
+
+Use S0/S1/S2/S3 adapter docs as the main evidence base.
+
+Use read-only PAI v5 release evidence only for targeted facts already relevant to S4.
+
+Use official OpenAI Codex documentation only if a new current Codex capability claim is needed. S4R introduces no new Codex capability claims.
+
+Do not inspect private user-local state.
+
 ## Source Material
 
 PAI and prior adapter evidence:
@@ -82,30 +94,6 @@ Read-only PAI v5 release evidence may be used only for targeted facts already re
 
 Official OpenAI Codex documentation may be used only if S4 needs a new current Codex capability claim not already captured in S2/S3.
 
-## Required Outputs
-
-S4 must create:
-
-- `docs/adapters/V5_CODEX_READ_ONLY_TRIAL_MANIFEST_SPEC.md`
-- `docs/adapters/V5_CODEX_TRIAL_FIXTURE_AND_PATH_MODEL_SPEC.md`
-- `docs/adapters/V5_CODEX_AUTHORITY_EQUIVALENCE_TEST_SPEC.md`
-- `docs/adapters/V5_CODEX_TRIAL_AUDIT_OUTPUT_SPEC.md`
-
-The docs must be design-only. They must describe future artifact contracts without creating those artifacts.
-
-## Design Questions
-
-S4 must answer:
-
-- What fields must a future read-only trial manifest contain?
-- How should fixture material, sanitized fixture material, and existing local v5 roots be classified?
-- What paths must be readable, denied, or write-denied before any future trial?
-- What authority-equivalence cases must be evaluated before a future trial?
-- What should future trial audit output contain?
-- How should a future audit prove no writes, no denied reads, no Pulse startup, no installer execution, no migration tooling, and no state promotion?
-- What stops a future trial before execution?
-- What artifacts are explicitly not created in S4?
-
 ## Milestones
 
 1. Create this execution plan first.
@@ -115,8 +103,9 @@ S4 must answer:
 5. Draft the authority-equivalence test spec.
 6. Draft the trial audit output spec.
 7. Self-review all S4 specs against the approved write set and non-runtime boundary.
-8. Run validation commands.
-9. Update this plan with progress, validation, decisions, and retrospective.
+8. Normalize the five S4 docs to the required H1/H2 contracts.
+9. Run validation commands.
+10. Update this plan with progress, validation, decisions, and retrospective.
 
 ## Self-Review Rubric
 
@@ -132,6 +121,7 @@ S4 passes only if:
 - No hooks, rules, skills, subagents, agents, commands, launchers, installers, wrappers, generated configs, runtime files, test harnesses, or migration scripts are created.
 - No release file is modified.
 - No private user-local state is inspected or modified.
+- No user-local state is inspected or modified.
 - Pulse is not started.
 - Installers are not run.
 - Codex import or migration tooling is not run.
@@ -141,6 +131,8 @@ S4 passes only if:
 - The docs do not claim Codex is the official upstream PAI engine.
 - The docs do not imply Claude-shaped files can be copied directly into Codex-native surfaces.
 - The docs do not authorize PAI Memory, ISA, Pulse, settings, hook, installer, fixture, or trial writes.
+- The exact H1/H2 sequence check passes.
+- The content invariant check passes.
 
 ## Hard Failure Conditions
 
@@ -161,6 +153,7 @@ Stop and report a blocker if S4 requires:
 - Claiming Codex drop-in compatibility.
 - Claiming Codex is the official upstream PAI engine.
 - Claiming undocumented Codex behavior as fact.
+- Authorizing PAI Memory writes, ISA writes, Pulse implementation, or existing-local-v5 trial execution.
 
 ## Validation Commands
 
@@ -217,6 +210,20 @@ PY
 - Created `docs/adapters/V5_CODEX_TRIAL_AUDIT_OUTPUT_SPEC.md`.
 - Marked the five approved S4 docs as intent-to-add so `git diff --name-only` validates the approved write set.
 - Ran S4 validation commands and confirmed only the five approved S4 files are changed.
+- Confirmed before S4R that the previous S4 goal state was `complete`; no new goal was started.
+- Reorganized S4 content under the required S4R H1/H2 contracts.
+
+## Iteration Log
+
+- S4 created the first-pass manifest, fixture/path, authority-equivalence, and audit-output specs.
+- S4R converted extra H2 sections into prose, lists, tables, or subordinate labels under the required H2 headings.
+- S4R preserved the S4 scope: design-only contract repair with no trial, fixtures, harness, runtime files, or protected-path edits.
+
+## Surprises & Discoveries
+
+- The previous S4 goal was already complete, so no active goal clear action was applicable through the available goal tools.
+- No new Codex capability claim was needed for S4R.
+- The local sandbox continued to fail shell command startup, so validation commands required the approved escalation path.
 
 ## Decision Log
 

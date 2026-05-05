@@ -6,7 +6,13 @@ Define the fixture and path model required before any future read-only Codex tri
 
 This document is design-only. It does not create fixtures, copy files, inspect private user-local state, run a trial, implement a Codex adapter, create root `AGENTS.md`, create `.codex/`, or create runtime surfaces.
 
-## Source Discipline
+## Scope
+
+This spec defines future fixture families, path classifications, allowed read classes, denied read classes, denied write classes, proof requirements, and failure conditions.
+
+It does not create fixture material, copy release files, inspect existing local v5 files, or implement a test harness.
+
+## Evidence Base
 
 This spec derives from S0/S1/S2/S3 adapter docs. It does not make new Codex capability claims beyond S2/S3.
 
@@ -19,7 +25,7 @@ Primary sources:
 - `docs/adapters/V5_CODEX_READ_ONLY_TRIAL_SPEC.md`
 - `docs/adapters/V5_CODEX_READ_ONLY_TRIAL_MANIFEST_SPEC.md`
 
-## Executive Position
+## Fixture Model
 
 Future trial safety depends on path modeling before execution.
 
@@ -27,7 +33,7 @@ The path model must distinguish public release evidence, copied release fixtures
 
 S4 does not create any of these roots. It defines the classification and invariants a future milestone must satisfy before it creates fixture material or exposes live paths.
 
-## Root Classes
+**Root classes:**
 
 | Root Class | Description | S4 Status | Future Default |
 | --- | --- | --- | --- |
@@ -40,7 +46,7 @@ S4 does not create any of these roots. It defines the classification and invaria
 | `claude-product-state` | `~/.claude/projects/`, Claude Code memory, transcripts, caches. | Not inspected in S4. | Not PAI Memory; deny read/write unless explicitly authorized. |
 | `generated-output-quarantine` | Future directory for advisory audit output outside live PAI roots. | Not created in S4. | Required before any future run writes audit artifacts. |
 
-## Path Classifications
+## Path Classification Model
 
 | Path Class | Examples | Canonical State | Future Read Policy | Future Write Policy |
 | --- | --- | --- | --- | --- |
@@ -55,7 +61,7 @@ S4 does not create any of these roots. It defines the classification and invaria
 | Product memory | Claude Code memory, Codex memory. | No PAI canonical status | Deny by default. | Deny for PAI trial. |
 | Adapter docs | `docs/adapters/`. | Governance only | Allow for design evidence. | Only approved milestone write set. |
 
-## Fixture Families
+## Release Fixture Policy
 
 | Fixture Family | Purpose | Required Preconditions | S4 Status |
 | --- | --- | --- | --- |
@@ -65,7 +71,37 @@ S4 does not create any of these roots. It defines the classification and invaria
 
 No fixture family may include root `AGENTS.md`, `.codex/`, generated Codex config, hooks, rules, wrappers, launchers, test harnesses, or runtime files created by S4.
 
-## Logical Root Names
+Release fixture policy is the first future fixture family because it avoids private user-local state. S4 does not create a release fixture.
+
+## Sanitized User Fixture Policy
+
+Sanitized user fixtures are future-only. They require user consent, copy procedure review, secret stripping, private-state review, provenance labels, link handling, and read-only enforcement.
+
+S4 does not create sanitized fixtures and does not inspect private user-local state.
+
+## Existing Local v5 Read-Only Policy
+
+Existing local v5 roots are private, live, and potentially canonical.
+
+Future existing-local exposure requires:
+
+- User approval for each root.
+- Architect approval for the trial phase.
+- Technical read-only mount or equivalent.
+- Denied child paths for credentials and private product state.
+- No Pulse startup.
+- No installer execution.
+- No migration tooling.
+- No generated config.
+- No root `AGENTS.md`.
+- No `.codex/`.
+- No move to writes after the trial.
+
+## Allowed Read Classes
+
+Allowed read classes may include public release docs, PAI doctrine, adapter docs, copied release fixtures, sanitized fixtures, and existing local roots only when manifest-approved.
+
+**Logical root names:**
 
 Future manifests should avoid ambiguous natural-language roots by using logical root names.
 
@@ -84,7 +120,17 @@ Future manifests should avoid ambiguous natural-language roots by using logical 
 
 S4 does not resolve these names to actual paths.
 
-## Path Resolution Rules
+## Denied Read Classes
+
+Denied read classes include credentials, secrets, user-local product memory, unapproved user identity, unapproved PAI Memory, unapproved ISA artifacts, Pulse runtime state, and any root outside the manifest.
+
+Denied read classes dominate allowed read classes.
+
+## Denied Write Classes
+
+Denied write classes include all allowed read roots and all live PAI, Claude, Codex, release, runtime, installer, hook, skill, agent, command, wrapper, generated config, and fixture roots.
+
+**Path resolution rules:**
 
 Future implementation must resolve paths before trial execution:
 
@@ -98,7 +144,7 @@ Future implementation must resolve paths before trial execution:
 - Reject bind mounts or aliases that point a fixture root into live user-local state.
 - Reject path globs that broaden access beyond the reviewed manifest.
 
-## Symlink and Link Policy
+**Symlink and link policy:**
 
 Symlinks and hardlinks are high risk because a fixture can appear isolated while pointing at live state.
 
@@ -110,7 +156,7 @@ Future fixture policy:
 - Device files, sockets, FIFOs, and service endpoints are forbidden in fixture material.
 - Any unresolved or ambiguous link is a stop condition.
 
-## Fixture Integrity Requirements
+**Fixture integrity requirements:**
 
 A future fixture design must record:
 
@@ -128,7 +174,7 @@ A future fixture design must record:
 
 This S4 spec does not implement hashing, inventory, copying, or sanitization.
 
-## Denied Path Baseline
+## Secret and Credential Handling
 
 Future trial manifests must deny these classes at minimum:
 
@@ -146,7 +192,31 @@ Future trial manifests must deny these classes at minimum:
 
 Denied path classes dominate allowed read classes.
 
-## Generated Output Quarantine
+Secrets and credentials must never be read, copied into fixtures, emitted in audit output, or placed in generated output quarantine.
+
+## Product Memory Handling
+
+Codex memory, Claude Code auto memory, transcripts, SDK threads, and `/goal` state are not PAI Memory.
+
+Product memories must not be silently promoted into PAI Memory.
+
+## PAI Memory and ISA Handling
+
+PAI Memory and ISA artifacts are canonical PAI state.
+
+A read-only trial must not write PAI state. Future writes require a single-writer policy, provenance, rollback, and validation.
+
+## Pulse State Handling
+
+Pulse remains central v5 infrastructure, but S4 does not design or implement a Pulse bridge.
+
+Future path models must deny Pulse startup, Pulse endpoint calls, Pulse writes, and Pulse parity claims unless a later bridge milestone approves otherwise.
+
+## No-Write Proof Requirements
+
+No-write proof must show that all read roots are write-denied and that generated output, if later authorized, is isolated from live PAI, Claude, Codex, release, and runtime roots.
+
+**Generated output quarantine:**
 
 Future trials that need persistent audit artifacts must write them only to an explicitly approved `AUDIT_OUTPUT_ROOT`.
 
@@ -160,7 +230,7 @@ Rules:
 
 S4 does not create `AUDIT_OUTPUT_ROOT`.
 
-## Existing Local v5 Exposure Policy
+**Existing local v5 exposure policy:**
 
 Existing local v5 roots require stricter handling than fixtures.
 
@@ -181,7 +251,11 @@ Future existing-local exposure requires:
 
 If any of these are absent, the future trial must not start.
 
-## Path Model Stop Conditions
+## Denied-Path Proof Requirements
+
+Denied-path proof must show that denied roots were neither read nor traversed through symlink, hardlink, bind mount, alias, glob, or generated-output path.
+
+## Failure Conditions
 
 Stop before any future trial if:
 
@@ -195,6 +269,10 @@ Stop before any future trial if:
 - Generated output would land inside a PAI, Claude, Codex, release, or runtime root.
 - Pulse endpoints, installers, or migration tools are reachable as executable actions.
 
-## S4 Non-Authorization
+## Future Implementation Gates
+
+Future implementation gates include architect approval, manifest approval, path model review, no-write proof design, denied-path proof design, privacy review, rollback statement, and audit output review.
+
+## Non-Goals
 
 This spec does not authorize fixture creation, path scanning, live-root inspection, trial execution, audit artifact writing, generated output directories, runtime files, adapter implementation, Pulse startup, installer execution, migration tooling, or movement beyond S4.

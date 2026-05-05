@@ -6,7 +6,13 @@ Define the audit output contract a future read-only Codex trial must satisfy bef
 
 This document is design-only. It does not create audit output, run a trial, create fixtures, create test harnesses, implement a Codex adapter, create root `AGENTS.md`, create `.codex/`, or create runtime files.
 
-## Source Discipline
+## Scope
+
+This spec defines future audit output sections, provenance requirements, access reporting, authority reporting, memory and ISA reporting, Pulse reporting, advisory finding format, failure report format, and non-promotion rules.
+
+It does not create audit output, run a trial, create fixtures, create a harness, or create runtime files.
+
+## Evidence Base
 
 This spec derives from S0/S1/S2/S3 adapter docs and the S4 manifest, path model, and authority-equivalence specs. It does not make new Codex capability claims beyond S2/S3.
 
@@ -18,7 +24,7 @@ Primary sources:
 - `docs/adapters/V5_CODEX_TRIAL_FIXTURE_AND_PATH_MODEL_SPEC.md`
 - `docs/adapters/V5_CODEX_AUTHORITY_EQUIVALENCE_TEST_SPEC.md`
 
-## Executive Position
+## Audit Output Role
 
 Audit output is advisory evidence. It is not PAI Memory, not ISA, not Pulse state, not Codex memory, and not replacement readiness.
 
@@ -26,7 +32,7 @@ A future read-only trial is reviewable only if its audit output proves scope, pr
 
 S4 does not create audit output. It defines what future audit output must contain.
 
-## Audit Output Status
+**Audit output status:**
 
 S4 does not create:
 
@@ -60,7 +66,7 @@ Future audit output, if later authorized, must be written only to an approved ge
 | `non_authorizations` | States what the audit does not authorize. |
 | `review_requirements` | States the next architect decisions required before further work. |
 
-## Audit Identity Fields
+## Provenance Requirements
 
 | Field | Requirement |
 | --- | --- |
@@ -73,7 +79,9 @@ Future audit output, if later authorized, must be written only to an approved ge
 | `source_kind` | Must match manifest. |
 | `audit_destination` | Must identify approved output quarantine, never live PAI roots. |
 
-## Trial Summary Requirements
+Provenance must also identify source roots, denied roots, omitted sources, manifest ID, authority source set, and whether the material was release evidence, fixture material, sanitized user fixture material, or existing local v5 read-only material.
+
+## Manifest Echo Requirements
 
 The audit must state:
 
@@ -85,7 +93,9 @@ The audit must state:
 - Trial success does not authorize assisted patch mode, single-writer mode, or Codex-only replacement.
 - Trial success does not authorize implementation.
 
-## Source Summary Requirements
+The audit must echo `allowed_read_roots`, `denied_read_roots`, `denied_write_roots`, source kind, authority policy, output policy, stop conditions, and non-authorizations from the manifest.
+
+## Filesystem Access Reporting
 
 The audit must list:
 
@@ -101,7 +111,17 @@ The audit must list:
 
 Denied source contents must not be copied into audit output.
 
-## Authority Summary Requirements
+## Denied Path Reporting
+
+Denied path reporting must list denied roots, denied classes, attempted denied reads, and proof that denied contents were not copied into audit output.
+
+## Write Attempt Reporting
+
+Write attempt reporting must classify each requested or attempted write as `denied-write`, `stopped`, `not-requested`, or `unknown`.
+
+It must report attempts to create root `AGENTS.md`, `.codex/`, hooks, rules, skills, subagents, agents, commands, launchers, installers, wrappers, generated configs, runtime files, test harnesses, fixtures, or migration scripts.
+
+## Authority Mapping Reporting
 
 The audit must record:
 
@@ -116,7 +136,7 @@ The audit must record:
 - Truncation or omission findings.
 - Unsupported authority mappings.
 
-## Path Summary Requirements
+**Path summary requirements:**
 
 The audit must record:
 
@@ -133,7 +153,7 @@ The audit must record:
 
 The audit must not disclose private denied path contents.
 
-## Runtime Posture Summary
+**Runtime posture summary:**
 
 The audit must state:
 
@@ -159,13 +179,12 @@ For a valid read-only trial, the expected values are:
 - No live PAI hook execution.
 - No generated config.
 
-## State Boundary Summary
+## Memory and ISA Reporting
 
 The audit must explicitly state:
 
 - PAI Memory is canonical PAI state.
 - ISA artifacts are canonical PAI state.
-- Pulse state is PAI runtime state.
 - Claude Code memory is not PAI Memory.
 - Codex memory is not PAI Memory.
 - Codex `/goal` state is not PAI Memory, ISA, or Pulse state.
@@ -174,7 +193,19 @@ The audit must explicitly state:
 - No product memory was silently promoted into PAI Memory.
 - No Codex plan, transcript, final answer, or goal completion was treated as ISA acceptance.
 
-## Operations Summary
+## Pulse Reporting
+
+Pulse remains central v5 infrastructure, but S4 does not design or implement a Pulse bridge.
+
+Audit output must report:
+
+- No Pulse startup.
+- No Pulse endpoint calls.
+- No Pulse writes.
+- No Pulse bridge implementation.
+- No Pulse parity claim.
+
+## Output Classification
 
 Future audit output must classify every requested operation:
 
@@ -203,7 +234,9 @@ Operations that must be reported if requested:
 - Running Codex import or migration tooling.
 - Applying patches or edits.
 
-## Findings Requirements
+Output classification must mark trial findings as advisory and must not classify audit output as PAI Memory, ISA, Pulse state, Codex memory, or replacement readiness.
+
+## Advisory Finding Format
 
 Findings must be advisory and evidence-labeled.
 
@@ -228,7 +261,7 @@ Findings must not claim:
 - Claude-shaped files can be copied directly into Codex surfaces.
 - Read-only success authorizes writes.
 
-## Proposal Requirements
+**Proposal requirements:**
 
 Proposals must be clearly non-applied.
 
@@ -242,7 +275,7 @@ Each proposal must include:
 - Rollback concern.
 - Explicit statement that the proposal was not applied during the read-only trial.
 
-## Stop Condition Reporting
+## Failure Report Format
 
 The audit must include a stop-condition table:
 
@@ -262,7 +295,7 @@ The audit must include a stop-condition table:
 
 If any triggered stop condition is `yes`, the audit must mark the trial as stopped and must not present findings as completed trial evidence.
 
-## Required Final Audit Verdicts
+**Required final audit verdicts:**
 
 Future audit output must include all verdicts below:
 
@@ -281,7 +314,7 @@ Future audit output must include all verdicts below:
 
 Any `unknown` value must explain the evidence gap and require review.
 
-## Non-Authorization Language
+## Non-Promotion Rule
 
 Every future audit output must include:
 
@@ -289,7 +322,15 @@ Every future audit output must include:
 This audit is advisory evidence only. It is not PAI Memory, not ISA, not Pulse state, not Codex memory, and not replacement readiness. It does not authorize implementation, live writes, assisted patch mode, controlled single-writer mode, Codex-only replacement mode, Pulse bridge work, installer work, migration tooling, root AGENTS.md creation, .codex creation, or copying Claude-shaped files into Codex surfaces.
 ```
 
-## Audit Review Requirements
+Product memories must not be silently promoted into PAI Memory. Codex memory, Claude Code auto memory, transcripts, SDK threads, and `/goal` state are not PAI Memory.
+
+## Retention and Privacy Notes
+
+Future audit output must not include secrets, credential contents, private denied path contents, or user-local product memory excerpts.
+
+Audit output must be retained only in an approved generated-output quarantine outside live PAI, Claude, Codex, release, and runtime roots.
+
+**Audit review requirements:**
 
 Before a future audit can be accepted as evidence, reviewers must confirm:
 
@@ -302,6 +343,10 @@ Before a future audit can be accepted as evidence, reviewers must confirm:
 - Final verdicts are present.
 - Stop conditions are fully reported.
 
-## S4 Non-Authorization
+## Future Implementation Gates
+
+Future implementation gates include manifest approval, path model approval, authority-equivalence test approval, audit output format approval, privacy review, generated-output quarantine approval, and architect approval.
+
+## Non-Goals
 
 This spec does not authorize audit output creation, output directory creation, trial execution, fixture creation, harness creation, runtime execution, adapter implementation, root `AGENTS.md`, `.codex/`, generated configs, private-state inspection, Pulse startup, installer execution, migration tooling, writes, or movement beyond S4.

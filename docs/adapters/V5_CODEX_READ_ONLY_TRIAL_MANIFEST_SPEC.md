@@ -6,7 +6,13 @@ Define the manifest contract a future milestone must satisfy before any read-onl
 
 This document is design-only. It does not create a manifest instance, run a trial, create fixtures, implement a Codex adapter, create root `AGENTS.md`, create `.codex/`, create hooks, rules, skills, subagents, agents, commands, launchers, installers, wrappers, generated configs, runtime files, or test harnesses.
 
-## Source Discipline
+## Scope
+
+This spec defines future manifest fields, lifecycle expectations, policy sections, stop conditions, validation rules, and prohibited semantics for a later read-only trial design.
+
+It does not create a manifest, schema, fixture, harness, runtime configuration, or audit output. It does not authorize existing-local-v5 trial execution.
+
+## Evidence Base
 
 This spec derives from S0/S1/S2/S3 adapter docs. It does not make new Codex capability claims beyond S2/S3.
 
@@ -19,15 +25,17 @@ Primary sources:
 - `docs/adapters/V5_CODEX_AUTHORITY_MAPPING_SPEC.md`
 - `docs/adapters/V5_CODEX_READ_ONLY_TRIAL_SPEC.md`
 
-## Executive Position
+## Manifest Role
 
 A future read-only trial manifest is a preflight contract, not a runtime file and not a permission slip for writes.
+
+Codex is not currently proven drop-in for existing local PAI v5 files. Codex replacement is plausible only through a designed adapter.
 
 The manifest must make trial scope explicit before Codex sees any PAI fixture or existing local v5 material. It must identify the engine, mode, source kind, authority envelope, allowed reads, denied reads, denied writes, state boundaries, stop conditions, audit expectations, and required approvals.
 
 No future trial may proceed from an implicit prompt, ad hoc path list, or general trust that "read-only" is understood.
 
-## Manifest Status
+## Manifest Lifecycle
 
 S4 defines a manifest specification only.
 
@@ -43,7 +51,9 @@ S4 does not create:
 - A `.codex/` directory.
 - An audit output file.
 
-## Required Manifest Sections
+Lifecycle states must remain reviewable: `draft`, `architect-review`, `approved`, `rejected`, `expired`, or a later approved equivalent. Expired or ambiguous manifests cannot authorize a future trial.
+
+## Required Manifest Fields
 
 | Section | Purpose | Required |
 | --- | --- | --- |
@@ -60,7 +70,7 @@ S4 does not create:
 | `stop_conditions` | Lists conditions that stop before or during a future trial. | Yes |
 | `non_authorizations` | States what the manifest does not authorize. | Yes |
 
-## Manifest Identity Fields
+**Manifest identity fields:**
 
 | Field | Requirement |
 | --- | --- |
@@ -72,7 +82,7 @@ S4 does not create:
 | `supersedes` | Optional prior manifest IDs superseded by this manifest. |
 | `source_spec` | Must reference this S4 spec or a later approved manifest spec. |
 
-## Trial Identity Fields
+**Trial identity fields:**
 
 | Field | Requirement |
 | --- | --- |
@@ -86,7 +96,7 @@ S4 does not create:
 | `write_claim_allowed` | Must be `false`. |
 | `advance_beyond_read_only_allowed` | Must be `false`. |
 
-## Authority Envelope Fields
+**Authority envelope fields:**
 
 | Field | Requirement |
 | --- | --- |
@@ -99,7 +109,7 @@ S4 does not create:
 | `dynamic_context_allowed` | Must list explicit allowed mechanisms or `none`. |
 | `conflict_policy` | Must state that PAI doctrine and read-only constraints outrank convenience, Codex memory, transcripts, plans, and future router text. |
 
-## Source Material Fields
+## Source Kind Model
 
 | Field | Requirement |
 | --- | --- |
@@ -112,7 +122,19 @@ S4 does not create:
 | `hardlink_policy` | Must deny hardlink-based aliasing to live roots. |
 | `fixture_created_by_this_manifest` | Must be `false`; manifest describes use of a fixture but does not create it. |
 
-## Path Policy Fields
+Source kind values must distinguish release fixture material, sanitized user fixture material, and existing local v5 read-only roots. Existing local v5 roots require explicit user approval and remain private, live, and potentially canonical.
+
+## Authority Policy Fields
+
+Authority policy fields must preserve the S3 authority mapping:
+
+- `PAI_SYSTEM_PROMPT.md` is high-authority PAI doctrine, not ordinary markdown.
+- `CLAUDE.md` is an official Claude-facing surface, not a Codex destination file.
+- Codex `AGENTS.md`, if later authorized, must be a compact router.
+- Claude-shaped files must not be copied directly into Codex surfaces.
+- Codex memory, transcripts, SDK threads, and `/goal` state are not authority and not PAI Memory.
+
+## Filesystem Policy Fields
 
 | Field | Requirement |
 | --- | --- |
@@ -125,7 +147,7 @@ S4 does not create:
 | `path_resolution_policy` | Paths must be resolved to canonical absolute paths before a future trial. |
 | `escape_policy` | Access outside the manifest roots is a stop condition. |
 
-## Runtime Posture Fields
+**Runtime posture fields:**
 
 | Field | Requirement |
 | --- | --- |
@@ -139,7 +161,7 @@ S4 does not create:
 | `hook_policy` | Must state no live PAI hook execution. |
 | `generated_config_policy` | Must state no generated config creation. |
 
-## State Boundary Fields
+## Memory and ISA Policy Fields
 
 | Surface | Manifest Requirement |
 | --- | --- |
@@ -152,6 +174,34 @@ S4 does not create:
 | Codex transcripts | Identify as product/session audit material, not canonical PAI state. |
 | Audit output | Identify as advisory evidence, not runtime state. |
 
+PAI Memory and ISA artifacts are canonical PAI state. A read-only trial must be reversible and must not write PAI state. Future writes require a single-writer policy, provenance, rollback, and validation.
+
+Product memories must not be silently promoted into PAI Memory, and product memories remain outside canonical PAI state unless a later architect-approved bridge says otherwise.
+
+## Pulse Policy Fields
+
+Pulse remains central v5 infrastructure, but S4 does not design or implement a Pulse bridge.
+
+Manifest Pulse policy must state:
+
+- No Pulse startup.
+- No Pulse endpoint calls.
+- No Pulse writes.
+- No Pulse parity claims.
+- No bridge implementation.
+
+## Network and Tooling Policy Fields
+
+Network and tooling policy must deny or explicitly scope:
+
+- Network access.
+- Installer execution.
+- Codex import or migration tooling.
+- Service or daemon startup.
+- Live PAI hook execution.
+- Generated config creation.
+- Runtime wrapper, launcher, or harness creation.
+
 ## Output Policy Fields
 
 | Field | Requirement |
@@ -163,7 +213,7 @@ S4 does not create:
 | `required_sections` | Must reference the audit output spec. |
 | `destination_policy` | Must forbid output writes into live PAI roots. |
 
-## Approval Fields
+**Approval fields:**
 
 | Field | Requirement |
 | --- | --- |
@@ -174,7 +224,7 @@ S4 does not create:
 | `path_model_review` | Required before any filesystem exposure. |
 | `audit_review` | Required before results are accepted as trial evidence. |
 
-## Stop Conditions
+## Stop Condition Fields
 
 The manifest must stop the trial if:
 
@@ -191,7 +241,40 @@ The manifest must stop the trial if:
 - A fixture path resolves into a live user-local root.
 - The manifest is incomplete, expired, unapproved, or ambiguous.
 
-## Invalid Manifest Examples
+## Example Non-Executable Manifest
+
+Non-executable sketch:
+
+```yaml
+manifest_id: example-only-not-valid-for-execution
+engine: codex-candidate
+mode: read-only-trial
+source_kind: release-fixture
+allowed_read_roots: []
+denied_read_roots:
+  - private-user-local-state
+denied_write_roots:
+  - all-pai-state
+drop_in_claim_allowed: false
+write_claim_allowed: false
+```
+
+This example is illustrative only. It is incomplete and cannot authorize a trial.
+
+## Validation Rules
+
+Future manifest implementation must validate:
+
+- Required fields are present.
+- Unknown fields fail review unless explicitly allowed by a newer spec.
+- Paths resolve inside approved roots.
+- Deny lists dominate allow lists.
+- Write denial covers every read root.
+- Live root use has explicit user approval.
+- Existing local roots cannot be reached through symlinks or hardlinks.
+- Manifest output is auditable without reading private denied paths.
+
+## Prohibited Manifest Semantics
 
 The following are invalid:
 
@@ -204,19 +287,19 @@ The following are invalid:
 - A manifest that marks Codex memory as PAI Memory.
 - A manifest that has architect approval but lacks user approval for live local roots.
 
-## Future Validation Expectations
+## Future Implementation Gates
 
-A future manifest implementation milestone must validate:
+Future implementation gates:
 
-- Required fields are present.
-- Unknown fields fail review unless explicitly allowed by a newer spec.
-- Paths resolve inside approved roots.
-- Deny lists dominate allow lists.
-- Write denial covers every read root.
-- Live root use has explicit user approval.
-- Existing local roots cannot be reached through symlinks or hardlinks.
-- Manifest output is auditable without reading private denied paths.
+- Architect approval.
+- User approval for every live root.
+- Authority-equivalence review.
+- Path-model review.
+- Audit-output review.
+- No-write proof strategy.
+- Denied-path proof strategy.
+- Rollback statement.
 
-## S4 Non-Authorization
+## Non-Goals
 
 This spec does not authorize a trial, manifest creation, fixture creation, runtime configuration, adapter implementation, write access, private-state inspection, Pulse startup, installer execution, migration tooling, or movement beyond S4.
