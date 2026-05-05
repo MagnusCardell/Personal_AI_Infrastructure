@@ -4,6 +4,64 @@
 
 This register translates the V5-S0 discovery evidence into replacement-adapter risks for PAI v5.0.0. It is an S1 design artifact only. It does not authorize runtime adapter implementation, release edits, installer edits, live `PAI_DIR` access, `.codex/` access, or writes to existing local v5 state.
 
+## Scope
+
+This register covers upstream, replacement, existing-user, dual-engine, dual-subscription, Pulse, ISA, and PAI Memory risks for the PAI v5.0.0 Codex replacement-adapter effort.
+
+It does not implement an adapter, create runtime adapter files, authorize Pulse implementation, authorize PAI Memory writes, modify release files, inspect user-local state, or claim Codex is the official upstream engine.
+
+## Canonical Target
+
+The canonical target is PAI v5.0.0 as discovered in S0. The upstream release is Claude Code-native and the official/full-support runtime engine remains Claude Code until replacement-grade validation exists.
+
+Codex is a replacement-capable beta local engine candidate only behind a designed adapter. Replacement means user-selectable local engine substitution, not overwriting Claude files and not turning PAI into an OpenAI project.
+
+## Evidence Base
+
+Primary evidence comes from:
+
+- `docs/adapters/V5_S0_DISCOVERY_PLAN.md`
+- `docs/adapters/V5_S0_DISCOVERY_REPORT.md`
+
+Key release evidence cited by S0 includes:
+
+- `Releases/v5.0.0/.claude/PAI/TOOLS/pai.ts`
+- `Releases/v5.0.0/.claude/PAI/TOOLS/Inference.ts`
+- `Releases/v5.0.0/.claude/settings.json`
+- `Releases/v5.0.0/.claude/hooks/README.md`
+- `Releases/v5.0.0/.claude/hooks/PromptProcessing.hook.ts`
+- `Releases/v5.0.0/.claude/hooks/lib/paths.ts`
+- `Releases/v5.0.0/.claude/PAI/DOCUMENTATION/Pulse/PulseSystem.md`
+- `Releases/v5.0.0/.claude/PAI/DOCUMENTATION/IsaFormat.md`
+- `Releases/v5.0.0/.claude/PAI/DOCUMENTATION/Memory/MemorySystem.md`
+- `Releases/v5.0.0/.claude/PAI/PAI_SYSTEM_PROMPT.md`
+- `Releases/v5.0.0/.claude/agents/Engineer.md`
+- `Releases/v5.0.0/.claude/commands/context-search.md`
+
+## Risk Scoring Model
+
+Risk scoring combines severity, likelihood, and priority.
+
+| Severity | Meaning |
+| --- | --- |
+| Critical | Can corrupt canonical PAI state, expose private user-local state, destroy rollback, remove the proven runtime, or falsely claim replacement readiness. |
+| High | Can break major runtime semantics, create misleading Pulse or memory behavior, weaken security, or block replacement-grade validation. |
+| Medium | Can create review ambiguity, maintenance drift, fixture gaps, or operator confusion. |
+| Low | Can create documentation, naming, or ergonomics issues that do not directly affect state safety. |
+
+| Likelihood | Meaning |
+| --- | --- |
+| Likely | Expected unless actively controlled. |
+| Possible | Plausible during design or prototype work. |
+| Unlikely | Requires unusual conditions but must still be tracked. |
+
+| Priority | Rule |
+| --- | --- |
+| P0 | Critical severity with likely or possible likelihood. Must block implementation until mitigated. |
+| P1 | High severity with likely or possible likelihood. Must have an explicit architect gate. |
+| P2 | Medium severity or low-likelihood high severity. Track and review before phase exit. |
+| P3 | Low severity. Track if it affects docs or operator clarity. |
+
 ## Evidence Baseline
 
 Primary evidence comes from `docs/adapters/V5_S0_DISCOVERY_REPORT.md` and its cited upstream paths under `Releases/v5.0.0/`.
@@ -24,30 +82,146 @@ S0 established that:
 - Medium: can block validation, confuse operators, or create maintenance risk without immediate state corruption.
 - Low: can create documentation or ergonomics issues that are unlikely to affect safety gates.
 
-## Register
+## Initial Risk Register
 
-| ID | Risk | Affected Surfaces | Severity | Evidence | Mitigation | Verification Gate | S2 Decision Implication |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| R-001 | False drop-in confidence: treating Codex as if it can run PAI v5.0.0 by copying or repointing `.claude` files. | Launcher, inference, settings, hooks, skills, agents, commands, Pulse jobs | Critical | S0 says Codex is not proven drop-in; `pai.ts` launches `claude` with `--append-system-prompt-file` (`Releases/v5.0.0/.claude/PAI/TOOLS/pai.ts:391-404`). | Define Codex as a replacement-adapter target, not a file copy or runtime alias. Keep Claude Code installed and untouched. | Written adapter boundary forbids `.claude` to `.codex` copying and live write trials. | S2 must validate mappings before any prototype touches runtime state. |
-| R-002 | High-authority doctrine loss: `PAI_SYSTEM_PROMPT.md` becomes ordinary context or memory in Codex. | Authority layer, model input chain, doctrine enforcement | Critical | S0 identifies `PAI_SYSTEM_PROMPT.md` as highest authority doctrine; v5 loads it above `CLAUDE.md` (`Releases/v5.0.0/.claude/PAI/DOCUMENTATION/PAISystemArchitecture.md:125-148`). | Require a Codex authority-equivalence design before runtime claims. Do not demote doctrine into product memory, goal state, or normal markdown retrieval. | Authority lane documents the target semantics and unknown Codex binding point. | S2 cannot proceed until Codex authority semantics are verified against current official behavior. |
-| R-003 | Unsafe canonical-state writes by more than one engine. | `PAI/MEMORY`, ISA files, `STATE/work.json`, observability JSONL, user identity files | Critical | S0 requires a single-writer policy before writes; ISA is system of record and PAI Memory is canonical (`Releases/v5.0.0/.claude/PAI/DOCUMENTATION/IsaFormat.md:1-10`, `Releases/v5.0.0/.claude/PAI/DOCUMENTATION/Memory/MemorySystem.md:276-300`). | Read-only fixture validation first. Future writes require a lock or lease, provenance, rollback, and explicit owner selection. | Boundary document defines no-write default and future single-writer gate. | S2 must choose a write broker model or remain read-only. |
-| R-004 | Existing local v5 install damage through installer or migration semantics. | `~/.claude`, `PAI_DIR`, settings, hooks, skills, agents, user files | Critical | Installer backs up and overlays existing `~/.claude` (`Releases/v5.0.0/.claude/PAI/PAI-Install/engine/actions.ts:605-664`). | No installer execution, no uninstall requirement, no live overlay, no migration without disposable fixtures and rollback proof. | Runbook and boundary docs forbid live install/migration during S1. | S2 must use copied fixtures before any user-local trial. |
-| R-005 | `PAI_DIR` misbinding: adapter treats repo release files as live state or points at live `~/.claude/PAI` accidentally. | PAI state root, Memory, USER, TOOLS, PULSE | Critical | `PAI_DIR` resolves to `${HOME}/.claude/PAI` in settings and hook path logic (`Releases/v5.0.0/.claude/settings.json:3-10`, `Releases/v5.0.0/.claude/hooks/lib/paths.ts:28-40`). | Future validation must require an explicit fixture root and reject implicit home-directory defaults. | Boundary document classifies `PAI_DIR` as live state unless explicitly fixture-bound. | S2 must define fixture-root detection and guardrails. |
-| R-006 | Pulse parity overclaim: Codex activity is invisible, malformed, or incorrectly merged into Pulse. | Pulse daemon, dashboard, observability, hook validation, jobs, event APIs | High | Pulse is central daemon on port `31337`; docs describe event and observability APIs (`Releases/v5.0.0/.claude/PAI/DOCUMENTATION/Pulse/PulseSystem.md:1-13`, `Releases/v5.0.0/.claude/PAI/DOCUMENTATION/Observability/ObservabilitySystem.md:187-220`). | Treat Pulse as a required adapter lane. Define an event bridge and minimum schema before claiming parity. | Runtime strategy includes Pulse bridge requirements and no unsupported dashboard parity. | S2 must specify event schema, source IDs, and failure behavior. |
-| R-007 | Pulse job-type confusion: Codex scheduled work is hidden inside `type = "claude"` jobs. | Pulse jobs, scheduled reasoning, dashboard reporting | High | S0 notes Pulse `claude` job type spawns Claude CLI (`Releases/v5.0.0/.claude/PAI/DOCUMENTATION/Pulse/PulseSystem.md:111-119`, `Releases/v5.0.0/.claude/PAI/DOCUMENTATION/Pulse/PulseSystem.md:183-189`). | Future design should prefer an explicit `codex` job type or adapter-owned job identity rather than overloading Claude semantics. | Risk is listed as a required S2 decision. | S2 must decide job identity before scheduled Codex reasoning is considered. |
-| R-008 | Hook lifecycle mismatch: Claude Code hook events and stdin payloads do not map cleanly to Codex lifecycle semantics. | SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact, SessionEnd | High | Hooks depend on Claude lifecycle events and payloads (`Releases/v5.0.0/.claude/hooks/README.md:39-90`, `Releases/v5.0.0/.claude/hooks/README.md:95-130`). | Map events explicitly and mark unsupported events as gaps. Preserve fail-open/fail-closed semantics. | Runtime strategy lists event mapping as a blocking lane. | S2 must produce an event compatibility matrix. |
-| R-009 | Prompt processing and context injection drift. | `PromptProcessing.hook.ts`, context loading, mode/tier classification, `additionalContext` | High | Prompt processing emits Claude `additionalContext` and uses Claude inference paths (`Releases/v5.0.0/.claude/hooks/PromptProcessing.hook.ts:58-65`, `Releases/v5.0.0/.claude/hooks/PromptProcessing.hook.ts:923-1068`). | Define Codex context injection and classification semantics separately; do not assume Claude `additionalContext` exists. | Strategy records this as an unknown until Codex runtime semantics are verified. | S2 must validate context injection behavior with fixtures. |
-| R-010 | Inference behavior drift: model tiers, auth assumptions, subprocess output, and subscription routing differ. | `Inference.ts`, model selection, classification, background reasoning | High | `Inference.ts` shells out to `claude`, uses Claude model names, and scrubs Anthropic API env vars (`Releases/v5.0.0/.claude/PAI/TOOLS/Inference.ts:35-36`, `Releases/v5.0.0/.claude/PAI/TOOLS/Inference.ts:85-140`). | Treat inference as a separate provider lane with observable inputs, outputs, model policy, and failure handling. | Runtime strategy does not name unsupported Codex parity claims. | S2 must define a Codex inference contract against current Codex behavior. |
-| R-011 | Settings and permission mismatch: Claude Code settings are copied into Codex without equivalent security semantics. | `settings.json`, permissions, hooks, HTTP hook allowlists, plugin fields | Critical | `settings.json` declares Claude Code schema, tool permissions, hook events, and plugin settings (`Releases/v5.0.0/.claude/settings.json:1-84`, `Releases/v5.0.0/.claude/settings.json:277-372`). | Future adapter must generate Codex-specific config from a boundary model rather than copying Claude settings. | Boundary doc forbids copying settings into Codex as compatibility proof. | S2 must identify a Codex config schema and permission model before config generation. |
-| R-012 | Skills, commands, and agents lose activation, isolation, or permission semantics. | `skills/`, `commands/`, `agents/`, frontmatter, `Skill(...)`, `Agent(...)` | High | Commands reference Claude `Skill(...)`; agents have Claude-specific frontmatter (`Releases/v5.0.0/.claude/commands/context-search.md:7-19`, `Releases/v5.0.0/.claude/agents/Engineer.md:1-34`). | Treat these as transformation candidates with a semantic inventory, not as direct file copies. | Runtime strategy includes a skills/commands/agents lane. | S2 must decide which surfaces are in scope for read-only translation. |
-| R-013 | Product memory and goal-state confusion: Codex goal progress or memory is mistaken for PAI Memory. | Codex goals, Codex memory, Claude memory, `PAI/MEMORY`, ISA | High | S0 keeps PAI Memory, Claude Code memory, Codex memory, and Codex goal state separate; PAI Memory has curation rules (`Releases/v5.0.0/.claude/PAI/MEMORY/KNOWLEDGE/README.md:1-7`). | Goal runbook defines Codex goal state as orchestration metadata only. Promotions require explicit curation and provenance. | Goal runbook includes do-not-promote rules and closure checks. | S2 must define any optional display bridge as read-only and provenance-labeled. |
-| R-014 | Shadow ISA creation: Codex creates parallel acceptance artifacts instead of using canonical ISA semantics. | `ISA.md`, `PAI/MEMORY/WORK/{slug}/ISA.md`, done conditions, verification | High | ISA is the single source of truth and system-of-record primitive (`Releases/v5.0.0/.claude/PAI/DOCUMENTATION/IsaFormat.md:1-10`). | Future adapter must either read canonical ISA or explicitly defer; it must not create a competing ISA format. | Boundary document prohibits parallel acceptance artifacts. | S2 must define read-only ISA handling before write semantics. |
-| R-015 | Private user state exposure through documentation, fixtures, or logs. | `PAI/USER`, `~/.claude`, `.codex`, transcripts, credentials, memories | Critical | `PAI_SYSTEM_PROMPT.md` treats `~/.claude` as private; `.gitignore` excludes private credentials and runtime state (`Releases/v5.0.0/.claude/PAI/PAI_SYSTEM_PROMPT.md:164-178`, `Releases/v5.0.0/.claude/.gitignore:55-90`). | Use repository release fixtures or sanitized disposable copies only. Never read user-local Codex memory in S1. | Scope checks verify no `.codex/`, `.claude/`, or user-local paths were touched. | S2 must define fixture sanitization rules. |
-| R-016 | Observability and provenance gaps make adapter behavior unreviewable. | Pulse events, JSONL, logs, state writes, dashboard rows | High | Observability is a Pulse-supported system with HTTP and JSONL surfaces (`Releases/v5.0.0/.claude/PAI/DOCUMENTATION/Observability/ObservabilitySystem.md:1-31`). | Future adapter events and writes must include engine identity, source, fixture/live mode, timestamp, and rollback reference. | Runtime strategy names provenance as required for bridge and writes. | S2 must define minimum provenance schema. |
-| R-017 | Rollback is unproven before live use. | Installed runtime, settings, generated config, state writes | Critical | S0 requires reversible and safe future replacement for existing local v5 files. | Treat rollback proof as a gate, not a cleanup task. Fixture snapshots must restore byte-for-byte before live trials. | Boundary doc requires reversible setup and rollback before any write mode. | S2 cannot authorize write prototypes without rollback acceptance criteria. |
-| R-018 | Documentation drift from upstream v5.0.0 evidence. | Strategy docs, future design assumptions, adapter backlog | Medium | S0 is a snapshot of `Releases/v5.0.0/`; Codex runtime behavior was not inspected through `.codex/` or current online docs. | Keep S1 claims tied to S0 and mark current Codex details as unknown until verified in a later phase. | Docs explicitly record unknowns and avoid unsupported Codex API claims. | S2 must refresh Codex runtime evidence from approved sources before design freeze. |
-| R-019 | Security policy mismatch across tool execution. | Claude tool permissions, Codex tools, MCP, shell, network, HTTP hooks | Critical | Claude settings specify permissions and HTTP hook allowlists (`Releases/v5.0.0/.claude/settings.json:1-84`, `Releases/v5.0.0/.claude/settings.json:277-372`). | Future adapter must map deny/allow behavior to Codex security primitives and default closed where mapping is missing. | Runtime strategy lists settings/security as a blocking lane. | S2 must define permission equivalence and unsupported-tool behavior. |
-| R-020 | Adapter work mutates upstream release baseline while trying to "fix" compatibility. | `Releases/v5.0.0/`, release docs, installer files | Critical | S1 protects release files; S0 treats v5.0.0 as canonical baseline. | Preserve release baseline as read-only evidence. Put all design output under `docs/adapters/`. | Final S1 changed-file verification lists only approved docs. | S2 must continue to separate baseline evidence from generated adapter artifacts. |
+| ID | Risk | Affected Surfaces | Severity | Likelihood | Priority | Evidence | Mitigation | Verification Gate |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| R-001 | Upstream drift changes assumptions before implementation. | Release baseline, Codex behavior, adapter docs | Medium | Likely | P2 | S0 is a snapshot of `Releases/v5.0.0/`. | Refresh evidence before later milestones. | Evidence refresh logged. |
+| R-002 | False drop-in confidence treats Codex as ready today. | Launcher, inference, settings, hooks, skills, agents, commands, Pulse jobs | Critical | Likely | P0 | S0 says Codex is not currently proven drop-in. | Define Codex as adapter-only until validation. | Runtime strategy answers drop-in as no. |
+| R-003 | Authority loss demotes `PAI_SYSTEM_PROMPT.md`. | Instruction hierarchy, doctrine, conflicts | Critical | Possible | P0 | S0 identifies high-authority doctrine. | Require Codex authority-equivalence spec. | Authority gate with tests. |
+| R-004 | `PAI_DIR` misbinding points Codex at live state. | `~/.claude/PAI`, Memory, USER, PULSE | Critical | Possible | P0 | S0 shows `PAI_DIR` defaults to user-local PAI. | Require explicit fixture root and live-root guards. | Fixture-root guard test. |
+| R-005 | Pulse parity overclaim hides missing event support. | Dashboard, observability, jobs, hook validation | High | Likely | P1 | S0 establishes Pulse as central infrastructure. | Require Pulse bridge schema. | Pulse bridge reviewed. |
+| R-006 | Pulse job identity confusion overloads Claude job type. | Scheduled reasoning, job history | High | Possible | P1 | S0 notes Claude job semantics. | Define Codex or adapter job identity. | Architect job identity decision. |
+| R-007 | Hook lifecycle mismatch drops required behavior. | SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact, SessionEnd | High | Likely | P1 | Hooks are Claude lifecycle-specific. | Build event compatibility matrix. | Unsupported events explicit. |
+| R-008 | Inference drift changes model, auth, output, or routing. | `Inference.ts`, model tiers, classification | High | Likely | P1 | S0 shows Claude subprocess inference. | Define Codex-native provider contract. | Provider contract approved. |
+| R-009 | Settings and security mismatch weakens permissions. | `settings.json`, permissions, HTTP hooks, tools | Critical | Possible | P0 | S0 shows Claude Code settings schema. | Design native Codex policy. | Security mapping reviewed. |
+| R-010 | Skills, commands, and agents lose semantics. | `skills/`, `commands/`, `agents/`, frontmatter | High | Likely | P1 | S0 shows Claude-shaped activation. | Transform by spec, not copy. | Transformation tests. |
+| R-011 | Product-memory confusion treats non-canonical memory as PAI Memory. | Claude memory, Codex memory, Codex `/goal`, PAI Memory | High | Likely | P1 | S0 separates memory surfaces. | Require labels, curation, provenance. | Memory boundary check. |
+| R-012 | Single-writer failure corrupts canonical state. | `PAI/MEMORY`, ISA, `STATE/work.json`, JSONL | Critical | Possible | P0 | S0 requires single-writer before writes. | No writes until lock or lease policy. | Single-writer policy approved. |
+| R-013 | Existing-local-v5 overwrite damages user install. | `~/.claude`, settings, hooks, skills, agents, user files | Critical | Possible | P0 | S0 shows installer overlay risk. | Begin with read-only trial mode. | Existing-user trial plan approved. |
+| R-014 | Rollback is unproven before live use. | Runtime config, Memory, ISA, Pulse state | Critical | Possible | P0 | S0 requires reversible replacement. | Treat rollback proof as gate. | Restore test passes. |
+| R-015 | Governance confusion treats Codex as PAI owner. | Repo docs, architecture, vendor surfaces | Medium | Possible | P2 | Replacement is engine substitution only. | Separate PAI governance from engine vendor. | Governance reviewed. |
+
+## Replacement-Specific Risks
+
+Replacement-specific risks arise when "replacement" is interpreted too broadly.
+
+Invalid interpretations:
+
+- Replacement means copying `.claude` into `.codex`.
+- Replacement means Codex is official upstream today.
+- Replacement means Claude Code must be uninstalled.
+- Replacement means PAI becomes an OpenAI project.
+- Replacement means Claude-shaped files can be reused as Codex native surfaces.
+
+Required control: Codex native surfaces must not be copied directly from Claude-shaped files. Behavior-preserving transformation requires an explicit adapter spec and tests.
+
+## Existing Local v5 User Risks
+
+Existing users may already have live and private state under `~/.claude/` and `~/.claude/PAI/`.
+
+| Scenario | Future Mode | Primary Risk | Required Control |
+| --- | --- | --- | --- |
+| User wants to inspect whether Codex could work. | Read-only trial mode | Accidental live writes. | Read-only filesystem guard and no state mutation. |
+| User wants Codex to suggest changes. | Assisted patch mode | Proposed patches mistaken for accepted PAI state. | Human review and external writer. |
+| User wants Codex to write selected state. | Controlled single-writer mode | Concurrent Claude and Codex writes. | Single-writer lock or lease. |
+| User wants only Codex locally. | Codex-only replacement mode | Missing Claude fallback. | Replacement readiness and rollback. |
+| User wants both engines. | Dual-engine coexistence mode | Memory and state confusion. | Engine labels and writer ownership. |
+
+S1R authorizes none of these modes at runtime.
+
+## Dual-Engine and Dual-Subscription Memory Risks
+
+Dual-engine and dual-subscription use does not merge state.
+
+| Surface | Owner | Canonical PAI State | S1R Handling | Future Risk |
+| --- | --- | --- | --- | --- |
+| PAI Memory | PAI | Yes | Evidence only | Product memory could be silently promoted. |
+| ISA | PAI | Yes | Evidence only | Codex could create shadow acceptance artifacts. |
+| Pulse state | PAI runtime | Runtime-canonical when live | No live calls or writes | Events could be missing or mislabeled. |
+| Claude Code memory | Claude Code | No | Separate product memory | Could be mistaken for PAI Memory. |
+| Codex memory | Codex | No | Not inspected or modified | Could be mistaken for PAI Memory. |
+| Codex `/goal` state | Codex | No | Orchestration metadata only | Could be mistaken for ISA or Pulse state. |
+| Codex future adapter config | Future adapter | No by default | Not created in S1R | Could overwrite or imitate Claude config. |
+| Repo governance files | Maintainers | Governance, not runtime state | Documentation only | Could blur policy with runtime behavior. |
+
+Codex goal state is not PAI Memory, not ISA, and not Pulse state.
+
+## Pulse, ISA, and Memory Risks
+
+Pulse risks:
+
+- Pulse is central v5 infrastructure, not optional background trivia.
+- Pulse parity cannot be claimed without an event bridge.
+- Codex job activity needs explicit Codex or adapter identity.
+
+ISA risks:
+
+- ISA is canonical PAI state.
+- Codex must not create shadow ISA formats.
+- Codex `/goal` completion is not ISA acceptance.
+
+Memory risks:
+
+- PAI Memory is canonical PAI state.
+- Claude Code memory, Codex memory, and Codex `/goal` state are not PAI Memory.
+- Product memories must not be silently promoted into PAI Memory.
+- Writes require single-writer control.
+
+## Known Upstream Observations
+
+S0 records these upstream observations:
+
+- PAI v5.0.0 is Claude Code-native.
+- `pai.ts` launches `claude`.
+- `Inference.ts` shells out to `claude`.
+- `settings.json` is Claude Code settings.
+- Hooks depend on Claude Code lifecycle payloads.
+- Skills, commands, and agents are Claude-shaped.
+- Pulse has Claude job semantics.
+- `PAI_DIR` points to user-local live state.
+- `PAI_SYSTEM_PROMPT.md` is high-authority doctrine.
+
+## Risk Update Protocol
+
+Update this register when:
+
+- Current Codex runtime behavior is approved for inspection.
+- A future phase proposes generated Codex config.
+- A future phase proposes reading existing local v5 files.
+- A future phase proposes writing PAI Memory, ISA, Pulse state, or user identity files.
+- Upstream v5 evidence changes.
+- Replacement scope changes.
+
+Each risk update must include the risk ID, evidence, severity, likelihood, mitigation, verification gate, and architect decision required.
+
+## Stop Conditions
+
+Stop and request architect review if:
+
+- Codex is claimed as drop-in today.
+- Codex is claimed as the official upstream engine today.
+- Claude files are proposed for direct copy into Codex.
+- Live `PAI_DIR` writes are proposed without single-writer control.
+- Pulse parity is claimed without a bridge.
+- `PAI_SYSTEM_PROMPT.md` is demoted to ordinary markdown or memory.
+- Codex goal state is treated as PAI Memory, ISA, or Pulse state.
+- Existing local v5 trials require uninstalling Claude Code.
+- Rollback is not demonstrated before live write mode.
+
+## Architect Review Requirements
+
+Before any implementation phase, an architect must approve:
+
+- Authority-equivalence design for `PAI_SYSTEM_PROMPT.md`.
+- Native Codex surface strategy.
+- Hook and rule event compatibility matrix.
+- Pulse event and job identity model.
+- Memory and ISA read/write policy.
+- Existing local v5 read-only trial plan.
+- Single-writer policy.
+- Rollback and reversibility proof.
+- Governance separation between PAI and engine vendor.
 
 ## Cross-Risk Controls
 

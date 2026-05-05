@@ -1,5 +1,252 @@
 # V5 Codex Runtime Strategy
 
+## Purpose
+
+Define the canonical S1 runtime strategy for a future Codex replacement adapter for PAI v5.0.0.
+
+This document is design-only. It does not implement a Codex adapter, create runtime adapter files, modify release files, create Codex native surfaces, authorize Pulse implementation, authorize PAI Memory writes, or authorize live local v5 trials.
+
+## Strategic Position
+
+Claude Code remains the current official/full-support upstream engine for PAI v5.0.0 until replacement-grade validation exists.
+
+Codex should be designed as a replacement-capable beta local engine. Codex is a future local runtime candidate behind a designed adapter, not the official upstream engine today.
+
+## Replacement Thesis
+
+Codex replacement is plausible only through a designed adapter.
+
+The thesis is that PAI v5.0.0 has a conceptual engine layer, but the shipped implementation is wired to Claude Code. A future adapter can make Codex a user-selectable local engine only if it preserves PAI authority, Pulse centrality, ISA semantics, PAI Memory ownership, hook behavior, skill and agent activation, settings/security intent, sandbox constraints, and rollback safety.
+
+## What Replacement Means
+
+Replacement means user-selectable local engine substitution.
+
+Valid replacement means a user can select Codex as the local engine after replacement-grade validation while preserving:
+
+- PAI doctrine.
+- `PAI_SYSTEM_PROMPT.md` high-authority semantics.
+- Pulse as central infrastructure.
+- PAI Memory and ISA as canonical PAI state.
+- Claude Code as an available fallback until an architect approves otherwise.
+- Reversible setup.
+- Single-writer policy before writes.
+
+## What Replacement Does Not Mean
+
+Replacement does not mean:
+
+- Codex is drop-in today.
+- Codex is the official upstream engine today.
+- PAI becomes an OpenAI project.
+- Claude Code must be uninstalled.
+- Claude files are overwritten.
+- `.claude` is copied into `.codex`.
+- Claude-shaped files are treated as native Codex files.
+- `CLAUDE.md` is cloned into a future Codex `AGENTS.md`.
+- Codex memory or Codex `/goal` state becomes PAI Memory.
+- Goal completion becomes ISA acceptance.
+- Pulse parity exists without an event bridge.
+- PAI Memory writes are allowed without a single-writer policy.
+
+## Canonical Baseline
+
+The canonical baseline is PAI v5.0.0 as shipped under `Releases/v5.0.0/.claude/` and documented by S0.
+
+The release baseline is read-only evidence for S1R.
+
+## Evidence Base
+
+Evidence comes from `docs/adapters/V5_S0_DISCOVERY_REPORT.md` and cited upstream files.
+
+Important evidence includes:
+
+- `Releases/v5.0.0/.claude/PAI/TOOLS/pai.ts`
+- `Releases/v5.0.0/.claude/PAI/TOOLS/Inference.ts`
+- `Releases/v5.0.0/.claude/settings.json`
+- `Releases/v5.0.0/.claude/hooks/README.md`
+- `Releases/v5.0.0/.claude/PAI/DOCUMENTATION/Pulse/PulseSystem.md`
+- `Releases/v5.0.0/.claude/PAI/DOCUMENTATION/IsaFormat.md`
+- `Releases/v5.0.0/.claude/PAI/DOCUMENTATION/Memory/MemorySystem.md`
+- `Releases/v5.0.0/.claude/PAI/PAI_SYSTEM_PROMPT.md`
+
+## V5 Architecture Confirmation
+
+S0 confirms that PAI v5.0.0 is a Life OS architecture with Pulse, Algorithm, ISA, Memory, hooks, skills, agents, commands, settings, and `PAI_SYSTEM_PROMPT.md` wired into Claude Code's home directory and runtime model.
+
+Some PAI concepts may be engine-neutral if semantics are preserved. The shipped runtime implementation is not engine-neutral today.
+
+## Current Drop-In Assessment
+
+Is Codex a drop-in replacement today for existing local PAI v5 files?
+
+No. Codex is not currently proven drop-in for existing local PAI v5 files.
+
+Blocking reasons:
+
+- The v5 launcher invokes Claude Code.
+- The v5 inference path invokes Claude Code.
+- The v5 settings schema is Claude Code-specific.
+- Hooks are Claude Code lifecycle-specific.
+- Skills, commands, and agents use Claude-shaped activation and frontmatter.
+- Pulse includes Claude job semantics.
+- `PAI_SYSTEM_PROMPT.md` authority semantics require explicit mapping.
+- PAI Memory and ISA writes require single-writer control.
+
+## Existing Local v5 User Model
+
+Future user modes must be explicit and architect-approved.
+
+| Mode | Description | Write Permission | Required Gate |
+| --- | --- | --- | --- |
+| Read-only trial mode | Codex reasons over a copied or explicitly read-only view of existing local v5 files. | None | Fixture or read-only guard proof. |
+| Assisted patch mode | Codex proposes changes while another approved actor applies them. | Proposed changes only | Provenance and review workflow. |
+| Controlled single-writer mode | Codex writes selected PAI state under a lock or lease. | Limited and explicit | Single-writer policy, rollback, tests. |
+| Codex-only replacement mode | Codex is selected as the local engine after replacement-grade validation. | As approved by adapter policy | Full readiness criteria pass. |
+| Dual-engine coexistence mode | Claude Code and Codex are both available with one writer per canonical state surface. | Controlled by owner map | Engine labels and writer ownership. |
+
+S1R authorizes none of these modes at runtime.
+
+## Dual-Subscription and Memory Coexistence Model
+
+Dual subscription does not merge memory.
+
+Memory model:
+
+- PAI Memory is canonical PAI state.
+- ISA artifacts are canonical PAI state.
+- Claude Code auto memory is not PAI Memory.
+- Codex memory is not PAI Memory.
+- Codex `/goal` state is not PAI Memory, not ISA, and not Pulse state.
+- Product memories must not be silently promoted into PAI Memory.
+
+Future coexistence requires labels for engine source, memory source, canonical status, writer mode, and provenance.
+
+## Runtime Architecture
+
+The future architecture should use adapter lanes rather than a migrated tree.
+
+| Lane | Purpose | S1R Position |
+| --- | --- | --- |
+| Authority | Preserve `PAI_SYSTEM_PROMPT.md` semantics. | Future spec required. |
+| Launcher and inference | Invoke Codex natively without editing the v5 release baseline. | Future-only. |
+| Hooks and events | Map lifecycle behavior. | Compatibility matrix required. |
+| Pulse | Emit provenance-labeled events and job identity. | Bridge required before parity. |
+| Memory | Read and write PAI Memory only under policy. | Read-only first. |
+| ISA | Preserve system-of-record semantics. | No shadow ISA. |
+| Skills | Transform activation rules into native Codex material. | No direct copy. |
+| Agents | Transform model, permission, isolation, and routing semantics. | No direct copy. |
+| Commands | Transform slash command semantics natively. | No direct copy. |
+| Settings and security | Map security intent, not file syntax. | Native Codex mapping required. |
+| Sandbox and permissions | Preserve least privilege and fail-closed behavior. | Future spec required. |
+| Installer and launcher | Keep setup reversible and non-destructive. | No installer edits in S1R. |
+| Rollback | Restore previous state and keep Claude usable. | Required before live mode. |
+
+## Instruction-Layer Strategy
+
+`PAI_SYSTEM_PROMPT.md` is high-authority doctrine, not ordinary markdown.
+
+Future Codex design must identify a native authority surface, preserve instruction ordering, keep doctrine out of product memory and goal state, test conflicts, and fail readiness if equivalent authority cannot be proven.
+
+## Native Surface Mapping Strategy
+
+Codex native surfaces are not Claude surfaces.
+
+Claude-shaped files must not be copied directly into Codex. A future Codex `AGENTS.md`, if later authorized, must be a compact router, not a clone of `CLAUDE.md`.
+
+Codex hooks, rules, config, skills, subagents, agents, and commands must be designed as native Codex material. Behavior-preserving transformation requires an explicit adapter spec and tests.
+
+## Pulse Strategy
+
+Pulse is central v5 infrastructure, not optional background trivia.
+
+Future Codex support requires a Pulse event bridge, engine identity, mode labels, explicit Codex or adapter job identity, error events, rollback events, and dashboard parity tests.
+
+S1R does not start Pulse, write Pulse state, implement Pulse endpoints, or claim Pulse parity.
+
+## Memory Strategy
+
+PAI Memory remains canonical PAI state.
+
+Future Codex memory behavior must keep Codex memory non-canonical unless explicitly bridged, prevent silent promotion into PAI Memory, use provenance for proposed writes, require single-writer control before accepted writes, and support read-only trial behavior against existing local v5 files.
+
+## ISA Strategy
+
+ISA artifacts remain canonical PAI state.
+
+Future Codex behavior must avoid shadow ISA formats, keep Codex `/goal` completion separate from ISA acceptance, preserve done and verification semantics, and require single-writer control before ISA writes.
+
+## Skills Strategy
+
+Skills must be transformed by semantics, not copied by file shape.
+
+Future work must map activation descriptions, frontmatter, tool assumptions, memory assumptions, permission requirements, and failure behavior.
+
+## Hooks and Rules Strategy
+
+Hooks and rules must be designed natively for Codex.
+
+Future work must map Claude Code lifecycle events, stdin payloads, `additionalContext`, fail-open and fail-closed behavior, security hook behavior, and Pulse hook validation behavior.
+
+Unsupported lifecycle behavior must be explicit.
+
+## Agents and Commands Strategy
+
+Agents and commands are high-risk transformation surfaces.
+
+Future work must map agent role semantics, model selection, isolation, permissions, max-turn behavior, voice and Pulse startup calls, slash command routing, and `Skill(...)` or `Agent(...)` references.
+
+## Sandbox and Permission Strategy
+
+A future Codex adapter must preserve security intent.
+
+Unknown mappings must fail closed. Write-capable operations require explicit permission. Filesystem access must distinguish fixture roots from live roots. Tool permissions must map to native Codex controls.
+
+## Installer and Launcher Strategy
+
+Future design must avoid uninstalling Claude Code, avoid overlaying or clearing `~/.claude`, avoid modifying release files, keep generated Codex config separate and reversible, and provide read-only trial mode before live mode.
+
+## Rollback and Reversibility Strategy
+
+Future replacement must be reversible.
+
+Rollback requires fixture restore proof, backups for generated config, no destructive installer behavior, a clear writer owner map, ability to return to Claude Code, and audit trail for proposed and accepted writes.
+
+## Governance Separation
+
+PAI remains governed by its repository and architecture. Codex is a candidate local engine, not the owner of PAI.
+
+Do not turn PAI into an OpenAI project. Do not treat Codex product state as PAI state. Do not let engine vendor conventions override PAI doctrine.
+
+## Compatibility Posture
+
+Compatibility is not assumed. It must be proven.
+
+Claude Code remains the proven v5 engine. Codex is replacement-capable only as a future beta local engine. Read-only trial is the first safe future mode. Writes require single-writer control.
+
+## Replacement Readiness Criteria
+
+Codex replacement readiness requires tests and review for authority, hooks, Pulse, Memory, ISA, skills, agents, commands, settings/security, sandbox/permissions, installer/launcher reversibility, existing-local-v5 read-only trial, controlled single-writer behavior, and rollback.
+
+## Candidate Milestones Requiring Architect Approval
+
+Future advisory milestones requiring architect approval:
+
+- Codex runtime evidence refresh.
+- Authority and instruction-layer design.
+- Native surface mapping inventory.
+- Read-only fixture trial harness.
+- Pulse event bridge design.
+- Memory and ISA single-writer design.
+- Reversible installer and launcher design.
+- Controlled beta trial plan.
+
+S1R does not advance into these milestones.
+
+## Non-Goals
+
+S1R does not implement a Codex adapter, create Codex config, modify `.codex/`, modify `.claude/`, modify `PAI/`, modify release files, modify root `AGENTS.md`, run Pulse, invoke Claude Code, invoke Codex import tooling, read user-local private state, authorize PAI Memory writes, claim Codex is drop-in today, or claim Codex is the official upstream engine today.
+
 ## Executive Strategy
 
 The V5 Codex replacement strategy is adapter-first, read-only-first, and reversible. Codex is not treated as a drop-in replacement for Claude Code in PAI v5.0.0. The target is a future compatibility adapter that lets Codex act as a selectable runtime engine only after authority, event, Pulse, state, settings, and rollback gates are satisfied.

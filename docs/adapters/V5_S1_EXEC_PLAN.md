@@ -47,6 +47,29 @@ Protected from modification during S1:
 - `subagents/`
 - Any installer, release, runtime adapter, hook, skill, agent, command, settings, or user-local state file
 
+## Source Material
+
+S1R may read but must not modify:
+
+- `docs/adapters/V5_S0_DISCOVERY_PLAN.md`
+- `docs/adapters/V5_S0_DISCOVERY_REPORT.md`
+
+The S0 discovery report is the canonical evidence baseline for this repair. It establishes that PAI v5.0.0 is Claude Code-native, Codex is not currently proven drop-in for existing local PAI v5 files, PAI Memory and ISA artifacts are canonical PAI state, Pulse is central v5 infrastructure, and `PAI_SYSTEM_PROMPT.md` is high-authority doctrine.
+
+The five S1 documents themselves are the only approved repair targets. Release files and user-local state remain evidence-only or protected.
+
+## Milestones
+
+S1R milestones:
+
+1. Normalize the execution plan so it records scope, source material, validation commands, and retrospective sections.
+2. Expand the upstream risk register with scoring, risk IDs, existing-local-v5 scenarios, memory/state distinctions, and architect review requirements.
+3. Expand the runtime strategy with replacement thesis, explicit drop-in answer, user modes, adapter lanes, and replacement readiness criteria.
+4. Expand the goal runbook with bounded `/goal` lifecycle rules and final handoff format.
+5. Expand the adapter boundaries document with surface definitions, native surface rules, transformation rules, read/write policy, and review gates.
+6. Run the required validation commands.
+7. Repair any validation failure without touching files outside the approved write set.
+
 ## Non-Goals
 
 S1 must not:
@@ -114,6 +137,74 @@ Before completion, mark each item as pass/fail in the final progress section:
 - S2 readiness: the docs create a clear next review target without advancing beyond S1.
 - Scope hygiene: final changed-file verification names only the S1 approved write set.
 
+## Hard Failure Conditions
+
+Stop and report a failure if completion requires:
+
+- Creating runtime adapter files.
+- Modifying release files.
+- Modifying root `AGENTS.md`.
+- Modifying `.codex/`.
+- Modifying `.claude/`, `PAI/`, hooks, skills, agents, commands, settings, installers, prompts, or user-local state.
+- Reading private user-local state under `~/.claude/`, `~/.claude/PAI/`, `~/.claude/projects/`, `~/.codex/`, or `~/.codex/memories/`.
+- Starting Pulse or calling local Pulse endpoints.
+- Running installers, migrations, Claude Code, Codex import tooling, or dependency installation.
+- Claiming Codex is drop-in today.
+- Claiming Codex is the official upstream engine today.
+- Claiming Claude-shaped files can be copied directly into Codex native surfaces.
+- Authorizing PAI Memory, ISA, Pulse, settings, hook, skill, agent, command, or installer writes.
+
+## Validation Commands
+
+Required commands from repository root:
+
+```bash
+git status --short
+git diff --name-only | sort
+git diff --check
+```
+
+Required changed-file check:
+
+```bash
+python3 - <<'PY'
+import subprocess
+
+expected = [
+    "docs/adapters/V5_ADAPTER_BOUNDARIES.md",
+    "docs/adapters/V5_CODEX_GOAL_RUNBOOK.md",
+    "docs/adapters/V5_CODEX_RUNTIME_STRATEGY.md",
+    "docs/adapters/V5_S1_EXEC_PLAN.md",
+    "docs/adapters/V5_UPSTREAM_RISK_REGISTER.md",
+]
+
+actual = sorted(subprocess.check_output(
+    ["git", "diff", "--name-only"],
+    text=True,
+).splitlines())
+
+if actual != expected:
+    print("unexpected changed files")
+    print("expected:")
+    print("\n".join(expected))
+    print("actual:")
+    print("\n".join(actual))
+    raise SystemExit(1)
+
+print("changed files ok")
+PY
+```
+
+Required heading and content checks are the Python checks supplied by the S1R request.
+
+Required protected-path check:
+
+```bash
+git status --short -- Releases/ .claude/ PAI/ CLAUDE.md AGENTS.md .codex/ install.sh settings.json hooks/ skills/ subagents/ agents/ commands/ .github/ .agents/
+```
+
+Expected protected-path result: no output.
+
 ## Progress
 
 - Created this S1 execution plan as the living self-evaluation contract.
@@ -156,6 +247,32 @@ Results:
 - Reversibility: pass. Rollback, fixture testing, and no-live-write gates are explicit.
 - S2 readiness: pass. Future gates are named without authorizing implementation or advancing beyond S1.
 - Scope hygiene: pass. Final verification names only the S1 approved write set and no protected paths.
+
+## Iteration Log
+
+- S1 created the initial safe strategy set.
+- S1R repairs structure and expands missing required sections without changing the safety posture.
+- S1R does not use `/goal`; the user explicitly forbade `/goal` for this repair.
+- S1R keeps all edits inside the five approved existing files.
+
+## Surprises & Discoveries
+
+- The five S1 files were tracked and the worktree was clean at S1R start, so the requested `git diff --name-only` validation can be used directly.
+- The S1 output was safe but compressed. The repair normalizes structure and adds missing scenario, readiness, memory, and boundary detail.
+- The strategy requires a clear distinction between replacement-capable Codex beta design and official/full-support upstream status.
+
+## Decision Log
+
+- Preserve S0 as the evidence baseline.
+- Treat Claude Code as the current official/full-support upstream engine for PAI v5.0.0.
+- Treat Codex as a replacement-capable beta local engine candidate only behind a designed adapter.
+- Define replacement as user-selectable local engine substitution, not overwriting Claude files and not turning PAI into an OpenAI project.
+- Require future read-only trial, reversibility, and single-writer policy before any live state writes.
+- Require native Codex surfaces rather than direct copying of Claude-shaped files.
+
+## Outcomes & Retrospective
+
+S1R normalizes the five S1 documents into a canonical architecture set while preserving the original S1 conclusions. The repaired set remains design-only and does not authorize implementation, runtime behavior, PAI Memory writes, Pulse implementation, Codex as drop-in today, Codex as official upstream engine, or direct copying of Claude files into Codex surfaces.
 
 ## Current Status
 

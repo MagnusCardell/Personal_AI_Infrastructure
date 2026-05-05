@@ -6,6 +6,225 @@ This runbook defines how Codex `/goal` state may be used during PAI v5.0.0 adapt
 
 This is an S1 design artifact only. It does not authorize reading or writing `.codex/`, Codex memories, `~/.claude/`, live `PAI_DIR`, PAI Memory, ISA files, Pulse state, hooks, skills, agents, commands, settings, or release files.
 
+## Principle
+
+`/goal` is the persistent loop controller.
+
+The milestone plan file is the self-evaluation contract.
+
+The goal text should be short because the plan carries detailed acceptance criteria.
+
+Long-running does not mean unbounded. A goal must have a milestone boundary, approved write set, stop conditions, validation commands, and handoff format.
+
+Codex goal state is not PAI Memory, not ISA, and not Pulse state.
+
+## Goal and Plan Relationship
+
+Use `/goal` for persistence and loop continuity. Use the plan file for detail and self-evaluation.
+
+The plan file should define:
+
+- Purpose.
+- Scope.
+- Approved write set.
+- Protected paths.
+- Source material.
+- Milestones.
+- Self-review rubric.
+- Hard failure conditions.
+- Validation commands.
+- Progress.
+- Decision log.
+- Retrospective.
+
+The `/goal` objective should name the milestone and point to the plan. It should not duplicate the whole plan.
+
+## Long-Horizon Goal Use
+
+Long-horizon goals are allowed only when bounded by a milestone.
+
+Allowed long-horizon use:
+
+- One goal for one architect-approved milestone.
+- A goal that can pause and resume without losing scope.
+- A goal that ends with a handoff and a next architect decision.
+
+Forbidden long-horizon use:
+
+- `/goal` must not be used for the entire migration.
+- `/goal` must not continue older pre-v5 work.
+- `/goal` must not mutate the approved write set.
+- `/goal` must not stay open after milestone handoff.
+
+## When /goal Is Allowed
+
+Use `/goal` when:
+
+- The user or milestone explicitly allows it.
+- The work needs persistent loop control.
+- The scope is bounded.
+- The plan file carries acceptance criteria.
+- Protected paths are known.
+- Validation commands are known.
+- Handoff criteria are clear.
+
+## When /goal Is Forbidden
+
+Do not use `/goal` when:
+
+- The user explicitly says not to use `/goal`.
+- The task is a small documentation repair that can complete in one turn.
+- The goal would cover the entire migration.
+- The goal would continue older pre-v5 adapter work.
+- The goal would blur design and implementation.
+- The work would require reading `.codex/` or user-local Codex memory without explicit approval.
+- The work would require writing PAI Memory, ISA, Pulse state, settings, hooks, skills, agents, commands, installers, or release files outside the approved scope.
+
+## Starting a Goal
+
+When starting an approved goal:
+
+- Create exactly one goal.
+- Keep the goal text short.
+- Name the milestone.
+- Reference the plan file.
+- Include the approved write set or state that the plan file defines it.
+- Include a no-implementation clause when the milestone is design-only.
+- Confirm protected paths.
+
+The first repository write should usually be the plan file.
+
+## Working a Goal
+
+While working a goal:
+
+- Keep progress in the plan file.
+- Keep edits inside the approved write set.
+- Cite evidence from S0 or approved source material.
+- Treat Codex goal state as orchestration metadata only.
+- Keep PAI Memory and ISA canonical.
+- Do not treat goal progress as Pulse progress.
+- Do not promote product memories into PAI Memory.
+- Update the plan when decisions or validation results change.
+
+## Pausing a Goal
+
+Pause only when:
+
+- The user asks to pause.
+- An approval or architect decision is required.
+- A hard failure condition is reached.
+- Continuing would require protected path modification.
+
+The pause note should record status, files touched, remaining validation, blocker, and next required decision.
+
+## Resuming a Goal
+
+When resuming:
+
+- Re-read the plan file.
+- Run `git status --short`.
+- Confirm the newest user request still matches the goal.
+- Confirm protected paths remain untouched.
+- Continue from recorded progress rather than restarting.
+
+If the user changes scope, do not silently mutate the old goal.
+
+## Clearing a Goal
+
+`/goal clear` should be run after milestone handoff when goal tooling is available and clearing is part of the workflow.
+
+Clearing is appropriate when:
+
+- Final handoff has been delivered.
+- Validation is complete.
+- No follow-up work remains inside the milestone.
+- The next step requires a separate architect decision.
+
+Goal clearing does not delete PAI state because Codex goal state is not PAI Memory.
+
+## Evidence Requirements
+
+Every adapter goal must identify its evidence base.
+
+For S1-class work, evidence should come from:
+
+- `docs/adapters/V5_S0_DISCOVERY_PLAN.md`
+- `docs/adapters/V5_S0_DISCOVERY_REPORT.md`
+- Upstream release paths cited by S0
+
+Do not inspect:
+
+- `~/.claude/`
+- `~/.claude/PAI/`
+- `~/.claude/projects/`
+- `~/.codex/`
+- `~/.codex/memories/`
+
+## Self-Evaluation Requirements
+
+Each milestone plan must include a self-review rubric.
+
+The rubric should cover evidence discipline, boundary discipline, design-only scope, protected path hygiene, state separation, authority preservation, Pulse centrality, existing-user safety, reversibility, validation commands, and handoff requirements.
+
+The goal is complete only when the rubric passes or failures are explicitly reported.
+
+## Stop Conditions
+
+Stop and ask for review if goal completion requires:
+
+- Creating runtime adapter files during a design-only milestone.
+- Modifying release files.
+- Modifying `.codex/`.
+- Modifying `.claude/`, `PAI/`, hooks, skills, agents, commands, settings, installers, prompts, or user-local state.
+- Running installers or migrations.
+- Starting Pulse.
+- Invoking Claude Code or Codex import tooling.
+- Treating Codex goal state as PAI Memory.
+- Treating goal completion as ISA acceptance.
+- Treating goal state as Pulse state.
+- Continuing older pre-v5 adapter work.
+
+## Required Verification Before Completion
+
+Before completing a documentation milestone:
+
+- Run `git status --short`.
+- Run `git diff --name-only | sort`.
+- Run `git diff --check`.
+- Run any milestone-specific changed-file check.
+- Run any milestone-specific heading or content check.
+- Run protected-path status checks.
+- Confirm that only the approved write set changed.
+- Confirm no runtime behavior was authorized.
+
+## Required Milestone Handoff Format
+
+The final handoff for adapter milestones must include these headings:
+
+- `## Files changed`
+- `## Behavior changed`
+- `## Tests run`
+- `## Known risks`
+- `## Protected files changed`
+- `## Recommended next architect decision`
+
+The handoff must distinguish documentation changes from runtime behavior changes.
+
+## S1 Approved Goal
+
+The approved S1 goal was a bounded documentation strategy milestone. It created the S1 architecture set and did not implement a Codex adapter.
+
+S1R does not use `/goal` because the user explicitly forbade `/goal` for this repair.
+
+S1 establishes these runbook lessons:
+
+- `/goal` is useful for bounded strategy milestones.
+- The plan file carries detailed acceptance criteria.
+- `/goal` must not be used for the entire migration.
+- `/goal` must not continue older pre-v5 work.
+- `/goal clear` should be run after milestone handoff when a goal was used.
+
 ## Evidence Baseline
 
 S0 established the required state separation:

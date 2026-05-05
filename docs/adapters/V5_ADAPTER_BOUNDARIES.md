@@ -6,6 +6,264 @@ This document defines the S1 boundary contract for a future Codex replacement ad
 
 This is a design document only. It does not implement a Codex adapter and does not authorize edits outside the S1 approved write set.
 
+## Boundary Model
+
+The boundary model separates six areas:
+
+| Area | Description | S1R Status |
+| --- | --- | --- |
+| Upstream PAI runtime payload | The v5.0.0 release payload under `Releases/v5.0.0/.claude/`. | Read-only evidence. |
+| Official Claude Code engine surface | The current full-support runtime engine and Claude-shaped files. | Proven upstream engine. |
+| Codex replacement-candidate engine surface | Future native Codex material needed for replacement-capable beta use. | Not created in S1R. |
+| Repo-maintainer governance | Repository decisions, docs, review gates, and architecture policy. | Documentation only. |
+| Documentation-only adapter area | `docs/adapters/` strategy files. | Approved S1R write area. |
+| User-local state | `~/.claude/`, `~/.claude/PAI/`, `~/.codex/`, memories, credentials, runtime files. | Not inspected or modified. |
+
+## Upstream PAI Runtime Payload
+
+The upstream PAI runtime payload is the v5.0.0 release content discovered in S0.
+
+It includes:
+
+- `Releases/v5.0.0/.claude/CLAUDE.md`
+- `Releases/v5.0.0/.claude/settings.json`
+- `Releases/v5.0.0/.claude/hooks/`
+- `Releases/v5.0.0/.claude/skills/`
+- `Releases/v5.0.0/.claude/agents/`
+- `Releases/v5.0.0/.claude/commands/`
+- `Releases/v5.0.0/.claude/PAI/`
+- `Releases/v5.0.0/.claude/PAI/PAI_SYSTEM_PROMPT.md`
+- `Releases/v5.0.0/.claude/PAI/TOOLS/pai.ts`
+- `Releases/v5.0.0/.claude/PAI/TOOLS/Inference.ts`
+- `Releases/v5.0.0/.claude/PAI/PULSE/`
+- `Releases/v5.0.0/.claude/PAI/MEMORY/`
+
+S1R treats this payload as read-only evidence.
+
+## Official Claude Code Engine Surface
+
+The official Claude Code engine surface is the current upstream-supported runtime for PAI v5.0.0.
+
+It includes Claude Code launcher behavior, Claude Code settings schema, Claude Code hook events, Claude Code skills, Claude Code agents, Claude Code commands, Claude Code auto memory, project transcripts, and Claude-specific inference assumptions.
+
+Claude Code remains the current official/full-support upstream engine for v5.0.0 until replacement-grade validation exists.
+
+## Codex Replacement-Candidate Engine Surface
+
+The Codex replacement-candidate engine surface is future native Codex material required for a replacement-capable beta local engine.
+
+It may eventually include Codex-native instruction routing, config, hooks, rules, skills, subagents, agents, commands, sandbox controls, permission controls, launch behavior, provenance, and Pulse bridge configuration.
+
+S1R creates none of these surfaces.
+
+Codex native surfaces are not Claude surfaces.
+
+## Repo-Maintainer Governance
+
+Repo-maintainer governance owns architecture decisions, adapter phase approval, review gates, documentation policy, release policy, protected path policy, safety requirements, and rollback requirements.
+
+Governance docs define future adapter expectations. They do not create runtime behavior.
+
+Replacement does not turn PAI into an OpenAI project.
+
+## Documentation-Only Adapter Area
+
+The documentation-only adapter area is `docs/adapters/`.
+
+S1R may modify only:
+
+- `docs/adapters/V5_S1_EXEC_PLAN.md`
+- `docs/adapters/V5_UPSTREAM_RISK_REGISTER.md`
+- `docs/adapters/V5_CODEX_RUNTIME_STRATEGY.md`
+- `docs/adapters/V5_CODEX_GOAL_RUNBOOK.md`
+- `docs/adapters/V5_ADAPTER_BOUNDARIES.md`
+
+This area can describe strategy, risks, boundaries, runbooks, and review gates. It cannot implement the adapter.
+
+## User-Local State
+
+User-local state includes:
+
+- `~/.claude/`
+- `~/.claude/PAI/`
+- `~/.claude/projects/`
+- `~/.codex/`
+- `~/.codex/memories/`
+
+S1R must not inspect or modify user-local state.
+
+Future adapter work must treat user-local state as private, live, and potentially canonical. Read-only trial mode must be designed before existing local v5 files are inspected by Codex.
+
+## Memory Boundary Model
+
+Memory and state boundaries:
+
+| Surface | Canonical PAI State | Owner | Boundary Rule |
+| --- | --- | --- | --- |
+| PAI Memory | Yes | PAI | Writes require single-writer policy, provenance, and rollback. |
+| ISA artifacts | Yes | PAI | Goal completion does not equal ISA acceptance. |
+| Pulse state | Runtime-canonical when live | PAI runtime | Codex requires a bridge before parity. |
+| Claude Code memory | No | Claude Code | Not PAI Memory. |
+| Codex memory | No | Codex | Not PAI Memory. |
+| Codex `/goal` state | No | Codex | Not PAI Memory, not ISA, not Pulse state. |
+| Future Codex adapter config | No by default | Adapter | Must be native, reversible, and separate. |
+| Repo governance files | No runtime state | Maintainers | Policy only. |
+
+Product memories must not be silently promoted into PAI Memory.
+
+## Native Surface Rule
+
+Codex native surfaces are not Claude surfaces.
+
+Claude-shaped files must not be copied directly into Codex.
+
+If a future Codex `AGENTS.md` is authorized, it must be a compact router, not a clone of `CLAUDE.md`.
+
+Codex hooks, rules, config, skills, subagents, agents, and commands must be designed as native Codex material.
+
+## Transformation Rule
+
+Behavior-preserving transformation requires an explicit adapter spec and tests.
+
+Transformation must define:
+
+- Source Claude surface.
+- Target Codex native surface.
+- Preserved behavior.
+- Changed behavior.
+- Unsupported behavior.
+- Security implications.
+- State implications.
+- Test evidence.
+- Rollback behavior.
+
+No direct file copy is a valid transformation proof.
+
+## Read/Write Policy
+
+Read/write policy:
+
+| Surface | S1R Read | S1R Write | Future Default |
+| --- | --- | --- | --- |
+| S1R docs | Yes | Yes | Documentation only. |
+| S0 docs | Yes | No | Evidence only. |
+| Release files | Evidence only | No | Read-only baseline. |
+| `.claude/` | No user-local reads | No | Protected. |
+| `.codex/` | No | No | Protected. |
+| `PAI/` | No live reads | No | Protected. |
+| PAI Memory | Evidence only | No | Read-only trial before writes. |
+| ISA | Evidence only | No | Read-only trial before writes. |
+| Pulse | No live calls | No | Bridge required. |
+| Settings, hooks, skills, agents, commands | Evidence only | No | Native transformation required. |
+
+Future writes require architect approval, explicit writer ownership, lock or lease behavior, provenance, dry run, rollback, and tests.
+
+## Existing Local v5 Trial Policy
+
+Existing local v5 files must be protected.
+
+Future trials must progress in this order:
+
+1. Copied fixture inspection.
+2. Sanitized fixture tests.
+3. Read-only trial mode against existing local v5 files.
+4. Assisted patch mode with external writer.
+5. Controlled single-writer mode.
+6. Codex-only replacement mode only after replacement readiness.
+
+No trial may require uninstalling Claude Code.
+
+## Dual-Engine Policy
+
+Dual-engine use means Claude Code and Codex may both be installed or available.
+
+Policy:
+
+- Exactly one writer owns each canonical PAI state surface at a time.
+- Engine identity must be visible in provenance.
+- Claude Code memory remains separate from PAI Memory.
+- Codex memory remains separate from PAI Memory.
+- Codex `/goal` state remains separate from PAI Memory, ISA, and Pulse state.
+- Pulse events must identify engine and mode.
+- User-selectable local engine substitution must not overwrite Claude files.
+
+## Installer and Rollback Boundary
+
+Installer and rollback rules:
+
+- S1R does not edit installers.
+- Future Codex replacement must be reversible.
+- Future Codex replacement must not require uninstalling Claude Code.
+- Future setup must not overlay or clear `~/.claude/`.
+- Future generated Codex files must be separate from Claude files.
+- A failed Codex trial must leave Claude Code usable.
+- Rollback proof is required before live write mode.
+
+## Protected Paths
+
+Protected repository paths:
+
+- `Releases/`
+- `Releases/v5.0.0/`
+- `Releases/v5.0.0/.claude/`
+- `.claude/`
+- `PAI/`
+- `CLAUDE.md`
+- `AGENTS.md`
+- `.codex/`
+- `install.sh`
+- `PAI_SYSTEM_PROMPT.md`
+- `settings.json`
+- `hooks/`
+- `skills/`
+- `subagents/`
+- `agents/`
+- `commands/`
+- `.github/`
+- `.agents/`
+
+Protected user-local paths:
+
+- `~/.claude/`
+- `~/.claude/PAI/`
+- `~/.claude/projects/`
+- `~/.codex/`
+- `~/.codex/memories/`
+
+## Boundary Violations
+
+Boundary violations include:
+
+- Claiming Codex is drop-in today.
+- Claiming Codex is the official upstream engine today.
+- Copying `.claude` into `.codex`.
+- Copying Claude `settings.json` into Codex.
+- Cloning `CLAUDE.md` into a future Codex `AGENTS.md`.
+- Treating `PAI_SYSTEM_PROMPT.md` as ordinary markdown.
+- Treating Codex memory as PAI Memory.
+- Treating Codex `/goal` state as PAI Memory, ISA, or Pulse state.
+- Writing PAI Memory without single-writer control.
+- Writing ISA without single-writer control.
+- Claiming Pulse parity without a bridge.
+- Running existing local v5 trials that require uninstalling Claude Code.
+- Treating read-only trial success as live-write safety.
+
+## Review Gates
+
+Required review gates before implementation:
+
+- Authority gate for `PAI_SYSTEM_PROMPT.md`.
+- Native surface gate for Codex hooks, rules, config, skills, subagents, agents, and commands.
+- Transformation spec gate with tests.
+- Pulse bridge gate.
+- Memory and ISA boundary gate.
+- Single-writer gate.
+- Existing local v5 read-only trial gate.
+- Sandbox and permission gate.
+- Installer and launcher reversibility gate.
+- Rollback proof gate.
+- Governance separation gate.
+
 ## Source Position
 
 S0 found that PAI v5.0.0 is Claude Code-native, with canonical upstream content under `Releases/v5.0.0/.claude/` and installed runtime expectations under `~/.claude/` (`docs/adapters/V5_S0_DISCOVERY_REPORT.md`, "Executive Finding").
