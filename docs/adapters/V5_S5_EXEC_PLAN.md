@@ -85,9 +85,7 @@ Supporting adapter sources:
 - `docs/adapters/V5_CODEX_AUTHORITY_MAPPING_SPEC.md`
 - `docs/adapters/V5_CODEX_READ_ONLY_TRIAL_SPEC.md`
 
-## Required Outputs
-
-S5 must create:
+Required S5 outputs:
 
 - `docs/adapters/V5_CODEX_TRIAL_MANIFEST_SCHEMA_PROPOSAL.md`
 - `docs/adapters/V5_CODEX_TRIAL_AUDIT_SCHEMA_PROPOSAL.md`
@@ -184,6 +182,18 @@ Expected protected-path result: no output.
 - Created `docs/adapters/V5_CODEX_SCHEMA_DRY_RUN_VALIDATION_SPEC.md`.
 - Marked the four approved S5 docs as intent-to-add so `git diff --name-only` validates the approved write set.
 - Ran S5 validation commands and confirmed only the four approved S5 files are changed.
+
+## Iteration Log
+
+- Original S5 created the schema proposal set as design-only markdown.
+- S5R normalized the existing S5 markdown artifacts without starting a new `/goal`.
+- S5R converted extra H2 headings into required sections, tables, lists, labels, or prose.
+
+## Surprises & Discoveries
+
+- No new source evidence was needed for S5R.
+- No new Codex capability claims were needed for S5R.
+- The existing S5 content was scope-safe and required structural normalization rather than architecture expansion.
 
 ## Decision Log
 

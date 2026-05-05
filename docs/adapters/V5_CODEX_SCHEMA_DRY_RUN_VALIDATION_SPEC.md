@@ -36,22 +36,6 @@ Supporting inputs:
 
 No new Codex capability claims are introduced in this spec.
 
-## Strategic Invariants
-
-Dry-run validation must preserve these invariants:
-
-- Codex is not currently proven drop-in for existing local PAI v5 files.
-- Codex replacement is plausible only through a designed adapter.
-- Claude Code remains the current official/full-support upstream engine until replacement-grade validation exists.
-- S5 does not run a trial.
-- S5 does not create fixtures.
-- S5 does not implement a harness.
-- S5 does not create executable schema files.
-- A read-only trial must not require uninstalling Claude Code.
-- A read-only trial must be reversible and must not write PAI state.
-- Future writes require a single-writer policy, provenance, rollback, and validation.
-- Pulse remains central v5 infrastructure, but S5 does not design or implement a Pulse bridge.
-
 ## Dry-Run Status
 
 S5 dry-run validation is a design review process.
@@ -79,7 +63,30 @@ It does not create:
 - Generated configs.
 - Runtime surfaces.
 
-## Validation Phases
+## Validation Philosophy
+
+Dry-run validation must preserve these invariants:
+
+- Codex is not currently proven drop-in for existing local PAI v5 files.
+- Codex replacement is plausible only through a designed adapter.
+- Claude Code remains the current official/full-support upstream engine until replacement-grade validation exists.
+- S5 does not run a trial.
+- S5 does not create fixtures.
+- S5 does not implement a harness.
+- S5 does not create executable schema files.
+- S5 does not create manifest or audit instances.
+- S5 does not implement validators.
+- A read-only trial must not require uninstalling Claude Code.
+- A read-only trial must be reversible and must not write PAI state.
+- `PAI_SYSTEM_PROMPT.md` is high-authority PAI doctrine, not ordinary markdown.
+- `CLAUDE.md` is an official Claude-facing surface, not a Codex destination file.
+- Codex `AGENTS.md`, if later authorized, must be a compact router.
+- Claude-shaped files must not be copied directly into Codex surfaces.
+- PAI Memory and ISA artifacts are canonical PAI state.
+- Codex memory, Claude Code auto memory, transcripts, SDK threads, and `/goal` state are not PAI Memory.
+- Product memories and product memories imported from engine state must not be silently promoted into PAI Memory.
+- Future writes require a single-writer policy, provenance, rollback, and validation.
+- Pulse remains central v5 infrastructure, but S5 does not design or implement a Pulse bridge.
 
 | Phase | Name | Purpose | S5 Status |
 | --- | --- | --- | --- |
@@ -91,7 +98,7 @@ It does not create:
 | DR-5 | Evidence-preservation review | Check that S0-S4 strategic conclusions remain represented. | Design only. |
 | DR-6 | Implementation-gate review | Check that future executable schema work is properly blocked. | Design only. |
 
-## Manifest Proposal Review Checklist
+## Manifest Dry-Run Checks
 
 Future design reviewers should confirm:
 
@@ -115,7 +122,7 @@ Future design reviewers should confirm:
 - Installer execution and migration tooling are forbidden.
 - Root `AGENTS.md`, `.codex/`, generated config, fixtures, runtime files, and harnesses are not created.
 
-## Audit Proposal Review Checklist
+## Audit Dry-Run Checks
 
 Future design reviewers should confirm:
 
@@ -135,7 +142,7 @@ Future design reviewers should confirm:
 - Non-promotion rule is present.
 - Retention and privacy notes forbid secret and denied-content disclosure.
 
-## Cross-Schema Alignment Checks
+## Cross-Document Consistency Checks
 
 | Check ID | Alignment Rule |
 | --- | --- |
@@ -150,9 +157,9 @@ Future design reviewers should confirm:
 | XS-009 | Manifest stop conditions must align with audit failure report format. |
 | XS-010 | Manifest non-authorizations must align with audit non-authorization object. |
 
-## Negative Scenario Catalog
+## Denied-Path Reasoning Checks
 
-Dry-run validation design must include negative scenarios.
+Dry-run validation design must include denied-path and other negative scenarios.
 
 | Scenario ID | Invalid Condition | Expected Dry-Run Result |
 | --- | --- | --- |
@@ -172,7 +179,72 @@ Dry-run validation design must include negative scenarios.
 | NEG-014 | Manifest allows installers or migration tooling. | Reject. |
 | NEG-015 | Audit claims Pulse parity. | Reject. |
 
-## Positive Scenario Catalog
+## No-Write Reasoning Checks
+
+Future dry-run review must confirm:
+
+- Every `allowed_read_roots` entry is also represented in `denied_write_roots`.
+- `write_exception_allowed` is false.
+- `write_attempt_report` exists in the audit schema proposal.
+- PAI Memory writes are not authorized.
+- ISA writes are not authorized.
+- Pulse writes are not authorized.
+- Runtime adapter file creation is not authorized.
+- Root `AGENTS.md`, `.codex/`, generated config, fixtures, validators, and harnesses are not authorized.
+
+## Authority Reasoning Checks
+
+Future dry-run review must confirm:
+
+- `PAI_SYSTEM_PROMPT.md` remains high-authority PAI doctrine.
+- `CLAUDE.md` remains an official Claude-facing surface, not a Codex destination file.
+- Codex `AGENTS.md`, if later authorized, is treated only as a compact router.
+- Claude-shaped files must not be copied directly into Codex surfaces.
+- Authority equivalence findings remain advisory until architect review.
+- Unsupported authority mappings are reported as blocked rather than converted into replacement claims.
+
+## Memory and ISA Reasoning Checks
+
+Future dry-run review must confirm:
+
+- PAI Memory and ISA artifacts are canonical PAI state.
+- Codex memory, Claude Code auto memory, transcripts, SDK threads, and `/goal` state are not PAI Memory.
+- Product memories are not silently promoted into PAI Memory.
+- Goal completion is not treated as ISA acceptance.
+- Future writes require a single-writer policy, provenance, rollback, and validation.
+
+## Pulse Reasoning Checks
+
+Future dry-run review must confirm:
+
+- Pulse remains central v5 infrastructure.
+- S5 does not design or implement a Pulse bridge.
+- Pulse startup, calls, writes, parity claims, and bridge implementation are not authorized.
+- Pulse reporting in audit output remains advisory.
+
+## Existing-Local-v5 Reasoning Checks
+
+Future dry-run review must confirm:
+
+- Existing-local-v5 trial execution is not authorized by S5.
+- A future read-only trial must not require uninstalling Claude Code.
+- A future read-only trial must be reversible and must not write PAI state.
+- Live roots require explicit user approval and privacy review in any later milestone.
+- Private user-local state is not inspected by S5.
+
+## Failure Classification
+
+| Outcome | Meaning |
+| --- | --- |
+| `proposal-complete` | Required proposal sections are present and aligned. |
+| `proposal-incomplete` | Required proposal sections are missing. |
+| `unsafe-semantics-found` | Proposal would allow an unsafe future manifest or audit. |
+| `blocked-by-open-question` | Architect decision is needed before schema implementation. |
+| `not-reviewed` | Dry-run review did not occur. |
+
+S5 can only design these outcomes. It does not execute a dry-run review.
+
+## Review Workflow
 
 Dry-run validation design should include limited positive scenarios.
 
@@ -186,7 +258,7 @@ Dry-run validation design should include limited positive scenarios.
 
 Positive scenarios do not authorize trial execution.
 
-## Dry-Run Evidence Requirements
+## Required Evidence Before Implementation
 
 A future dry-run validation report should include:
 
@@ -206,19 +278,9 @@ A future dry-run validation report should include:
 
 S5 does not create such a report.
 
-## Review Outcomes
+Review outcome values are defined in failure classification and remain design-only.
 
-| Outcome | Meaning |
-| --- | --- |
-| `proposal-complete` | Required proposal sections are present and aligned. |
-| `proposal-incomplete` | Required proposal sections are missing. |
-| `unsafe-semantics-found` | Proposal would allow an unsafe future manifest or audit. |
-| `blocked-by-open-question` | Architect decision is needed before schema implementation. |
-| `not-reviewed` | Dry-run review did not occur. |
-
-S5 can only design these outcomes. It does not execute a dry-run review.
-
-## Prohibited Dry-Run Behavior
+## Prohibited Dry-Run Semantics
 
 Dry-run validation must not:
 

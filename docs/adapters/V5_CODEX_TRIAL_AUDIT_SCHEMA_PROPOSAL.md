@@ -34,24 +34,6 @@ Supporting inputs:
 
 No new Codex capability claims are introduced in this proposal.
 
-## Strategic Invariants
-
-The audit schema must preserve these invariants:
-
-- Audit output is advisory evidence only.
-- Audit output is not PAI Memory, not ISA, not Pulse state, not Codex memory, and not replacement readiness.
-- Codex is not currently proven drop-in for existing local PAI v5 files.
-- Claude Code remains the current official/full-support upstream engine until replacement-grade validation exists.
-- A read-only trial must be reversible and must not write PAI state.
-- `PAI_SYSTEM_PROMPT.md` is high-authority PAI doctrine.
-- `CLAUDE.md` is an official Claude-facing surface, not a Codex destination file.
-- Codex `AGENTS.md`, if later authorized, must be a compact router.
-- Claude-shaped files must not be copied directly into Codex surfaces.
-- PAI Memory and ISA artifacts are canonical PAI state.
-- Codex memory, Claude Code auto memory, transcripts, SDK threads, and `/goal` state are not PAI Memory.
-- Product memories must not be silently promoted into PAI Memory.
-- Pulse remains central v5 infrastructure, but S5 does not design or implement a Pulse bridge.
-
 ## Schema Proposal Status
 
 This audit schema proposal is not executable.
@@ -60,7 +42,27 @@ It defines field names, expected kinds, cardinality, allowed value sets, and cro
 
 It does not write audit artifacts and does not define a storage location. Future audit output, if later authorized, must be written only to an approved generated-output quarantine outside live PAI, Claude, Codex, release, and runtime roots.
 
-## Top-Level Shape
+## Schema Design Principles
+
+The audit schema must preserve these invariants:
+
+- Audit output is advisory evidence only.
+- Audit output is not PAI Memory, not ISA, not Pulse state, not Codex memory, and not replacement readiness.
+- Codex is not currently proven drop-in for existing local PAI v5 files.
+- Codex replacement is plausible only through a designed adapter.
+- Claude Code remains the current official/full-support upstream engine until replacement-grade validation exists.
+- A read-only trial must be reversible and must not write PAI state.
+- `PAI_SYSTEM_PROMPT.md` is high-authority PAI doctrine.
+- `CLAUDE.md` is an official Claude-facing surface, not a Codex destination file.
+- Codex `AGENTS.md`, if later authorized, must be a compact router.
+- Claude-shaped files must not be copied directly into Codex surfaces.
+- PAI Memory and ISA artifacts are canonical PAI state.
+- Codex memory, Claude Code auto memory, transcripts, SDK threads, and `/goal` state are not PAI Memory.
+- Product memories and product memories imported from engine state must not be silently promoted into PAI Memory.
+- Future writes require a single-writer policy, provenance, rollback, and validation.
+- Pulse remains central v5 infrastructure, but S5 does not design or implement a Pulse bridge.
+
+## Top-Level Field Model
 
 | Section | Kind | Required | Cardinality | Purpose |
 | --- | --- | --- | --- | --- |
@@ -80,7 +82,7 @@ It does not write audit artifacts and does not define a storage location. Future
 | `non_authorization` | Object | Yes | One | States what the audit does not authorize. |
 | `review_requirements` | Array | Yes | One or more | Lists required next reviews. |
 
-## Audit Identity Object
+## Identity and Manifest Echo Fields
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -93,7 +95,7 @@ It does not write audit artifacts and does not define a storage location. Future
 | `source_kind` | Enum | Yes | Same family as trial phase | Must match manifest. |
 | `audit_destination` | Path label | Yes | Approved output quarantine label | Must not be live PAI, Claude, Codex, release, or runtime root. |
 
-## Trial Summary Object
+Trial summary fields:
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -105,10 +107,11 @@ It does not write audit artifacts and does not define a storage location. Future
 | `next_phase_authorized` | Boolean | Yes | `false` only for read-only audit | Must be false. |
 | `implementation_authorized` | Boolean | Yes | `false` only | Must be false. |
 
-## Manifest Echo Object
+Manifest echo fields:
 
 | Field | Kind | Required | Validation Intent |
 | --- | --- | --- | --- |
+| `manifest_echo` | Object | Yes | Must echo the manifest policy container. |
 | `allowed_read_roots` | Array of path labels | Yes | Must echo manifest. |
 | `denied_read_roots` | Array of path labels | Yes | Must echo manifest. |
 | `denied_write_roots` | Array of path labels | Yes | Must echo manifest. |
@@ -118,7 +121,7 @@ It does not write audit artifacts and does not define a storage location. Future
 | `stop_conditions` | Array | Yes | Must echo manifest stop conditions. |
 | `non_authorizations` | Array | Yes | Must echo manifest non-authorizations. |
 
-## Provenance Object
+## Environment and Source Fields
 
 | Field | Kind | Required | Validation Intent |
 | --- | --- | --- | --- |
@@ -131,20 +134,7 @@ It does not write audit artifacts and does not define a storage location. Future
 | `private_state_handling` | Summary | Yes | Must state whether private state was excluded, sanitized, or manifest-approved. |
 | `provenance_labels` | Array | Yes | Must match manifest provenance labels. |
 
-## Filesystem Access Object
-
-| Field | Kind | Required | Validation Intent |
-| --- | --- | --- | --- |
-| `allowed_reads_observed` | Array | Yes | Records reads of allowed roots only. |
-| `denied_reads_requested` | Array | Yes | Records denied read attempts or `none`. |
-| `denied_writes_requested` | Array | Yes | Records write attempts or `none`. |
-| `path_resolution_outcome` | Enum | Yes | `pass`, `fail`, `blocked`, `not-run` | Must summarize canonicalization. |
-| `symlink_outcome` | Enum | Yes | `pass`, `fail`, `blocked`, `not-run` | Must report link handling. |
-| `hardlink_outcome` | Enum | Yes | `pass`, `fail`, `blocked`, `not-run` | Must report hardlink handling. |
-| `fixture_live_alias_outcome` | Enum | Yes | `pass`, `fail`, `blocked`, `not-run` | Must report fixture/live alias check. |
-| `generated_output_location` | Path label or enum | Yes | Approved quarantine or `not-created` | S5-derived audits default to `not-created`. |
-
-## Authority Mapping Object
+## Authority Reporting Schema
 
 | Field | Kind | Required | Validation Intent |
 | --- | --- | --- | --- |
@@ -156,7 +146,37 @@ It does not write audit artifacts and does not define a storage location. Future
 | `truncation_or_omission_findings` | Array | Yes | Findings or `none` | Must report omitted required doctrine. |
 | `unsupported_authority_mappings` | Array | Yes | Unsupported mappings or `none` | Must stay visible. |
 
-## State Boundaries Object
+## Filesystem Access Reporting Schema
+
+| Field | Kind | Required | Validation Intent |
+| --- | --- | --- | --- |
+| `allowed_reads_observed` | Array | Yes | Records reads of allowed roots only. |
+| `path_resolution_outcome` | Enum | Yes | Must summarize canonicalization as `pass`, `fail`, `blocked`, or `not-run`. |
+| `symlink_outcome` | Enum | Yes | Must report link handling as `pass`, `fail`, `blocked`, or `not-run`. |
+| `hardlink_outcome` | Enum | Yes | Must report hardlink handling as `pass`, `fail`, `blocked`, or `not-run`. |
+| `fixture_live_alias_outcome` | Enum | Yes | Must report fixture/live alias check as `pass`, `fail`, `blocked`, or `not-run`. |
+| `generated_output_location` | Path label or enum | Yes | Must be approved quarantine or `not-created`; S5-derived audits default to `not-created`. |
+
+## Denied Path Reporting Schema
+
+| Field | Kind | Required | Validation Intent |
+| --- | --- | --- | --- |
+| `denied_reads_requested` | Array | Yes | Records denied read attempts or `none` without exposing denied private contents. |
+| `denied_roots_not_read` | Array | Yes | Lists denied roots without exposing contents. |
+| `denied_path_redaction_status` | Enum | Yes | Must report `redacted`, `none-requested`, `failed`, or `not-run`. |
+| `denied_path_stop_condition` | Boolean | Yes | True when denied path access stopped the trial. |
+
+## Write Attempt Reporting Schema
+
+| Field | Kind | Required | Validation Intent |
+| --- | --- | --- | --- |
+| `write_attempt_report` | Object | Yes | Summarizes write attempts, denied writes, and write-related stop conditions. |
+| `denied_writes_requested` | Array | Yes | Records write attempts or `none`. |
+| `runtime_surface_creation_requested` | Boolean | Yes | Must be false for valid read-only audit posture. |
+| `state_write_requested` | Boolean | Yes | Must be false for valid read-only audit posture. |
+| `write_stop_condition` | Boolean | Yes | True when any write request stopped the trial. |
+
+## Memory and ISA Reporting Schema
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -169,7 +189,17 @@ It does not write audit artifacts and does not define a storage location. Future
 | `transcript_status` | Enum | Yes | `audit-material-not-canonical-state` | Must remain non-canonical. |
 | `product_memory_promotion` | Enum | Yes | `none`, `attempted`, `unknown` | `attempted` is failure. |
 
-## Runtime Posture Object
+## Pulse Reporting Schema
+
+| Field | Kind | Required | Expected Value |
+| --- | --- | --- | --- |
+| `pulse_status` | Enum | Yes | `unchanged-no-start-no-call`, `changed`, or `unknown` |
+| `pulse_start_observed` | Boolean | Yes | `false` for valid read-only audit posture |
+| `pulse_call_observed` | Boolean | Yes | `false` for valid read-only audit posture |
+| `pulse_write_observed` | Boolean | Yes | `false` for valid read-only audit posture |
+| `pulse_parity_claim_made` | Boolean | Yes | `false` for valid read-only audit posture |
+
+## Network and Tooling Reporting Schema
 
 | Field | Kind | Required | Expected Value |
 | --- | --- | --- | --- |
@@ -183,7 +213,7 @@ It does not write audit artifacts and does not define a storage location. Future
 | `hook_posture` | Enum | Yes | `no-live-pai-hook-execution` |
 | `generated_config_posture` | Enum | Yes | `not-created` |
 
-## Operations Array
+Operation reporting fields:
 
 Each operation entry must include:
 
@@ -196,7 +226,7 @@ Each operation entry must include:
 | `evidence_summary` | String | Yes | Summary without private denied contents. |
 | `stop_condition_triggered` | Boolean | Yes | True if operation stopped the trial. |
 
-## Findings Array
+## Advisory Finding Schema
 
 Each advisory finding must include:
 
@@ -211,7 +241,7 @@ Each advisory finding must include:
 
 Findings must not claim drop-in compatibility, official-engine status, Pulse parity, write safety, or direct Claude-to-Codex copying.
 
-## Proposals Array
+Proposal reporting fields:
 
 Each non-applied proposal must include:
 
@@ -225,7 +255,7 @@ Each non-applied proposal must include:
 
 Proposals are advisory only and must not be framed as applied changes.
 
-## Stop Conditions Array
+## Failure Reporting Schema
 
 Each stop condition entry must include:
 
@@ -236,7 +266,7 @@ Each stop condition entry must include:
 
 Required stop conditions include drop-in claim, official-engine claim, write request, denied read request, Pulse startup or call, installer request, migration tooling request, root `AGENTS.md` or `.codex/` creation request, runtime surface creation request, state promotion attempt, and manifest ambiguity.
 
-## Final Verdicts Object
+Final verdict fields:
 
 | Field | Required | Allowed Values |
 | --- | --- | --- |
@@ -253,7 +283,16 @@ Required stop conditions include drop-in claim, official-engine claim, write req
 
 Any `unknown` value must include an evidence-gap note.
 
-## Non-Authorization Object
+## Non-Promotion Reporting Schema
+
+| Field | Kind | Required | Validation Intent |
+| --- | --- | --- | --- |
+| `non_promotion_statement` | String | Yes | Must state that audit output, product memories, Codex memory, Claude Code auto memory, transcripts, SDK threads, and `/goal` state are not PAI Memory. |
+| `product_memory_promotion` | Enum | Yes | Must be `none` for valid read-only audit posture. |
+| `pai_memory_promotion_allowed` | Boolean | Yes | Must be false. |
+| `isa_promotion_allowed` | Boolean | Yes | Must be false. |
+
+Non-authorization fields:
 
 The non-authorization object must state that audit output does not authorize:
 
@@ -270,7 +309,17 @@ The non-authorization object must state that audit output does not authorize:
 - Copying Claude-shaped files into Codex surfaces.
 - Trial execution beyond the manifest scope.
 
-## Cross-Field Rules
+## Retention and Privacy Fields
+
+| Field | Kind | Required | Validation Intent |
+| --- | --- | --- | --- |
+| `retention_policy` | String | Yes | Must describe future retention without creating an audit artifact in S5. |
+| `privacy_review_required` | Boolean | Yes | Must be true for sanitized or existing-local-v5 source kinds. |
+| `denied_content_redaction_required` | Boolean | Yes | Must be true. |
+| `secret_material_allowed_in_output` | Boolean | Yes | Must be false. |
+| `output_destination_policy` | Enum | Yes | Must remain outside live PAI, Claude, Codex, release, and runtime roots. |
+
+## Cross-Field Validation Rules
 
 | Rule ID | Rule |
 | --- | --- |
@@ -284,6 +333,14 @@ The non-authorization object must state that audit output does not authorize:
 | AU-R008 | Audit output must not contain private denied path contents. |
 | AU-R009 | Audit output destination must not be inside live PAI, Claude, Codex, release, or runtime roots. |
 | AU-R010 | Any unknown future field must fail review unless a later schema explicitly permits extensions. |
+
+## Example Non-Executable Audit Document
+
+This section describes a non-executable example shape in prose only.
+
+An acceptable future audit document would contain an identity, a `manifest_echo`, authority reporting, filesystem access reporting, denied path reporting, a `write_attempt_report`, Memory and ISA reporting, Pulse reporting, advisory findings, failure reporting, and a `non_promotion_statement`.
+
+The example must not be serialized as JSON, YAML, TOML, generated config, or an audit artifact during S5.
 
 ## Prohibited Schema Semantics
 

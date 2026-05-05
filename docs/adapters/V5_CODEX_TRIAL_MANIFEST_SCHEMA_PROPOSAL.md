@@ -34,25 +34,6 @@ Supporting inputs:
 
 No new Codex capability claims are introduced in this proposal.
 
-## Strategic Invariants
-
-The manifest schema must preserve these invariants:
-
-- Codex is not currently proven drop-in for existing local PAI v5 files.
-- Codex replacement is plausible only through a designed adapter.
-- Claude Code remains the current official/full-support upstream engine until replacement-grade validation exists.
-- A read-only trial must not require uninstalling Claude Code.
-- A read-only trial must be reversible and must not write PAI state.
-- `PAI_SYSTEM_PROMPT.md` is high-authority PAI doctrine, not ordinary markdown.
-- `CLAUDE.md` is an official Claude-facing surface, not a Codex destination file.
-- Codex `AGENTS.md`, if later authorized, must be a compact router.
-- Claude-shaped files must not be copied directly into Codex surfaces.
-- PAI Memory and ISA artifacts are canonical PAI state.
-- Codex memory, Claude Code auto memory, transcripts, SDK threads, and `/goal` state are not PAI Memory.
-- Product memories must not be silently promoted into PAI Memory.
-- Future writes require a single-writer policy, provenance, rollback, and validation.
-- Pulse remains central v5 infrastructure, but S5 does not design or implement a Pulse bridge.
-
 ## Schema Proposal Status
 
 This schema proposal is not executable.
@@ -70,23 +51,46 @@ It intentionally avoids:
 
 The proposal defines field names, expected kinds, cardinality, allowed value sets, and cross-field constraints in markdown tables so a future milestone can convert them into a reviewed executable schema.
 
-## Top-Level Shape
+## Schema Design Principles
+
+The manifest schema must preserve these invariants:
+
+- Codex is not currently proven drop-in for existing local PAI v5 files.
+- Codex replacement is plausible only through a designed adapter.
+- Claude Code remains the current official/full-support upstream engine until replacement-grade validation exists.
+- A read-only trial must not require uninstalling Claude Code.
+- A read-only trial must be reversible and must not write PAI state.
+- `PAI_SYSTEM_PROMPT.md` is high-authority PAI doctrine, not ordinary markdown.
+- `CLAUDE.md` is an official Claude-facing surface, not a Codex destination file.
+- Codex `AGENTS.md`, if later authorized, must be a compact router.
+- Claude-shaped files must not be copied directly into Codex surfaces.
+- PAI Memory and ISA artifacts are canonical PAI state.
+- Codex memory, Claude Code auto memory, transcripts, SDK threads, and `/goal` state are not PAI Memory.
+- Product memories and product memories imported from engine state must not be silently promoted into PAI Memory.
+- Future writes require a single-writer policy, provenance, rollback, and validation.
+- Pulse remains central v5 infrastructure, but S5 does not design or implement a Pulse bridge.
+
+## Top-Level Field Model
 
 | Section | Kind | Required | Cardinality | Purpose |
 | --- | --- | --- | --- | --- |
 | `manifest_identity` | Object | Yes | One | Identifies the manifest and review status. |
-| `trial_identity` | Object | Yes | One | Identifies engine, mode, phase, source kind, and PAI target. |
-| `authority_policy` | Object | Yes | One | Captures authority envelope and prohibited direct copies. |
+| `trial_identity` | Object | Yes | One | Identifies engine, official engine baseline, mode, phase, source kind, and PAI target. |
 | `source_policy` | Object | Yes | One | Describes source roots, provenance, source kind, and privacy status. |
+| `authority_policy` | Object | Yes | One | Captures authority envelope and prohibited direct copies. |
 | `filesystem_policy` | Object | Yes | One | Defines `allowed_read_roots`, `denied_read_roots`, and `denied_write_roots`. |
-| `state_policy` | Object | Yes | One | Defines PAI Memory, ISA, Pulse, and product-state boundaries. |
-| `runtime_policy` | Object | Yes | One | Defines sandbox, approvals, network, Pulse, installer, migration, and service posture. |
+| `memory_policy` | Object | Yes | One | Defines PAI Memory, non-PAI memory, transcript, and product-memory handling. |
+| `isa_policy` | Object | Yes | One | Defines ISA boundary handling. |
+| `pulse_policy` | Object | Yes | One | Defines no-start, no-call, no-write, and no-parity posture for Pulse. |
+| `network_policy` | Object | Yes | One | Defines default network denial and reviewed exception posture. |
+| `tooling_policy` | Object | Yes | One | Defines sandbox, approvals, installer, migration, service, hook, config, and runtime-surface posture. |
 | `output_policy` | Object | Yes | One | Defines advisory-only output and proposal handling. |
-| `approval_policy` | Object | Yes | One | Records architect, user, privacy, authority, path, and audit approvals. |
+| `audit_policy` | Object | Yes | One | Records architect, user, privacy, authority, path, and audit approvals. |
+| `rollback_policy` | Object | Yes | One | Records reversibility and future-write prerequisites. |
 | `stop_conditions` | Array | Yes | One or more | Lists conditions that stop the future trial. |
 | `non_authorizations` | Array | Yes | One or more | States what the manifest does not authorize. |
 
-## Manifest Identity Object
+## Identity and Version Fields
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -98,7 +102,7 @@ The proposal defines field names, expected kinds, cardinality, allowed value set
 | `supersedes` | Array of strings | No | Manifest IDs | If present, must reference prior manifest IDs. |
 | `source_spec` | String | Yes | S4/S5 or later approved spec path | Must identify the governing manifest schema proposal or implementation schema. |
 
-## Trial Identity Object
+## Source and Fixture Fields
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -112,7 +116,20 @@ The proposal defines field names, expected kinds, cardinality, allowed value set
 | `write_claim_allowed` | Boolean | Yes | `false` only | Must be false. |
 | `advance_beyond_read_only_allowed` | Boolean | Yes | `false` only | Must be false. |
 
-## Authority Policy Object
+Additional source and fixture fields:
+
+| Field | Kind | Required | Allowed Values | Validation Intent |
+| --- | --- | --- | --- | --- |
+| `source_roots` | Array of path labels | Yes | Non-empty for executable future manifests | Must be explicit; no broad home-root defaults. |
+| `source_root_kind` | Enum | Yes | `repo-release`, `copied-release-fixture`, `sanitized-user-fixture`, `existing-local-live-root` | Must align with `trial_phase`. |
+| `provenance_label` | String | Yes | Human-readable label | Must appear in audit output. |
+| `private_state_present` | Boolean | Yes | `false` for release fixtures; reviewed value for other kinds | If true, requires privacy review and user approval. |
+| `secret_scan_required` | Boolean | Yes | `true` for sanitized and existing-local material | Must be true where private state may exist. |
+| `symlink_policy` | Enum | Yes | `deny-escape` | Symlink escape must be denied. |
+| `hardlink_policy` | Enum | Yes | `deny-live-root-alias` | Hardlink aliasing to live roots must be denied. |
+| `fixture_created_by_manifest` | Boolean | Yes | `false` only | Manifest describes future fixture use; it does not create fixtures. |
+
+## Authority Policy Schema
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -126,20 +143,7 @@ The proposal defines field names, expected kinds, cardinality, allowed value set
 | `dynamic_context_allowed` | Array or enum | Yes | `none` or explicit future-approved mechanisms | Unlisted dynamic context is denied. |
 | `conflict_policy` | String | Yes | PAI doctrine and read-only safety win | Must define conflict resolution. |
 
-## Source Policy Object
-
-| Field | Kind | Required | Allowed Values | Validation Intent |
-| --- | --- | --- | --- | --- |
-| `source_roots` | Array of path labels | Yes | Non-empty for executable future manifests | Must be explicit; no broad home-root defaults. |
-| `source_root_kind` | Enum | Yes | `repo-release`, `copied-release-fixture`, `sanitized-user-fixture`, `existing-local-live-root` | Must align with `trial_phase`. |
-| `provenance_label` | String | Yes | Human-readable label | Must appear in audit output. |
-| `private_state_present` | Boolean | Yes | `false` for release fixtures; reviewed value for other kinds | If true, requires privacy review and user approval. |
-| `secret_scan_required` | Boolean | Yes | `true` for sanitized and existing-local material | Must be true where private state may exist. |
-| `symlink_policy` | Enum | Yes | `deny-escape` | Symlink escape must be denied. |
-| `hardlink_policy` | Enum | Yes | `deny-live-root-alias` | Hardlink aliasing to live roots must be denied. |
-| `fixture_created_by_manifest` | Boolean | Yes | `false` only | Manifest describes future fixture use; it does not create fixtures. |
-
-## Filesystem Policy Object
+## Filesystem Policy Schema
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -152,7 +156,7 @@ The proposal defines field names, expected kinds, cardinality, allowed value set
 | `path_resolution_policy` | Enum | Yes | `canonical-before-trial` | Paths must resolve before future execution. |
 | `escape_policy` | Enum | Yes | `escape-stops-trial` | Access outside manifest roots stops the trial. |
 
-## State Policy Object
+## Memory Policy Schema
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -166,7 +170,34 @@ The proposal defines field names, expected kinds, cardinality, allowed value set
 | `product_memory_promotion_allowed` | Boolean | Yes | `false` only | Must be false. |
 | `single_writer_required_for_future_writes` | Boolean | Yes | `true` only | Must be true. |
 
-## Runtime Policy Object
+## ISA Policy Schema
+
+| Field | Kind | Required | Allowed Values | Validation Intent |
+| --- | --- | --- | --- | --- |
+| `isa_status` | Enum | Yes | `canonical-pai-state` | Must preserve ISA ownership. |
+| `isa_write_allowed` | Boolean | Yes | `false` only | Must be false for read-only posture. |
+| `goal_state_promotes_to_isa` | Boolean | Yes | `false` only | `/goal` state must not become ISA evidence by itself. |
+| `isa_acceptance_source` | String | Yes | Architect-approved future evidence only | Must not treat transcripts or dry-run notes as ISA artifacts. |
+
+## Pulse Policy Schema
+
+| Field | Kind | Required | Allowed Values | Validation Intent |
+| --- | --- | --- | --- | --- |
+| `pulse_status` | Enum | Yes | `central-v5-infrastructure-no-bridge-in-s5` | Must not claim Pulse bridge implementation. |
+| `pulse_start_allowed` | Boolean | Yes | `false` only | Must be false. |
+| `pulse_call_allowed` | Boolean | Yes | `false` only | Must be false. |
+| `pulse_write_allowed` | Boolean | Yes | `false` only | Must be false. |
+| `pulse_parity_claim_allowed` | Boolean | Yes | `false` only | Must be false. |
+
+## Network Policy Schema
+
+| Field | Kind | Required | Allowed Values | Validation Intent |
+| --- | --- | --- | --- | --- |
+| `network_policy` | Enum | Yes | `disabled`, `explicit-exception-reviewed` | Default must be disabled. |
+| `network_exception_approved` | Boolean | Yes | `false` by default | Any exception requires later review outside S5. |
+| `provider_network_required` | Boolean | Yes | `false` for S5 proposal | S5 does not run Codex or provider calls. |
+
+## Tooling Policy Schema
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -180,7 +211,7 @@ The proposal defines field names, expected kinds, cardinality, allowed value set
 | `hook_policy` | Enum | Yes | `no-live-pai-hook-execution` | Must block live hook execution. |
 | `generated_config_policy` | Enum | Yes | `no-generated-config` | Must block generated config. |
 
-## Output Policy Object
+## Output Policy Schema
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -191,7 +222,7 @@ The proposal defines field names, expected kinds, cardinality, allowed value set
 | `required_audit_sections` | Array of section labels | Yes | Audit schema section labels | Must align with audit schema proposal. |
 | `destination_policy` | Enum | Yes | `outside-live-pai-roots` | Must forbid output into live PAI roots. |
 
-## Approval Policy Object
+## Audit Policy Schema
 
 | Field | Kind | Required | Allowed Values | Validation Intent |
 | --- | --- | --- | --- | --- |
@@ -202,7 +233,17 @@ The proposal defines field names, expected kinds, cardinality, allowed value set
 | `path_model_review` | Approval record | Yes | Approved or not approved | Required before filesystem exposure. |
 | `audit_review` | Approval record | Yes | Approved or not approved | Required before accepting results. |
 
-## Stop Conditions Array
+## Rollback Policy Schema
+
+| Field | Kind | Required | Allowed Values | Validation Intent |
+| --- | --- | --- | --- | --- |
+| `reversibility_required` | Boolean | Yes | `true` only | Future trials must be reversible. |
+| `rollback_plan_required_before_writes` | Boolean | Yes | `true` only | Future writes require rollback design. |
+| `single_writer_required_before_writes` | Boolean | Yes | `true` only | Future writes require single-writer policy. |
+| `provenance_required_before_writes` | Boolean | Yes | `true` only | Future writes require provenance. |
+| `validation_required_before_writes` | Boolean | Yes | `true` only | Future writes require validation. |
+
+## Stop Conditions Schema
 
 The stop conditions array must include at least:
 
@@ -221,7 +262,7 @@ The stop conditions array must include at least:
 
 Each stop condition entry must define an identifier, description, trigger state, and audit reporting requirement in a future executable schema.
 
-## Non-Authorization Array
+Non-authorization requirements:
 
 The non-authorization array must state that the manifest does not authorize:
 
@@ -239,7 +280,7 @@ The non-authorization array must state that the manifest does not authorize:
 - Migration tooling.
 - Moving beyond read-only posture.
 
-## Cross-Field Rules
+## Cross-Field Validation Rules
 
 | Rule ID | Rule |
 | --- | --- |
@@ -253,6 +294,14 @@ The non-authorization array must state that the manifest does not authorize:
 | MF-R008 | Pulse policy must deny startup, calls, writes, and parity claims. |
 | MF-R009 | A manifest with `review_state` other than `approved` cannot authorize a future trial. |
 | MF-R010 | Any unknown future field must fail review unless a later schema explicitly permits extensions. |
+
+## Example Non-Executable Manifest Document
+
+This section describes a non-executable example shape in prose only.
+
+An acceptable future manifest document would identify one manifest, one read-only trial posture, one explicit source kind, explicit `allowed_read_roots`, explicit `denied_read_roots`, explicit `denied_write_roots`, an authority policy that treats `PAI_SYSTEM_PROMPT.md` as high-authority doctrine, and output policy that permits only advisory audit output.
+
+The example must not be serialized as JSON, YAML, TOML, generated config, or a manifest instance during S5.
 
 ## Prohibited Schema Semantics
 
