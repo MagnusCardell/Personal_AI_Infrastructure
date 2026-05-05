@@ -1,0 +1,84 @@
+{
+  "fixture_id": "FX-002",
+  "fixture_name": "authority-doctrine fixture",
+  "fixture_source_class": "release-derived-fixture",
+  "pai_version": "v5.0.0",
+  "source_paths": [
+    "Releases/v5.0.0/.claude/PAI/PAI_SYSTEM_PROMPT.md",
+    "Releases/v5.0.0/.claude/CLAUDE.md",
+    "docs/adapters/V5_CODEX_AUTHORITY_SEAM_SPEC.md"
+  ],
+  "included_surfaces": [
+    "PAI_SYSTEM_PROMPT.md high-authority doctrine",
+    "CLAUDE.md Claude-facing boundary",
+    "compact router boundary"
+  ],
+  "excluded_surfaces": [
+    "root AGENTS.md installation",
+    "direct Claude file copy into Codex surfaces",
+    "Codex runtime authority loading"
+  ],
+  "denied_paths": [
+    "~/.claude/",
+    "~/.claude/PAI/",
+    "~/.claude/projects/",
+    "~/.codex/",
+    "~/.codex/memories/",
+    "root AGENTS.md",
+    "AGENTS.md",
+    ".codex/",
+    "Releases/ writes",
+    "PAI Memory writes",
+    "ISA writes",
+    "Pulse startup",
+    "Pulse endpoint calls",
+    "localhost:31337"
+  ],
+  "expected_denials": [
+    "no live user-local authority read",
+    "no root AGENTS.md creation",
+    "no .codex creation",
+    "no direct CLAUDE.md copy into Codex surfaces",
+    "no PAI_SYSTEM_PROMPT.md copy into Codex surfaces",
+    "no PAI Memory writes",
+    "no ISA writes",
+    "no Pulse startup",
+    "no Pulse endpoint calls"
+  ],
+  "expected_unsupported_surfaces": [
+    "runtime authority envelope execution",
+    "Codex AGENTS.md installation",
+    "official upstream engine claim"
+  ],
+  "expected_no_write_proofs": {
+    "no_release_file_writes": true,
+    "no_root_agents_write": true,
+    "no_codex_surface_write": true,
+    "no_user_local_reads": true,
+    "no_pai_memory_writes": true,
+    "no_isa_writes": true,
+    "no_pulse_start": true,
+    "no_pulse_endpoint_calls": true,
+    "no_product_memory_promotion": true,
+    "no_runtime_invocation": true
+  },
+  "expected_audit_fields": [
+    "fixture_id",
+    "files_inspected",
+    "files_not_inspected",
+    "denied_action_report",
+    "unsupported_surface_report",
+    "pulse_action_status",
+    "memory_write_status",
+    "isa_write_status",
+    "product_memory_status",
+    "rollback_status",
+    "residue_status",
+    "drop_in_claim_status",
+    "provenance",
+    "non_promotion_statement"
+  ],
+  "rollback_expectation": "no-residue authority metadata validation only",
+  "privacy_status": "public-release-only",
+  "s10a_status": "implemented-fixture-metadata-only"
+}

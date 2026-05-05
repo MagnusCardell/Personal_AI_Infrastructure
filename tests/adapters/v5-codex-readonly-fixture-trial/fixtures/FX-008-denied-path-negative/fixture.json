@@ -1,0 +1,83 @@
+{
+  "fixture_id": "FX-008",
+  "fixture_name": "denied-path-negative fixture",
+  "fixture_source_class": "negative-safety-fixture",
+  "pai_version": "v5.0.0",
+  "source_paths": [
+    "docs/adapters/V5_CODEX_S10A_WRITE_SET_AND_ACCEPTANCE_CONTRACT.md",
+    "docs/adapters/V5_CODEX_READ_ONLY_HARNESS_DESIGN_SPEC.md"
+  ],
+  "included_surfaces": [
+    "denied paths",
+    "protected paths",
+    "no live user-local boundary"
+  ],
+  "excluded_surfaces": [
+    "private state read",
+    "protected path mutation",
+    "runtime artifact creation"
+  ],
+  "denied_paths": [
+    "~/.claude/",
+    "~/.claude/PAI/",
+    "~/.claude/projects/",
+    "~/.codex/",
+    "~/.codex/memories/",
+    "root AGENTS.md",
+    "AGENTS.md",
+    ".codex/",
+    "Releases/ writes",
+    "PAI Memory writes",
+    "ISA writes",
+    "Pulse startup",
+    "Pulse endpoint calls",
+    "localhost:31337"
+  ],
+  "expected_denials": [
+    "no live user-local private state",
+    "no root AGENTS.md write",
+    "no .codex write",
+    "no Releases/ writes",
+    "no PAI Memory writes",
+    "no ISA writes",
+    "no Pulse startup",
+    "no Pulse endpoint calls",
+    "no runtime files"
+  ],
+  "expected_unsupported_surfaces": [
+    "private state scan",
+    "protected path mutation",
+    "live existing-local-v5 trial"
+  ],
+  "expected_no_write_proofs": {
+    "no_release_file_writes": true,
+    "no_root_agents_write": true,
+    "no_codex_surface_write": true,
+    "no_user_local_reads": true,
+    "no_pai_memory_writes": true,
+    "no_isa_writes": true,
+    "no_pulse_start": true,
+    "no_pulse_endpoint_calls": true,
+    "no_product_memory_promotion": true,
+    "no_runtime_invocation": true
+  },
+  "expected_audit_fields": [
+    "fixture_id",
+    "files_inspected",
+    "files_not_inspected",
+    "denied_action_report",
+    "unsupported_surface_report",
+    "pulse_action_status",
+    "memory_write_status",
+    "isa_write_status",
+    "product_memory_status",
+    "rollback_status",
+    "residue_status",
+    "drop_in_claim_status",
+    "provenance",
+    "non_promotion_statement"
+  ],
+  "rollback_expectation": "no-residue denied-path metadata validation only",
+  "privacy_status": "negative-safety-only",
+  "s10a_status": "implemented-fixture-metadata-only"
+}

@@ -1,0 +1,84 @@
+{
+  "fixture_id": "FX-003",
+  "fixture_name": "compact-router-non-installation fixture",
+  "fixture_source_class": "synthetic-fixture",
+  "pai_version": "v5.0.0",
+  "source_paths": [
+    "docs/adapters/V5_CODEX_COMPACT_ROUTER_SPEC.md",
+    "docs/adapters/V5_CODEX_AUTHORITY_ROUTER_DECISION_LOG.md"
+  ],
+  "included_surfaces": [
+    "compact router design",
+    "root AGENTS.md non-installation",
+    ".codex non-creation"
+  ],
+  "excluded_surfaces": [
+    "runtime router file",
+    "Codex config",
+    "Codex rules",
+    "Codex hooks"
+  ],
+  "denied_paths": [
+    "~/.claude/",
+    "~/.claude/PAI/",
+    "~/.claude/projects/",
+    "~/.codex/",
+    "~/.codex/memories/",
+    "root AGENTS.md",
+    "AGENTS.md",
+    ".codex/",
+    "Releases/ writes",
+    "PAI Memory writes",
+    "ISA writes",
+    "Pulse startup",
+    "Pulse endpoint calls",
+    "localhost:31337"
+  ],
+  "expected_denials": [
+    "no live user-local state",
+    "no root AGENTS.md write",
+    "no .codex write",
+    "no Codex config write",
+    "no hook or rule installation",
+    "no PAI Memory writes",
+    "no ISA writes",
+    "no Pulse startup",
+    "no Pulse endpoint calls"
+  ],
+  "expected_unsupported_surfaces": [
+    "actual AGENTS.md routing",
+    "Codex profile loading",
+    "runtime router behavior"
+  ],
+  "expected_no_write_proofs": {
+    "no_release_file_writes": true,
+    "no_root_agents_write": true,
+    "no_codex_surface_write": true,
+    "no_user_local_reads": true,
+    "no_pai_memory_writes": true,
+    "no_isa_writes": true,
+    "no_pulse_start": true,
+    "no_pulse_endpoint_calls": true,
+    "no_product_memory_promotion": true,
+    "no_runtime_invocation": true
+  },
+  "expected_audit_fields": [
+    "fixture_id",
+    "files_inspected",
+    "files_not_inspected",
+    "denied_action_report",
+    "unsupported_surface_report",
+    "pulse_action_status",
+    "memory_write_status",
+    "isa_write_status",
+    "product_memory_status",
+    "rollback_status",
+    "residue_status",
+    "drop_in_claim_status",
+    "provenance",
+    "non_promotion_statement"
+  ],
+  "rollback_expectation": "no-residue router metadata validation only",
+  "privacy_status": "synthetic-only",
+  "s10a_status": "implemented-fixture-metadata-only"
+}

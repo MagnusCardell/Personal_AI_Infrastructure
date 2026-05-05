@@ -1,0 +1,85 @@
+{
+  "fixture_id": "FX-012",
+  "fixture_name": "dual-engine-boundary fixture",
+  "fixture_source_class": "synthetic-fixture",
+  "pai_version": "v5.0.0",
+  "source_paths": [
+    "docs/adapters/V5_CODEX_DROP_IN_READINESS_GATES.md",
+    "docs/adapters/V5_CODEX_INTEGRATED_TRIAL_DECISION_LOG.md",
+    "docs/adapters/V5_CODEX_FIXTURE_IMPLEMENTATION_DECISION_LOG.md"
+  ],
+  "included_surfaces": [
+    "dual-engine boundary",
+    "Claude Code current official engine posture",
+    "no drop-in claim"
+  ],
+  "excluded_surfaces": [
+    "dual-engine uncoordinated writes",
+    "Codex official upstream engine claim",
+    "Claude Code uninstall requirement"
+  ],
+  "denied_paths": [
+    "~/.claude/",
+    "~/.claude/PAI/",
+    "~/.claude/projects/",
+    "~/.codex/",
+    "~/.codex/memories/",
+    "root AGENTS.md",
+    "AGENTS.md",
+    ".codex/",
+    "Releases/ writes",
+    "PAI Memory writes",
+    "ISA writes",
+    "Pulse startup",
+    "Pulse endpoint calls",
+    "localhost:31337"
+  ],
+  "expected_denials": [
+    "no live user-local Claude state",
+    "no Codex official upstream engine claim",
+    "no Codex drop-in claim",
+    "no dual-engine uncoordinated writes",
+    "no PAI Memory writes",
+    "no ISA writes",
+    "no Pulse startup",
+    "no Pulse endpoint calls",
+    "no runtime invocation"
+  ],
+  "expected_unsupported_surfaces": [
+    "drop-in readiness proof",
+    "official engine replacement",
+    "dual-engine write coordination",
+    "live existing-local-v5 trial"
+  ],
+  "expected_no_write_proofs": {
+    "no_release_file_writes": true,
+    "no_root_agents_write": true,
+    "no_codex_surface_write": true,
+    "no_user_local_reads": true,
+    "no_pai_memory_writes": true,
+    "no_isa_writes": true,
+    "no_pulse_start": true,
+    "no_pulse_endpoint_calls": true,
+    "no_product_memory_promotion": true,
+    "no_runtime_invocation": true
+  },
+  "expected_audit_fields": [
+    "fixture_id",
+    "files_inspected",
+    "files_not_inspected",
+    "denied_action_report",
+    "unsupported_surface_report",
+    "pulse_action_status",
+    "memory_write_status",
+    "isa_write_status",
+    "product_memory_status",
+    "rollback_status",
+    "residue_status",
+    "drop_in_claim_status",
+    "provenance",
+    "non_promotion_statement"
+  ],
+  "rollback_expectation": "no-residue dual-engine metadata validation only",
+  "privacy_status": "synthetic-only",
+  "s10a_status": "implemented-fixture-metadata-only"
+}

@@ -1,0 +1,84 @@
+{
+  "fixture_id": "FX-010",
+  "fixture_name": "unsupported-surface-reporting fixture",
+  "fixture_source_class": "unsupported-surface-fixture",
+  "pai_version": "v5.0.0",
+  "source_paths": [
+    "docs/adapters/V5_CODEX_FIXTURE_TRIAL_COVERAGE_MATRIX.md",
+    "docs/adapters/V5_CODEX_TRIAL_FAILURE_ROLLBACK_AND_AUDIT_MODEL.md"
+  ],
+  "included_surfaces": [
+    "unsupported_surface_report",
+    "denied_action_report",
+    "drop-in claim prevention"
+  ],
+  "excluded_surfaces": [
+    "silent unsupported-surface ignore",
+    "runtime fallback",
+    "drop-in overclaim"
+  ],
+  "denied_paths": [
+    "~/.claude/",
+    "~/.claude/PAI/",
+    "~/.claude/projects/",
+    "~/.codex/",
+    "~/.codex/memories/",
+    "root AGENTS.md",
+    "AGENTS.md",
+    ".codex/",
+    "Releases/ writes",
+    "PAI Memory writes",
+    "ISA writes",
+    "Pulse startup",
+    "Pulse endpoint calls",
+    "localhost:31337"
+  ],
+  "expected_denials": [
+    "no live user-local unsupported-surface scan",
+    "no silent unsupported-surface ignore",
+    "no drop-in claim",
+    "no PAI Memory writes",
+    "no ISA writes",
+    "no Pulse startup",
+    "no Pulse endpoint calls",
+    "no runtime invocation"
+  ],
+  "expected_unsupported_surfaces": [
+    "unsupported Pulse optional integration",
+    "unsupported hook execution behavior",
+    "unsupported Memory promotion behavior",
+    "unsupported ISA write behavior",
+    "unsupported runtime adapter behavior"
+  ],
+  "expected_no_write_proofs": {
+    "no_release_file_writes": true,
+    "no_root_agents_write": true,
+    "no_codex_surface_write": true,
+    "no_user_local_reads": true,
+    "no_pai_memory_writes": true,
+    "no_isa_writes": true,
+    "no_pulse_start": true,
+    "no_pulse_endpoint_calls": true,
+    "no_product_memory_promotion": true,
+    "no_runtime_invocation": true
+  },
+  "expected_audit_fields": [
+    "fixture_id",
+    "files_inspected",
+    "files_not_inspected",
+    "denied_action_report",
+    "unsupported_surface_report",
+    "pulse_action_status",
+    "memory_write_status",
+    "isa_write_status",
+    "product_memory_status",
+    "rollback_status",
+    "residue_status",
+    "drop_in_claim_status",
+    "provenance",
+    "non_promotion_statement"
+  ],
+  "rollback_expectation": "no-residue unsupported-surface metadata validation only",
+  "privacy_status": "synthetic-only",
+  "s10a_status": "implemented-fixture-metadata-only"
+}
