@@ -63,3 +63,13 @@ S10F does not create audit artifacts. Harness stdout remains validation output o
 S10F does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not run live trials. It does not read live user-local state and does not write PAI Memory or ISA.
 
 Codex is not currently proven drop-in for existing local PAI v5 files. S10F proves only fixture-harness determinism and no-residue behavior, not runtime adapter readiness and not drop-in capability.
+
+## S11A Release-Fixture Evidence Report
+
+S11A generates a release-fixture read-only evidence report bounded to the approved fixture corpus.
+
+The S11A report is adapter-test evidence only. It is not PAI Memory, not ISA, not Pulse state, not Claude memory, not Codex memory, not a runtime audit artifact, not a manifest, and not runtime payload.
+
+S11A does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not inspect live user-local state. It does not write PAI Memory or ISA.
+
+Codex is not currently proven drop-in for existing local PAI v5 files. S11A proves only bounded release-fixture evidence-report generation, not runtime replacement and not live existing-local-v5 readiness.

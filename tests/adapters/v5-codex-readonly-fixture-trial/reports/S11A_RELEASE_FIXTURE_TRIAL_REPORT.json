@@ -1,0 +1,50 @@
+{
+  "adapter_mode": "fixture-only-read-only",
+  "case_count": 12,
+  "coverage_id_count": 25,
+  "denied_action_report_status": "covered-by-fixture-expectations",
+  "denied_category_count": 13,
+  "drop_in_claim_status": "not-claimed",
+  "engine_under_test": "none",
+  "fixture_count": 12,
+  "fixture_root": "tests/adapters/v5-codex-readonly-fixture-trial/fixtures",
+  "gate_id_count": 20,
+  "generated_from": [
+    "tests/adapters/v5-codex-readonly-fixture-trial/run_readonly_fixture_trial.py",
+    "tests/adapters/v5-codex-readonly-fixture-trial/fixtures"
+  ],
+  "isa_status": "no-isa-writes",
+  "limitations": [
+    "Codex is not currently proven drop-in.",
+    "No Codex runtime was invoked.",
+    "No Claude Code runtime was invoked.",
+    "No live existing-local-v5 state was read.",
+    "No Pulse endpoint was called.",
+    "No PAI Memory or ISA write occurred.",
+    "The report proves fixture-only evidence generation, not runtime replacement."
+  ],
+  "live_user_local_state_status": "not-read",
+  "memory_status": "no-pai-memory-writes",
+  "negative_control_status": "pass",
+  "no_residue_status": "pass",
+  "non_canonical_output_statement": "This report is not PAI Memory; not ISA; not Pulse state; not Claude memory; not Codex memory; not a PAI runtime audit artifact; not a manifest; not runtime payload.",
+  "non_promotion_statement": "Product memories are not promoted into PAI Memory.",
+  "pai_version": "v5.0.0",
+  "positive_harness_status": "pass",
+  "product_memory_status": "no-product-memory-promotion",
+  "protected_path_status": "no-protected-path-writes",
+  "provenance": {
+    "fixture_corpus": "approved S10A-S10F fixture corpus",
+    "harness": "read-only in-process harness logic",
+    "scope": "adapter-test evidence generation only",
+    "source_policy": "fixture root only; no release reads; no user-local reads"
+  },
+  "pulse_status": "not-started-not-called",
+  "report_id": "S11A-RELEASE-FIXTURE-TRIAL-REPORT",
+  "report_status": "pass",
+  "report_type": "release-fixture-read-only-evidence",
+  "rollback_status": "no-residue-fixture-only",
+  "seam_count": 23,
+  "source_kind": "release-fixture",
+  "unsupported_surface_report_status": "covered-by-fixture-expectations"
+}
