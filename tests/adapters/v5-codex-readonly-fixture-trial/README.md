@@ -19,3 +19,13 @@ The negative controls are not committed fixtures. The temporary self-test data i
 The self-test does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not inspect live user-local state. It does not write PAI Memory or ISA, and it does not authorize product memories to be promoted into PAI Memory.
 
 Codex is not currently proven drop-in for existing local PAI v5 files. S10B proves only positive and negative fixture-harness behavior, not Codex drop-in behavior, not Pulse parity, and not existing-local-v5 trial readiness.
+
+## S10C Semantic Hardening
+
+S10C adds semantic fixture metadata so fixture validity is tied to the accepted safety and coverage model, not only JSON shape. Each fixture metadata file now carries `covered_seams`, `coverage_ids`, `gate_ids`, `safety_assertions`, and `semantic_status`.
+
+The semantic fields connect fixtures to seam coverage, gate coverage, safety assertions, and a stronger source-path policy. Source paths remain repository-relative or approved synthetic markers, and the harness rejects private, protected, absolute, parent-traversal, `.codex/`, root `AGENTS.md`, root `CLAUDE.md`, and live user-local paths.
+
+S10C extends negative controls from `NC-001` through `NC-030`, covering both the S10B structural failures and semantic policy failures. The harness remains a read-only harness. It does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not inspect live user-local state.
+
+The harness does not write PAI Memory or ISA. Fixture metadata is not a manifest. Harness stdout is not an audit artifact. Codex is not currently proven drop-in for existing local PAI v5 files.

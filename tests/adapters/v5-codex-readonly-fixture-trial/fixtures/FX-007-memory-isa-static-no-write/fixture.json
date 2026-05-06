@@ -43,7 +43,19 @@
     "no product memory promotion",
     "no dual-engine uncoordinated writes",
     "no Pulse startup",
-    "no Pulse endpoint calls"
+    "no Pulse endpoint calls",
+    "live user-local state denied",
+    "root AGENTS.md denied",
+    ".codex/ denied",
+    "Releases/ write denied",
+    "PAI Memory write denied",
+    "ISA write denied",
+    "Pulse startup denied",
+    "Pulse endpoint call denied",
+    "product memory promotion denied",
+    "Claude file direct-copy denied",
+    "runtime invocation denied",
+    "drop-in claim denied"
   ],
   "expected_unsupported_surfaces": [
     "controlled-single-writer mode",
@@ -81,5 +93,46 @@
   ],
   "rollback_expectation": "no-residue Memory and ISA metadata validation only",
   "privacy_status": "public-release-only",
-  "s10a_status": "implemented-fixture-metadata-only"
+  "s10a_status": "implemented-fixture-metadata-only",
+  "covered_seams": [
+    "Memory/ISA single-writer seam",
+    "Memory boundary/promotion seam",
+    "ISA workflow/state seam",
+    "Memory/ISA audit/conflict seam"
+  ],
+  "coverage_ids": [
+    "CVG-013",
+    "CVG-014",
+    "CVG-015",
+    "CVG-016"
+  ],
+  "gate_ids": [
+    "TG-013",
+    "TG-014",
+    "TG-015",
+    "TG-017",
+    "TG-019"
+  ],
+  "safety_assertions": {
+    "fixture_only": true,
+    "read_only": true,
+    "no_live_user_local_state": true,
+    "no_existing_local_v5_access": true,
+    "no_root_agents_write": true,
+    "no_codex_surface_write": true,
+    "no_release_file_write": true,
+    "no_claude_file_direct_copy": true,
+    "no_codex_runtime_invocation": true,
+    "no_claude_code_invocation": true,
+    "no_pulse_start": true,
+    "no_pulse_endpoint_call": true,
+    "no_pai_memory_write": true,
+    "no_isa_write": true,
+    "no_product_memory_promotion": true,
+    "no_drop_in_claim": true,
+    "not_manifest": true,
+    "not_audit_artifact": true,
+    "not_runtime_payload": true
+  },
+  "semantic_status": "s10c-semantically-hardened"
 }

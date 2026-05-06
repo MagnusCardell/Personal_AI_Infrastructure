@@ -10,6 +10,7 @@ not an audit artifact.
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -108,12 +109,167 @@ REQUIRED_DENIAL_GROUPS = {
     "Pulse endpoint calls": ("Pulse endpoint calls", "localhost:31337"),
 }
 
+ALLOWED_SEAMS = {
+    "authority seam",
+    "compact router seam",
+    "launcher seam",
+    "inference seam",
+    "engine profile/capability seam",
+    "hook/lifecycle seam",
+    "event/context envelope seam",
+    "hook permission/safety seam",
+    "Pulse identity seam",
+    "Pulse read-only event seam",
+    "Pulse observability/audit seam",
+    "Memory/ISA single-writer seam",
+    "Memory boundary/promotion seam",
+    "ISA workflow/state seam",
+    "Memory/ISA audit/conflict seam",
+    "manifest schema seam",
+    "audit schema seam",
+    "dry-run validation seam",
+    "rollback seam",
+    "fixture isolation seam",
+    "denied-path seam",
+    "unsupported-surface seam",
+    "dual-engine boundary seam",
+}
+
+ALLOWED_COVERAGE_IDS = {f"CVG-{index:03d}" for index in range(1, 26)}
+ALLOWED_GATE_IDS = {f"TG-{index:03d}" for index in range(1, 21)}
+
+REQUIRED_SAFETY_ASSERTIONS = {
+    "fixture_only",
+    "read_only",
+    "no_live_user_local_state",
+    "no_existing_local_v5_access",
+    "no_root_agents_write",
+    "no_codex_surface_write",
+    "no_release_file_write",
+    "no_claude_file_direct_copy",
+    "no_codex_runtime_invocation",
+    "no_claude_code_invocation",
+    "no_pulse_start",
+    "no_pulse_endpoint_call",
+    "no_pai_memory_write",
+    "no_isa_write",
+    "no_product_memory_promotion",
+    "no_drop_in_claim",
+    "not_manifest",
+    "not_audit_artifact",
+    "not_runtime_payload",
+}
+
+S10C_DENIAL_TERMS = {
+    "live user-local state",
+    "root AGENTS.md",
+    ".codex/",
+    "Releases/ write",
+    "PAI Memory write",
+    "ISA write",
+    "Pulse startup",
+    "Pulse endpoint call",
+    "product memory promotion",
+    "Claude file direct-copy",
+    "runtime invocation",
+    "drop-in claim",
+}
+
+SYNTHETIC_SOURCE_PREFIXES = ("synthetic:", "negative:", "unsupported:")
+APPROVED_SOURCE_PREFIXES = (
+    "Releases/v5.0.0/",
+    "docs/adapters/",
+    "tests/adapters/v5-codex-readonly-fixture-trial/",
+)
+
 
 def load_fixture(metadata_path):
     try:
         return json.loads(metadata_path.read_text(encoding="utf-8"))
     except Exception as exc:
         return {"__load_error__": str(exc)}
+
+
+def validate_source_policy(metadata_path, source_text, failures):
+    if source_text.startswith(SYNTHETIC_SOURCE_PREFIXES):
+        return
+
+    if source_text.startswith("/") or source_text.startswith("~") or ".." in source_text:
+        failures.append(f"{metadata_path}: forbidden source path: {source_text}")
+    if source_text.startswith((".codex", ".claude", "PAI/", "AGENTS.md", "CLAUDE.md")):
+        failures.append(f"{metadata_path}: protected source path: {source_text}")
+    if "/home/" in source_text or "/Users/" in source_text:
+        failures.append(f"{metadata_path}: private source path: {source_text}")
+    if not source_text.startswith(APPROVED_SOURCE_PREFIXES):
+        failures.append(f"{metadata_path}: source path lacks approved repo-relative prefix: {source_text}")
+
+
+def validate_semantic_fields(metadata_path, data, denial_text, failures):
+    if "covered_seams" not in data:
+        failures.append(f"{metadata_path}: missing covered_seams")
+    else:
+        seams = data.get("covered_seams")
+        if not isinstance(seams, list) or not seams:
+            failures.append(f"{metadata_path}: covered_seams must be non-empty list")
+        else:
+            unknown = sorted(set(str(seam) for seam in seams) - ALLOWED_SEAMS)
+            if unknown:
+                failures.append(f"{metadata_path}: unknown covered_seams: {unknown}")
+
+    if "coverage_ids" not in data:
+        failures.append(f"{metadata_path}: missing coverage_ids")
+    else:
+        coverage_ids = data.get("coverage_ids")
+        if not isinstance(coverage_ids, list) or not coverage_ids:
+            failures.append(f"{metadata_path}: coverage_ids must be non-empty list")
+        else:
+            malformed = [cid for cid in coverage_ids if not re.fullmatch(r"CVG-\d{3}", str(cid))]
+            unknown = sorted(set(str(cid) for cid in coverage_ids) - ALLOWED_COVERAGE_IDS)
+            if malformed:
+                failures.append(f"{metadata_path}: malformed coverage_ids: {malformed}")
+            if unknown:
+                failures.append(f"{metadata_path}: unknown coverage_ids: {unknown}")
+
+    if "gate_ids" not in data:
+        failures.append(f"{metadata_path}: missing gate_ids")
+    else:
+        gate_ids = data.get("gate_ids")
+        if not isinstance(gate_ids, list) or not gate_ids:
+            failures.append(f"{metadata_path}: gate_ids must be non-empty list")
+        else:
+            malformed = [gid for gid in gate_ids if not re.fullmatch(r"TG-\d{3}", str(gid))]
+            unknown = sorted(set(str(gid) for gid in gate_ids) - ALLOWED_GATE_IDS)
+            if malformed:
+                failures.append(f"{metadata_path}: malformed gate_ids: {malformed}")
+            if unknown:
+                failures.append(f"{metadata_path}: unknown gate_ids: {unknown}")
+
+    if "safety_assertions" not in data:
+        failures.append(f"{metadata_path}: missing safety_assertions")
+    else:
+        safety = data.get("safety_assertions")
+        if not isinstance(safety, dict):
+            failures.append(f"{metadata_path}: safety_assertions must be an object")
+        else:
+            missing = sorted(REQUIRED_SAFETY_ASSERTIONS - set(safety.keys()))
+            if missing:
+                failures.append(f"{metadata_path}: missing safety_assertions keys: {missing}")
+            for key in sorted(REQUIRED_SAFETY_ASSERTIONS & set(safety.keys())):
+                if safety.get(key) is not True:
+                    failures.append(f"{metadata_path}: safety_assertions.{key} must be true")
+
+    if "semantic_status" not in data:
+        failures.append(f"{metadata_path}: missing semantic_status")
+    elif data.get("semantic_status") != "s10c-semantically-hardened":
+        failures.append(f"{metadata_path}: invalid semantic_status: {data.get('semantic_status')}")
+
+    for term in sorted(S10C_DENIAL_TERMS):
+        if term not in denial_text:
+            failures.append(f"{metadata_path}: missing denied-path coverage term: {term}")
+
+    unsupported = data.get("expected_unsupported_surfaces", [])
+    if not isinstance(unsupported, list) or not unsupported:
+        failures.append(f"{metadata_path}: expected_unsupported_surfaces must be non-empty")
 
 
 def validate_fixture(root, fixture_id, dirname, failures):
@@ -160,6 +316,7 @@ def validate_fixture(root, fixture_id, dirname, failures):
         source_text = str(source_path)
         if source_text.startswith(FORBIDDEN_SOURCE_PREFIXES):
             failures.append(f"{metadata_path}: live/private source path not allowed: {source_text}")
+        validate_source_policy(metadata_path, source_text, failures)
 
     no_write = data.get("expected_no_write_proofs", {})
     if not isinstance(no_write, dict):
@@ -191,6 +348,7 @@ def validate_fixture(root, fixture_id, dirname, failures):
     for label, tokens in REQUIRED_DENIAL_GROUPS.items():
         if not any(token in denial_text for token in tokens):
             failures.append(f"{metadata_path}: missing denial coverage for {label}")
+    validate_semantic_fields(metadata_path, data, denial_text, failures)
 
 
 def validate_fixture_root(root):
@@ -219,8 +377,11 @@ def main(argv):
     failures = validate_fixture_root(fixture_root)
 
     print("S10A read-only fixture validation report")
+    print("S10C semantic validation")
     print(f"fixture_root: {fixture_root}")
     print(f"expected_fixture_count: {len(EXPECTED_FIXTURES)}")
+    print(f"fixture_count: {len(EXPECTED_FIXTURES)}")
+    print("semantic_status: s10c-semantically-hardened")
 
     if failures:
         print("status: fail")

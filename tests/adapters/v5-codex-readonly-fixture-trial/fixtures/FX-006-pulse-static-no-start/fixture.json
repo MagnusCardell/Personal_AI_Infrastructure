@@ -43,7 +43,19 @@
     "no Pulse payload",
     "no Pulse bridge file",
     "no PAI Memory writes",
-    "no ISA writes"
+    "no ISA writes",
+    "live user-local state denied",
+    "root AGENTS.md denied",
+    ".codex/ denied",
+    "Releases/ write denied",
+    "PAI Memory write denied",
+    "ISA write denied",
+    "Pulse startup denied",
+    "Pulse endpoint call denied",
+    "product memory promotion denied",
+    "Claude file direct-copy denied",
+    "runtime invocation denied",
+    "drop-in claim denied"
   ],
   "expected_unsupported_surfaces": [
     "live Pulse daemon status",
@@ -81,5 +93,46 @@
   ],
   "rollback_expectation": "no-residue Pulse metadata validation only",
   "privacy_status": "public-release-only",
-  "s10a_status": "implemented-fixture-metadata-only"
+  "s10a_status": "implemented-fixture-metadata-only",
+  "covered_seams": [
+    "Pulse identity seam",
+    "Pulse read-only event seam",
+    "Pulse observability/audit seam",
+    "denied-path seam"
+  ],
+  "coverage_ids": [
+    "CVG-010",
+    "CVG-011",
+    "CVG-012",
+    "CVG-024"
+  ],
+  "gate_ids": [
+    "TG-011",
+    "TG-012",
+    "TG-016",
+    "TG-017",
+    "TG-019"
+  ],
+  "safety_assertions": {
+    "fixture_only": true,
+    "read_only": true,
+    "no_live_user_local_state": true,
+    "no_existing_local_v5_access": true,
+    "no_root_agents_write": true,
+    "no_codex_surface_write": true,
+    "no_release_file_write": true,
+    "no_claude_file_direct_copy": true,
+    "no_codex_runtime_invocation": true,
+    "no_claude_code_invocation": true,
+    "no_pulse_start": true,
+    "no_pulse_endpoint_call": true,
+    "no_pai_memory_write": true,
+    "no_isa_write": true,
+    "no_product_memory_promotion": true,
+    "no_drop_in_claim": true,
+    "not_manifest": true,
+    "not_audit_artifact": true,
+    "not_runtime_payload": true
+  },
+  "semantic_status": "s10c-semantically-hardened"
 }

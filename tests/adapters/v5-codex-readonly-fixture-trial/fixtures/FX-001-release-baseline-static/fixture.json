@@ -44,7 +44,19 @@
     "no Pulse startup",
     "no Pulse endpoint calls",
     "no product memory promotion",
-    "no Codex runtime invocation"
+    "no Codex runtime invocation",
+    "live user-local state denied",
+    "root AGENTS.md denied",
+    ".codex/ denied",
+    "Releases/ write denied",
+    "PAI Memory write denied",
+    "ISA write denied",
+    "Pulse startup denied",
+    "Pulse endpoint call denied",
+    "product memory promotion denied",
+    "Claude file direct-copy denied",
+    "runtime invocation denied",
+    "drop-in claim denied"
   ],
   "expected_unsupported_surfaces": [
     "runtime adapter behavior",
@@ -81,5 +93,51 @@
   ],
   "rollback_expectation": "no-residue metadata validation only",
   "privacy_status": "public-release-only",
-  "s10a_status": "implemented-fixture-metadata-only"
+  "s10a_status": "implemented-fixture-metadata-only",
+  "covered_seams": [
+    "fixture isolation seam",
+    "manifest schema seam",
+    "audit schema seam",
+    "dry-run validation seam",
+    "rollback seam",
+    "unsupported-surface seam"
+  ],
+  "coverage_ids": [
+    "CVG-017",
+    "CVG-018",
+    "CVG-019",
+    "CVG-020",
+    "CVG-024",
+    "CVG-025"
+  ],
+  "gate_ids": [
+    "TG-001",
+    "TG-002",
+    "TG-016",
+    "TG-017",
+    "TG-018",
+    "TG-019"
+  ],
+  "safety_assertions": {
+    "fixture_only": true,
+    "read_only": true,
+    "no_live_user_local_state": true,
+    "no_existing_local_v5_access": true,
+    "no_root_agents_write": true,
+    "no_codex_surface_write": true,
+    "no_release_file_write": true,
+    "no_claude_file_direct_copy": true,
+    "no_codex_runtime_invocation": true,
+    "no_claude_code_invocation": true,
+    "no_pulse_start": true,
+    "no_pulse_endpoint_call": true,
+    "no_pai_memory_write": true,
+    "no_isa_write": true,
+    "no_product_memory_promotion": true,
+    "no_drop_in_claim": true,
+    "not_manifest": true,
+    "not_audit_artifact": true,
+    "not_runtime_payload": true
+  },
+  "semantic_status": "s10c-semantically-hardened"
 }

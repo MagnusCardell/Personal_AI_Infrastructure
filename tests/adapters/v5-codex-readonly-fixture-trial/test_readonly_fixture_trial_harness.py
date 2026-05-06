@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""S10B negative-control self-tests for the S10A read-only harness.
+"""S10C semantic negative-control self-tests for the read-only harness.
 
 Codex is not currently proven drop-in for existing local PAI v5 files. These
 negative-control tests prove only fixture harness behavior. They do not run
 Codex, Claude Code, Pulse, network calls, subprocesses, or runtime adapter code.
 Temporary negative-control data is not a fixture corpus, not a manifest, not an
-audit artifact, and not runtime payload.
+audit artifact, and not runtime payload. S10C extends negative-control coverage
+for covered_seams, coverage_ids, gate_ids, safety_assertions, semantic_status,
+source path policy, denied_action_report, unsupported_surface_report, and
+rollback/no-residue posture.
 """
 
 import importlib.util
@@ -173,6 +176,91 @@ def case_missing_readme(root):
     (fixture_dir(root, "FX-001") / "README.md").unlink()
 
 
+def case_missing_covered_seams(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.pop("covered_seams", None))
+
+
+def case_unknown_seam(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.update({"covered_seams": ["unknown seam"]}))
+
+
+def case_missing_coverage_ids(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.pop("coverage_ids", None))
+
+
+def case_malformed_coverage_id(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.update({"coverage_ids": ["BAD-001"]}))
+
+
+def case_missing_gate_ids(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.pop("gate_ids", None))
+
+
+def case_malformed_gate_id(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.update({"gate_ids": ["BAD-001"]}))
+
+
+def case_missing_safety_assertions(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.pop("safety_assertions", None))
+
+
+def case_false_safety_assertion(root):
+    write_valid_temp_corpus(root)
+
+    def mutate(data):
+        data["safety_assertions"]["no_isa_write"] = False
+
+    mutate_metadata(root, "FX-001", mutate)
+
+
+def case_missing_semantic_status(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.pop("semantic_status", None))
+
+
+def case_invalid_semantic_status(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.update({"semantic_status": "runtime-ready"}))
+
+
+def case_parent_traversal_source_path(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.update({"source_paths": ["docs/adapters/../secret.md"]}))
+
+
+def case_absolute_source_path(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.update({"source_paths": ["/tmp/private"]}))
+
+
+def case_missing_denied_path_category(root):
+    write_valid_temp_corpus(root)
+
+    def mutate(data):
+        tokens = ("drop-in claim",)
+        remove_list_entries(data, "denied_paths", tokens)
+        remove_list_entries(data, "expected_denials", tokens)
+
+    mutate_metadata(root, "FX-001", mutate)
+
+
+def case_missing_unsupported_surface(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.update({"expected_unsupported_surfaces": []}))
+
+
+def case_protected_source_path(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-001", lambda data: data.update({"source_paths": [".codex/config.toml"]}))
+
+
 NEGATIVE_CASES = [
     {
         "negative_id": "NC-001",
@@ -264,6 +352,96 @@ NEGATIVE_CASES = [
         "expected_failure_signal": "expected exactly README.md and fixture.json",
         "builder": case_missing_readme,
     },
+    {
+        "negative_id": "NC-016",
+        "description": "Missing covered_seams is detected.",
+        "expected_failure_signal": "missing covered_seams",
+        "builder": case_missing_covered_seams,
+    },
+    {
+        "negative_id": "NC-017",
+        "description": "Unknown seam value is detected.",
+        "expected_failure_signal": "unknown covered_seams",
+        "builder": case_unknown_seam,
+    },
+    {
+        "negative_id": "NC-018",
+        "description": "Missing coverage_ids is detected.",
+        "expected_failure_signal": "missing coverage_ids",
+        "builder": case_missing_coverage_ids,
+    },
+    {
+        "negative_id": "NC-019",
+        "description": "Malformed coverage ID is detected.",
+        "expected_failure_signal": "malformed coverage_ids",
+        "builder": case_malformed_coverage_id,
+    },
+    {
+        "negative_id": "NC-020",
+        "description": "Missing gate_ids is detected.",
+        "expected_failure_signal": "missing gate_ids",
+        "builder": case_missing_gate_ids,
+    },
+    {
+        "negative_id": "NC-021",
+        "description": "Malformed gate ID is detected.",
+        "expected_failure_signal": "malformed gate_ids",
+        "builder": case_malformed_gate_id,
+    },
+    {
+        "negative_id": "NC-022",
+        "description": "Missing safety_assertions is detected.",
+        "expected_failure_signal": "missing safety_assertions",
+        "builder": case_missing_safety_assertions,
+    },
+    {
+        "negative_id": "NC-023",
+        "description": "False safety_assertions value is detected.",
+        "expected_failure_signal": "safety_assertions.no_isa_write must be true",
+        "builder": case_false_safety_assertion,
+    },
+    {
+        "negative_id": "NC-024",
+        "description": "Missing semantic_status is detected.",
+        "expected_failure_signal": "missing semantic_status",
+        "builder": case_missing_semantic_status,
+    },
+    {
+        "negative_id": "NC-025",
+        "description": "Invalid semantic_status is detected.",
+        "expected_failure_signal": "invalid semantic_status",
+        "builder": case_invalid_semantic_status,
+    },
+    {
+        "negative_id": "NC-026",
+        "description": "Forbidden parent traversal in source_paths is detected.",
+        "expected_failure_signal": "forbidden source path",
+        "builder": case_parent_traversal_source_path,
+    },
+    {
+        "negative_id": "NC-027",
+        "description": "Forbidden absolute path in source_paths is detected.",
+        "expected_failure_signal": "forbidden source path",
+        "builder": case_absolute_source_path,
+    },
+    {
+        "negative_id": "NC-028",
+        "description": "Missing denied-path category is detected.",
+        "expected_failure_signal": "missing denied-path coverage term: drop-in claim",
+        "builder": case_missing_denied_path_category,
+    },
+    {
+        "negative_id": "NC-029",
+        "description": "Missing unsupported-surface coverage is detected.",
+        "expected_failure_signal": "expected_unsupported_surfaces must be non-empty",
+        "builder": case_missing_unsupported_surface,
+    },
+    {
+        "negative_id": "NC-030",
+        "description": "Source path to .codex/ or root AGENTS.md is detected.",
+        "expected_failure_signal": "protected source path",
+        "builder": case_protected_source_path,
+    },
 ]
 
 
@@ -276,7 +454,7 @@ def run_positive_control():
 
 
 def run_negative_case(case):
-    with tempfile.TemporaryDirectory(prefix="s10b-harness-negative-control-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="s10c-harness-negative-control-") as temp_dir:
         temp_root = Path(temp_dir) / "fixtures"
         case["builder"](temp_root)
         failures = HARNESS.validate_fixture_root(temp_root)
@@ -298,7 +476,7 @@ def main():
     results = [run_negative_case(case) for case in NEGATIVE_CASES]
     overall_pass = positive["status"] == "pass" and all(result["status"] == "pass" for result in results)
 
-    print("S10B harness negative-control self-test report")
+    print("S10C harness semantic negative-control self-test report")
     print(f"positive_control_status: {positive['status']}")
     if positive["failures"]:
         for failure in positive["failures"]:
