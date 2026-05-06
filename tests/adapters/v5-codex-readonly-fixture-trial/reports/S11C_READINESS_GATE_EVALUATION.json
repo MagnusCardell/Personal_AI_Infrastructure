@@ -1,0 +1,197 @@
+{
+  "drop_in_claim_status": "not-claimed",
+  "gate_count": 18,
+  "gates": {
+    "R0": {
+      "failure_signal": "S12 work begins from this report alone or treats readiness evidence as approval.",
+      "future_s12_implication": "S12 remains future-only and requires explicit architect approval.",
+      "gate_id": "R0",
+      "gate_name": "Architect Approval",
+      "observed_evidence": "S11C report status is ready-for-architect-review-not-approved; S12 approval status is not-approved.",
+      "required_proof": "Explicit architect approval for any S12 objective, source protocol, reads, writes, and hard failures.",
+      "status": "requires-architect-approval"
+    },
+    "R1": {
+      "failure_signal": "Fixture-only evidence is incomplete, rejected, or not reviewed.",
+      "future_s12_implication": "Architect review can consider fixture evidence; this does not authorize live trials.",
+      "gate_id": "R1",
+      "gate_name": "Fixture Track Accepted",
+      "observed_evidence": "S11A evidence is pass and corpus counts are stable: fixture_count=12; case_count=12; seam_count=23; coverage_id_count=25; gate_id_count=20; denied_category_count=13.",
+      "required_proof": "Accepted S10 fixture-only corpus, harness, negative controls, global coverage, and no-residue evidence.",
+      "status": "evidence-pass"
+    },
+    "R10": {
+      "failure_signal": "ISA file creation, mutation, migration, or generated state update.",
+      "future_s12_implication": "ISA remains canonical PAI state and cannot be written by this track.",
+      "gate_id": "R10",
+      "gate_name": "No ISA Writes",
+      "observed_evidence": "S11A isa_status is no-isa-writes; S11C does not authorize ISA writes.",
+      "required_proof": "Evidence that ISA was not written.",
+      "status": "evidence-pass"
+    },
+    "R11": {
+      "failure_signal": "Product-memory promotion, normalization, migration, or import into PAI Memory.",
+      "future_s12_implication": "Product-memory promotion remains prohibited without a separate architect-approved policy.",
+      "gate_id": "R11",
+      "gate_name": "No Product Memory Promotion",
+      "observed_evidence": "S11A product_memory_status is no-product-memory-promotion and non_promotion_statement is present.",
+      "required_proof": "Evidence that product memories are not silently promoted into PAI Memory.",
+      "status": "evidence-pass"
+    },
+    "R12": {
+      "failure_signal": "Authority levels are flattened or Claude-shaped files are copied directly into Codex surfaces.",
+      "future_s12_implication": "Any future adapter planning must preserve authority distinctions before runtime work.",
+      "gate_id": "R12",
+      "gate_name": "Authority Boundary Preserved",
+      "observed_evidence": "S10/S11 docs preserve authority boundary and prohibit copying Claude-shaped files directly into Codex surfaces.",
+      "required_proof": "Evidence preserving PAI_SYSTEM_PROMPT.md, CLAUDE.md, compact router, and policy/config boundaries.",
+      "status": "evidence-pass"
+    },
+    "R13": {
+      "failure_signal": "Launcher, wrapper, installer, migration, inference profile, or runtime invocation is created or executed.",
+      "future_s12_implication": "S12 must remain non-runtime unless a future architect card explicitly changes scope.",
+      "gate_id": "R13",
+      "gate_name": "Launcher and Inference Boundary Preserved",
+      "observed_evidence": "S11A engine_under_test is none and limitations state no Codex runtime or Claude Code runtime was invoked.",
+      "required_proof": "Evidence that launcher and inference boundaries remain report-only and no runtime engine is invoked.",
+      "status": "evidence-pass"
+    },
+    "R14": {
+      "failure_signal": "Any hook, rule, skill, agent, command, lifecycle payload, or generated Codex control surface is created.",
+      "future_s12_implication": "Future mapping of hooks or lifecycle surfaces remains blocked until explicitly approved.",
+      "gate_id": "R14",
+      "gate_name": "Hook and Lifecycle Boundary Preserved",
+      "observed_evidence": "Fixture evidence covers hook/lifecycle seams without creating Codex hooks, rules, agents, commands, or skills.",
+      "required_proof": "Evidence that hook/lifecycle boundaries remain unsupported-surface reporting only.",
+      "status": "evidence-pass"
+    },
+    "R15": {
+      "failure_signal": "Unsupported surfaces are ignored, treated as supported, or converted into runtime payloads.",
+      "future_s12_implication": "Unsupported-surface reporting remains mandatory before any drop-in readiness claim.",
+      "gate_id": "R15",
+      "gate_name": "Unsupported Surface Reporting",
+      "observed_evidence": "S11A unsupported_surface_report_status is covered-by-fixture-expectations.",
+      "required_proof": "Read-only unsupported-surface reporting from the fixture corpus and S11A report.",
+      "status": "evidence-pass"
+    },
+    "R16": {
+      "failure_signal": "Missing rollback/no-residue evidence or created audit artifact, manifest, or executable schema.",
+      "future_s12_implication": "Future audit/rollback evidence must remain report-only unless explicitly approved.",
+      "gate_id": "R16",
+      "gate_name": "Audit and Rollback Reporting",
+      "observed_evidence": "S11A rollback_status is no-residue-fixture-only and non-canonical statement rejects audit artifact and manifest status.",
+      "required_proof": "Report-only audit and rollback posture without creating audit artifacts, manifests, schemas, or trial outputs.",
+      "status": "evidence-pass"
+    },
+    "R17": {
+      "failure_signal": "Any claim that Codex is drop-in today, official upstream engine, replacement-grade, or runtime-compatible.",
+      "future_s12_implication": "No drop-in claim is allowed until later architect-approved validation proves it.",
+      "gate_id": "R17",
+      "gate_name": "No Drop-In Claim",
+      "observed_evidence": "S11A drop_in_claim_status is not-claimed and S11C limitations preserve Codex is not currently proven drop-in.",
+      "required_proof": "Final evidence preserves no drop-in claim.",
+      "status": "evidence-pass"
+    },
+    "R2": {
+      "failure_signal": "Open-ended writes or generated runtime, manifest, schema, Memory, ISA, or Pulse artifacts.",
+      "future_s12_implication": "Any future S12 must name an exact write set and preserve protected paths.",
+      "gate_id": "R2",
+      "gate_name": "Approved S11 Write Set",
+      "observed_evidence": "S11C writes only the approved execution plan, evaluator, S11C report, and optional README update.",
+      "required_proof": "Exact approved write sets for S11A, S11B, and S11C with no runtime artifacts.",
+      "status": "evidence-pass"
+    },
+    "R3": {
+      "failure_signal": "Any implicit read of home-directory state, live Claude state, live Codex state, or existing-local-v5 state.",
+      "future_s12_implication": "S12 must keep live user-local access blocked unless a future card explicitly approves a controlled source.",
+      "gate_id": "R3",
+      "gate_name": "No Live User-Local State By Default",
+      "observed_evidence": "S11A live_user_local_state_status is not-read; S11C does not approve live existing-local-v5 access.",
+      "required_proof": "Evidence that live user-local and existing-local-v5 state were not read.",
+      "status": "blocked-live-state"
+    },
+    "R4": {
+      "failure_signal": "Source discovery through private state, live default paths, or inferred local configuration.",
+      "future_s12_implication": "S12 must explicitly name any source and must not infer live user-local state access.",
+      "gate_id": "R4",
+      "gate_name": "Explicit Source Selection",
+      "observed_evidence": "S11C reads repository-local fixture, report, harness, S10G gate, and S11B control files only.",
+      "required_proof": "Repository-relative fixture, report, and document sources only.",
+      "status": "blocked-live-state"
+    },
+    "R5": {
+      "failure_signal": "Root AGENTS.md is created, modified, generated, or migrated.",
+      "future_s12_implication": "Future AGENTS.md work remains outside S11C and requires separate approval.",
+      "gate_id": "R5",
+      "gate_name": "No Root AGENTS.md",
+      "observed_evidence": "S11C creates no root AGENTS.md and no Codex router surface.",
+      "required_proof": "Protected-path validation confirms root AGENTS.md is not created or modified.",
+      "status": "evidence-pass"
+    },
+    "R6": {
+      "failure_signal": "Any .codex file or directory is created or modified.",
+      "future_s12_implication": "Future Codex runtime surfaces remain unauthorized unless explicitly approved.",
+      "gate_id": "R6",
+      "gate_name": "No .codex",
+      "observed_evidence": "S11C creates no .codex config, profile, hook, rule, memory, or generated file.",
+      "required_proof": "Protected-path validation confirms .codex is not created or modified.",
+      "status": "evidence-pass"
+    },
+    "R7": {
+      "failure_signal": "Any command, service, script, or evaluator behavior starts Pulse.",
+      "future_s12_implication": "Pulse startup remains prohibited unless a future card explicitly approves it.",
+      "gate_id": "R7",
+      "gate_name": "No Pulse Startup",
+      "observed_evidence": "S11A pulse_status is not-started-not-called; S11C does not authorize Pulse startup or calls.",
+      "required_proof": "Evidence that Pulse was not started.",
+      "status": "evidence-pass"
+    },
+    "R8": {
+      "failure_signal": "HTTP calls, socket calls, curl probes, health checks, or localhost endpoint access.",
+      "future_s12_implication": "Pulse endpoint calls remain prohibited unless separately approved.",
+      "gate_id": "R8",
+      "gate_name": "No Pulse Endpoint Calls",
+      "observed_evidence": "S11A pulse_status is not-started-not-called; S11C does not authorize Pulse startup or calls.",
+      "required_proof": "Evidence that Pulse endpoints were not called and localhost:31337 was not probed.",
+      "status": "evidence-pass"
+    },
+    "R9": {
+      "failure_signal": "PAI Memory file creation, mutation, migration, or promotion.",
+      "future_s12_implication": "PAI Memory remains canonical PAI state and cannot be written by this track.",
+      "gate_id": "R9",
+      "gate_name": "No PAI Memory Writes",
+      "observed_evidence": "S11A memory_status is no-pai-memory-writes; S11C does not authorize PAI Memory writes.",
+      "required_proof": "Evidence that PAI Memory was not written.",
+      "status": "evidence-pass"
+    }
+  },
+  "isa_status": "no-isa-writes",
+  "limitations": [
+    "Codex is not currently proven drop-in for existing local PAI v5 files.",
+    "S11C creates readiness gate evaluation evidence only.",
+    "S11C does not approve S12.",
+    "S11C does not run live trials.",
+    "S11C does not read existing-local-v5 state.",
+    "S11C does not authorize live user-local access.",
+    "S11C does not start Pulse or call Pulse endpoints.",
+    "S11C does not write PAI Memory or ISA.",
+    "S11C does not authorize product-memory promotion into PAI Memory.",
+    "S11C does not implement runtime adapter work."
+  ],
+  "live_user_local_state_status": "not-read",
+  "memory_status": "no-pai-memory-writes",
+  "minimum_entry_threshold_status": "ready-for-architect-review-not-approved",
+  "non_canonical_output_statement": "This S11C evidence output is not PAI Memory; not ISA; not Pulse state; not Claude memory; not Codex memory; not a PAI runtime audit artifact; not a manifest; not runtime payload.",
+  "pulse_status": "not-started-not-called",
+  "report_id": "S11C-READINESS-GATE-EVALUATION",
+  "report_status": "pass",
+  "report_type": "s11-readiness-gate-evaluation",
+  "s12_approval_status": "not-approved",
+  "source_reports": [
+    "docs/adapters/V5_CODEX_S11_READ_ONLY_TRIAL_READINESS_GATES.md",
+    "tests/adapters/v5-codex-readonly-fixture-trial/reports/S11A_RELEASE_FIXTURE_TRIAL_REPORT.json",
+    "tests/adapters/v5-codex-readonly-fixture-trial/test_readonly_fixture_trial_report_generator.py",
+    "tests/adapters/v5-codex-readonly-fixture-trial/run_readonly_fixture_trial.py",
+    "tests/adapters/v5-codex-readonly-fixture-trial/fixtures"
+  ]
+}
