@@ -72,13 +72,14 @@ def load_fixture_versions(fixture_root, harness):
 
 def build_report(fixture_root, harness):
     failures = harness.validate_fixture_root(fixture_root)
+    if failures:
+        raise RuntimeError("approved fixture harness validation failed: " + "; ".join(failures))
+
     counts = harness.global_coverage_counts(fixture_root)
     fixture_count = harness.count_fixture_dirs(fixture_root)
     case_count = harness.count_case_files(fixture_root)
     versions = load_fixture_versions(fixture_root, harness)
 
-    if failures:
-        raise RuntimeError("approved fixture harness validation failed: " + "; ".join(failures))
     if versions != ["v5.0.0"]:
         raise RuntimeError(f"unexpected fixture pai_version values: {versions}")
 

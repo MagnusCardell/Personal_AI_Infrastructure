@@ -73,3 +73,15 @@ The S11A report is adapter-test evidence only. It is not PAI Memory, not ISA, no
 S11A does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not inspect live user-local state. It does not write PAI Memory or ISA.
 
 Codex is not currently proven drop-in for existing local PAI v5 files. S11A proves only bounded release-fixture evidence-report generation, not runtime replacement and not live existing-local-v5 readiness.
+
+## S11B Report-Generator Negative Controls
+
+S11B adds report-generator negative controls for unsafe report paths, malformed fixture inputs, report-field invariants, and generator safety boundaries.
+
+The negative controls use temporary data only. S11B does not create committed negative fixtures.
+
+S11B does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not inspect live user-local state. It does not write PAI Memory or ISA.
+
+S11B evidence reports are not PAI Memory, not ISA, not Pulse state, not Claude memory, not Codex memory, not runtime audit artifacts, not manifests, and not runtime payload.
+
+Codex is not currently proven drop-in for existing local PAI v5 files. S11B proves only report-generator negative-control behavior, not runtime adapter readiness and not drop-in capability.
