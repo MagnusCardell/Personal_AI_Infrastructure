@@ -4,6 +4,12 @@
   "case_name": "product memory negative boundary case",
   "case_type": "product-memory-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-013",
+    "CVG-014",
+    "CVG-023",
+    "CVG-025"
+  ],
   "input_symbols": [
     "product memories",
     "PAI Memory",

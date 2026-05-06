@@ -4,6 +4,12 @@
   "case_name": "Memory ISA static no-write boundary case",
   "case_type": "memory-isa-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-013",
+    "CVG-014",
+    "CVG-015",
+    "CVG-016"
+  ],
   "input_symbols": [
     "PAI Memory",
     "ISA",

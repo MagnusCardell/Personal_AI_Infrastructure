@@ -4,6 +4,12 @@
   "case_name": "Pulse static no-start boundary case",
   "case_type": "pulse-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-010",
+    "CVG-011",
+    "CVG-012",
+    "CVG-024"
+  ],
   "input_symbols": [
     "Pulse identity seam",
     "Pulse read-only event seam",

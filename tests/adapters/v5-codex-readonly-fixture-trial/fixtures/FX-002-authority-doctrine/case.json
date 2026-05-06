@@ -4,6 +4,12 @@
   "case_name": "authority doctrine boundary case",
   "case_type": "authority-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-001",
+    "CVG-002",
+    "CVG-003",
+    "CVG-025"
+  ],
   "input_symbols": [
     "PAI_SYSTEM_PROMPT.md high-authority doctrine",
     "CLAUDE.md non-destination boundary",

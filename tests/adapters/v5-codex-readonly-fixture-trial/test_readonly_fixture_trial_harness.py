@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""S10D fixture case negative-control self-tests for the read-only harness.
+"""S10E global coverage negative-control self-tests for the read-only harness.
 
 Codex is not currently proven drop-in for existing local PAI v5 files. These
 negative-control tests prove only fixture harness behavior. They do not run
 Codex, Claude Code, Pulse, network calls, subprocesses, or runtime adapter code.
 Temporary negative-control data is not a fixture corpus, not a manifest, not an
-audit artifact, and not runtime payload. S10D extends negative-control coverage
-for fixture case data, expected behavior, denied_behaviors,
-unsupported_surface_expectations, no_write_expectations, audit_expectations,
-rollback_expectations, prohibited_actions, and non-drop-in posture.
+audit artifact, and not runtime payload. S10E extends negative-control coverage
+for deterministic global seam, coverage ID, gate ID, denial, unsupported-surface,
+rollback, Pulse, Memory, ISA, product-memory, and drop-in denial closure.
 """
 
 import importlib.util
@@ -98,6 +97,38 @@ def remove_list_entries(data, field, forbidden_tokens):
         for item in data.get(field, [])
         if not any(token in str(item) for token in forbidden_tokens)
     ]
+
+
+def mutate_all_metadata(root, mutator):
+    for fixture_id in HARNESS.EXPECTED_FIXTURES:
+        mutate_metadata(root, fixture_id, mutator)
+
+
+def mutate_all_cases(root, mutator):
+    for fixture_id in HARNESS.EXPECTED_FIXTURES:
+        mutate_case(root, fixture_id, mutator)
+
+
+def remove_case_terms(data, forbidden_tokens):
+    for field in (
+        "denied_behaviors",
+        "unsupported_surface_expectations",
+        "no_write_expectations",
+        "audit_expectations",
+        "rollback_expectations",
+        "prohibited_actions",
+        "expected_behaviors",
+    ):
+        if isinstance(data.get(field), list):
+            remove_list_entries(data, field, forbidden_tokens)
+
+
+def remove_metadata_terms(data, forbidden_tokens):
+    for field in ("denied_paths", "expected_denials", "expected_unsupported_surfaces"):
+        if isinstance(data.get(field), list):
+            remove_list_entries(data, field, forbidden_tokens)
+    if "rollback_expectation" in data and any(token in str(data["rollback_expectation"]) for token in forbidden_tokens):
+        data["rollback_expectation"] = "omitted expectation"
 
 
 def case_missing_fixture_directory(root):
@@ -365,6 +396,127 @@ def case_s10d_extra_fixture_file(root):
         "temporary S10D negative-control file\n",
         encoding="utf-8",
     )
+
+
+def case_missing_global_seam_coverage(root):
+    write_valid_temp_corpus(root)
+
+    def mutate(data):
+        data["covered_seams"] = [seam for seam in data.get("covered_seams", []) if seam != "authority seam"]
+
+    mutate_all_metadata(root, mutate)
+
+
+def case_missing_global_coverage_id(root):
+    write_valid_temp_corpus(root)
+
+    def mutate_metadata_data(data):
+        data["coverage_ids"] = [cid for cid in data.get("coverage_ids", []) if cid != "CVG-001"]
+
+    def mutate_case_data(data):
+        data["coverage_expectations"] = [cid for cid in data.get("coverage_expectations", []) if cid != "CVG-001"]
+
+    mutate_all_metadata(root, mutate_metadata_data)
+    mutate_all_cases(root, mutate_case_data)
+
+
+def case_missing_global_gate_id(root):
+    write_valid_temp_corpus(root)
+
+    def mutate(data):
+        data["gate_ids"] = [gid for gid in data.get("gate_ids", []) if gid != "TG-020"]
+
+    mutate_all_metadata(root, mutate)
+
+
+def case_duplicate_fixture_id(root):
+    write_valid_temp_corpus(root)
+    mutate_metadata(root, "FX-002", lambda data: data.update({"fixture_id": "FX-001"}))
+
+
+def case_duplicate_case_id(root):
+    write_valid_temp_corpus(root)
+    duplicate = read_case(root, "FX-001")["case_id"]
+    mutate_case(root, "FX-002", lambda data: data.update({"case_id": duplicate}))
+
+
+def case_case_coverage_not_in_metadata(root):
+    write_valid_temp_corpus(root)
+
+    def mutate(data):
+        data["coverage_expectations"] = list(data.get("coverage_expectations", [])) + ["CVG-004"]
+
+    mutate_case(root, "FX-001", mutate)
+
+
+def case_metadata_coverage_not_in_case(root):
+    write_valid_temp_corpus(root)
+
+    def mutate(data):
+        data["coverage_expectations"] = [
+            cid for cid in data.get("coverage_expectations", []) if cid != "CVG-017"
+        ]
+
+    mutate_case(root, "FX-001", mutate)
+
+
+def case_missing_global_denied_category(root):
+    write_valid_temp_corpus(root)
+    tokens = ("root AGENTS.md write",)
+    mutate_all_cases(root, lambda data: remove_case_terms(data, tokens))
+
+
+def case_missing_global_unsupported_surface(root):
+    write_valid_temp_corpus(root)
+    mutate_all_metadata(root, lambda data: data.update({"expected_unsupported_surfaces": []}))
+    mutate_all_cases(root, lambda data: data.update({"unsupported_surface_expectations": []}))
+
+
+def case_missing_rollback_no_residue(root):
+    write_valid_temp_corpus(root)
+    tokens = ("rollback", "no-residue")
+    mutate_all_metadata(root, lambda data: remove_metadata_terms(data, tokens))
+
+    def mutate(data):
+        remove_case_terms(data, tokens)
+        data["rollback_expectations"] = ["residue expectation intentionally omitted"]
+
+    mutate_all_cases(root, mutate)
+
+
+def case_missing_drop_in_claim_denial(root):
+    write_valid_temp_corpus(root)
+    tokens = ("drop-in claim",)
+    mutate_all_metadata(root, lambda data: remove_metadata_terms(data, tokens))
+    mutate_all_cases(root, lambda data: remove_case_terms(data, tokens))
+
+
+def case_missing_pulse_no_start_no_call(root):
+    write_valid_temp_corpus(root)
+    tokens = ("Pulse startup", "Pulse endpoint call", "Pulse endpoint calls", "localhost:31337")
+    mutate_all_metadata(root, lambda data: remove_metadata_terms(data, tokens))
+    mutate_all_cases(root, lambda data: remove_case_terms(data, tokens))
+
+
+def case_missing_memory_isa_no_write(root):
+    write_valid_temp_corpus(root)
+    tokens = ("PAI Memory write", "PAI Memory writes", "ISA write", "ISA writes")
+    mutate_all_metadata(root, lambda data: remove_metadata_terms(data, tokens))
+    mutate_all_cases(root, lambda data: remove_case_terms(data, tokens))
+
+
+def case_missing_product_memory_non_promotion(root):
+    write_valid_temp_corpus(root)
+    tokens = ("product memory promotion", "product memories")
+    mutate_all_metadata(root, lambda data: remove_metadata_terms(data, tokens))
+    mutate_all_cases(root, lambda data: remove_case_terms(data, tokens))
+
+
+def case_missing_claude_file_direct_copy(root):
+    write_valid_temp_corpus(root)
+    tokens = ("Claude file direct-copy",)
+    mutate_all_metadata(root, lambda data: remove_metadata_terms(data, tokens))
+    mutate_all_cases(root, lambda data: remove_case_terms(data, tokens))
 
 
 NEGATIVE_CASES = [
@@ -638,6 +790,96 @@ NEGATIVE_CASES = [
         "expected_failure_signal": "expected exactly README.md, case.json, fixture.json",
         "builder": case_s10d_extra_fixture_file,
     },
+    {
+        "negative_id": "NC-046",
+        "description": "Missing global seam coverage is detected.",
+        "expected_failure_signal": "missing global seam coverage",
+        "builder": case_missing_global_seam_coverage,
+    },
+    {
+        "negative_id": "NC-047",
+        "description": "Missing global coverage ID is detected.",
+        "expected_failure_signal": "missing global coverage ID",
+        "builder": case_missing_global_coverage_id,
+    },
+    {
+        "negative_id": "NC-048",
+        "description": "Missing global gate ID is detected.",
+        "expected_failure_signal": "missing global gate ID",
+        "builder": case_missing_global_gate_id,
+    },
+    {
+        "negative_id": "NC-049",
+        "description": "Duplicate fixture ID is detected.",
+        "expected_failure_signal": "duplicate fixture ID",
+        "builder": case_duplicate_fixture_id,
+    },
+    {
+        "negative_id": "NC-050",
+        "description": "Duplicate case ID is detected.",
+        "expected_failure_signal": "duplicate case ID",
+        "builder": case_duplicate_case_id,
+    },
+    {
+        "negative_id": "NC-051",
+        "description": "Case references coverage not present in fixture metadata is detected.",
+        "expected_failure_signal": "case references coverage not present in fixture metadata",
+        "builder": case_case_coverage_not_in_metadata,
+    },
+    {
+        "negative_id": "NC-052",
+        "description": "Fixture metadata references coverage not present in case expectations is detected.",
+        "expected_failure_signal": "fixture metadata references coverage not present in case expectations",
+        "builder": case_metadata_coverage_not_in_case,
+    },
+    {
+        "negative_id": "NC-053",
+        "description": "Missing global denied category is detected.",
+        "expected_failure_signal": "missing global denied category",
+        "builder": case_missing_global_denied_category,
+    },
+    {
+        "negative_id": "NC-054",
+        "description": "Missing global unsupported-surface expectation is detected.",
+        "expected_failure_signal": "missing global unsupported-surface expectation",
+        "builder": case_missing_global_unsupported_surface,
+    },
+    {
+        "negative_id": "NC-055",
+        "description": "Missing rollback/no-residue expectation is detected.",
+        "expected_failure_signal": "missing rollback/no-residue expectation",
+        "builder": case_missing_rollback_no_residue,
+    },
+    {
+        "negative_id": "NC-056",
+        "description": "Missing drop-in claim denial is detected.",
+        "expected_failure_signal": "missing drop-in claim denial",
+        "builder": case_missing_drop_in_claim_denial,
+    },
+    {
+        "negative_id": "NC-057",
+        "description": "Missing Pulse no-start/no-call coverage is detected.",
+        "expected_failure_signal": "missing Pulse no-start/no-call coverage",
+        "builder": case_missing_pulse_no_start_no_call,
+    },
+    {
+        "negative_id": "NC-058",
+        "description": "Missing Memory/ISA no-write coverage is detected.",
+        "expected_failure_signal": "missing Memory/ISA no-write coverage",
+        "builder": case_missing_memory_isa_no_write,
+    },
+    {
+        "negative_id": "NC-059",
+        "description": "Missing product-memory non-promotion coverage is detected.",
+        "expected_failure_signal": "missing product-memory non-promotion coverage",
+        "builder": case_missing_product_memory_non_promotion,
+    },
+    {
+        "negative_id": "NC-060",
+        "description": "Missing Claude file direct-copy denial is detected.",
+        "expected_failure_signal": "missing Claude file direct-copy denial",
+        "builder": case_missing_claude_file_direct_copy,
+    },
 ]
 
 
@@ -650,7 +892,7 @@ def run_positive_control():
 
 
 def run_negative_case(case):
-    with tempfile.TemporaryDirectory(prefix="s10d-harness-negative-control-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="s10e-harness-negative-control-") as temp_dir:
         temp_root = Path(temp_dir) / "fixtures"
         case["builder"](temp_root)
         failures = HARNESS.validate_fixture_root(temp_root)
@@ -672,7 +914,7 @@ def main():
     results = [run_negative_case(case) for case in NEGATIVE_CASES]
     overall_pass = positive["status"] == "pass" and all(result["status"] == "pass" for result in results)
 
-    print("S10D fixture case negative-control self-test report")
+    print("S10E global coverage negative-control self-test report")
     print(f"positive_control_status: {positive['status']}")
     if positive["failures"]:
         for failure in positive["failures"]:
@@ -692,6 +934,7 @@ def main():
     print("scope: PAI_SYSTEM_PROMPT.md remains high-authority; CLAUDE.md and AGENTS.md must not be copied directly")
     print("scope: rollback posture remains temporary-directory cleanup and no repository no-residue artifacts")
     print("scope: case.json is fixture case data only, not a manifest, not an audit artifact, and not runtime payload")
+    print("scope: S10E validates global fixture coverage only and does not prove Codex drop-in behavior")
     return 0 if overall_pass else 1
 
 

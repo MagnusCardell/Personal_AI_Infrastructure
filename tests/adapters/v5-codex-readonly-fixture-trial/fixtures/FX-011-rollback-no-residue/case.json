@@ -4,6 +4,12 @@
   "case_name": "rollback no-residue boundary case",
   "case_type": "rollback-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-018",
+    "CVG-019",
+    "CVG-020",
+    "CVG-021"
+  ],
   "input_symbols": [
     "rollback seam",
     "no-residue",

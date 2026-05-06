@@ -4,6 +4,12 @@
   "case_name": "dual engine boundary case",
   "case_type": "dual-engine-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-013",
+    "CVG-021",
+    "CVG-022",
+    "CVG-025"
+  ],
   "input_symbols": [
     "dual-engine boundary seam",
     "Claude Code remains current official/full-support upstream engine",

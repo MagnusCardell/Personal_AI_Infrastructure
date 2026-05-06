@@ -41,3 +41,15 @@ S10D extends negative controls from `NC-001` through `NC-045`. The new controls 
 The harness remains a read-only harness. It does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not inspect live user-local state.
 
 The harness does not write PAI Memory or ISA. Codex is not currently proven drop-in for existing local PAI v5 files.
+
+## S10E Global Coverage
+
+S10E validates global fixture coverage across the existing fixture corpus. It checks that the corpus closes the accepted seam, gate, coverage, denial, unsupported-surface, rollback, Pulse, Memory, ISA, product-memory, and drop-in denial coverage model.
+
+The harness now reports deterministic global coverage counts for fixture count, case count, seam count, coverage ID count, gate ID count, and denied category count. The harness remains read-only and validates fixture coverage only.
+
+S10E extends negative controls to `NC-001` through `NC-060`, including missing global seam coverage, missing global coverage IDs, missing global gate IDs, duplicate fixture and case IDs, fixture/case coverage mismatches, missing denied categories, missing unsupported-surface expectations, missing rollback/no-residue expectations, missing Pulse no-start/no-call coverage, missing Memory/ISA no-write coverage, missing product-memory non-promotion coverage, and missing Claude file direct-copy denial.
+
+The harness does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not run live trials. It does not inspect live user-local state and does not write PAI Memory or ISA.
+
+Fixture metadata and case data are not manifests, not audit artifacts, and not runtime payload. Codex is not currently proven drop-in for existing local PAI v5 files.

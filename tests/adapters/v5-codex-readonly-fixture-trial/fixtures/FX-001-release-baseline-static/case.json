@@ -4,6 +4,14 @@
   "case_name": "release baseline static boundary case",
   "case_type": "release-baseline-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-017",
+    "CVG-018",
+    "CVG-019",
+    "CVG-020",
+    "CVG-024",
+    "CVG-025"
+  ],
   "input_symbols": [
     "PAI_SYSTEM_PROMPT.md high-authority doctrine",
     "CLAUDE.md Claude-facing surface",

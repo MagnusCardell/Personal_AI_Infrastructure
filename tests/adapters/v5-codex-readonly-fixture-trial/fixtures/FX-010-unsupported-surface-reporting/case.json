@@ -4,6 +4,13 @@
   "case_name": "unsupported surface reporting boundary case",
   "case_type": "unsupported-surface-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-010",
+    "CVG-011",
+    "CVG-016",
+    "CVG-024",
+    "CVG-025"
+  ],
   "input_symbols": [
     "unsupported-surface seam",
     "unsupported_surface_report",

@@ -6,7 +6,8 @@ fixture-only harness reads fixture metadata, prints validation status to stdout,
 and does not run Codex, Claude Code, Pulse, network calls, subprocesses, or any
 runtime adapter path. Fixture metadata is not a manifest, and harness stdout is
 not an audit artifact. S10D fixture case data is not a manifest, not an audit
-artifact, and not runtime payload.
+artifact, and not runtime payload. S10E validates global fixture coverage only;
+it does not implement a runtime adapter.
 """
 
 import argparse
@@ -189,6 +190,7 @@ REQUIRED_CASE_FIELDS = {
     "case_name",
     "case_type",
     "case_status",
+    "coverage_expectations",
     "input_symbols",
     "source_references",
     "expected_behaviors",
@@ -274,6 +276,11 @@ REQUIRED_CASE_DENIED_BEHAVIORS = {
     "existing-local-v5 access",
     "drop-in claim",
 }
+
+GLOBAL_REQUIRED_SEAMS = ALLOWED_SEAMS
+GLOBAL_REQUIRED_COVERAGE_IDS = ALLOWED_COVERAGE_IDS
+GLOBAL_REQUIRED_GATE_IDS = ALLOWED_GATE_IDS
+GLOBAL_REQUIRED_DENIED_CATEGORIES = REQUIRED_CASE_DENIED_BEHAVIORS
 
 
 def load_fixture(metadata_path):
@@ -386,7 +393,7 @@ def validate_semantic_fields(metadata_path, data, denial_text, failures):
         failures.append(f"{metadata_path}: expected_unsupported_surfaces must be non-empty")
 
 
-def validate_case_file(case_path, fixture_id, metadata_fixture_id, failures):
+def validate_case_file(case_path, fixture_id, metadata_fixture_id, metadata_coverage_ids, failures):
     if not case_path.is_file():
         failures.append(f"{case_path}: missing case.json")
         return
@@ -413,6 +420,27 @@ def validate_case_file(case_path, fixture_id, metadata_fixture_id, failures):
     case_status = case.get("case_status")
     if case_status != "s10d-fixture-case-data-only":
         failures.append(f"{case_path}: invalid case_status: {case_status}")
+
+    coverage_expectations = case.get("coverage_expectations", [])
+    if not isinstance(coverage_expectations, list) or not coverage_expectations:
+        failures.append(f"{case_path}: coverage_expectations must be a non-empty list")
+        coverage_expectations = []
+    else:
+        malformed = [cid for cid in coverage_expectations if not re.fullmatch(r"CVG-\d{3}", str(cid))]
+        unknown = sorted(set(str(cid) for cid in coverage_expectations) - ALLOWED_COVERAGE_IDS)
+        if malformed:
+            failures.append(f"{case_path}: malformed coverage_expectations: {malformed}")
+        if unknown:
+            failures.append(f"{case_path}: unknown coverage_expectations: {unknown}")
+
+    metadata_coverage = set(str(cid) for cid in metadata_coverage_ids) if isinstance(metadata_coverage_ids, list) else set()
+    case_coverage = set(str(cid) for cid in coverage_expectations)
+    case_only = sorted(case_coverage - metadata_coverage)
+    metadata_only = sorted(metadata_coverage - case_coverage)
+    if case_only:
+        failures.append(f"{case_path}: case references coverage not present in fixture metadata: {case_only}")
+    if metadata_only:
+        failures.append(f"{case_path}: fixture metadata references coverage not present in case expectations: {metadata_only}")
 
     for field in sorted(REQUIRED_CASE_LIST_FIELDS):
         value = case.get(field)
@@ -525,7 +553,164 @@ def validate_fixture(root, fixture_id, dirname, failures):
         if not any(token in denial_text for token in tokens):
             failures.append(f"{metadata_path}: missing denial coverage for {label}")
     validate_semantic_fields(metadata_path, data, denial_text, failures)
-    validate_case_file(directory / "case.json", fixture_id, data.get("fixture_id"), failures)
+    validate_case_file(directory / "case.json", fixture_id, data.get("fixture_id"), data.get("coverage_ids"), failures)
+
+
+def collect_global_coverage(root):
+    summary = {
+        "fixture_ids": [],
+        "case_ids": [],
+        "seams": set(),
+        "coverage_ids": set(),
+        "gate_ids": set(),
+        "denied_categories": set(),
+        "unsupported_text": [],
+        "rollback_text": [],
+        "pulse_text": [],
+        "memory_isa_text": [],
+        "product_memory_text": [],
+        "claude_direct_copy_text": [],
+    }
+
+    if not root.is_dir():
+        return summary
+
+    for fixture_id, dirname in EXPECTED_FIXTURES.items():
+        directory = root / dirname
+        metadata_path = directory / "fixture.json"
+        case_path = directory / "case.json"
+        if not metadata_path.is_file() or not case_path.is_file():
+            continue
+
+        metadata = load_fixture(metadata_path)
+        case = load_case(case_path)
+        if "__load_error__" in metadata or "__case_load_error__" in case:
+            continue
+
+        summary["fixture_ids"].append(str(metadata.get("fixture_id")))
+        summary["case_ids"].append(str(case.get("case_id")))
+        summary["seams"].update(str(value) for value in metadata.get("covered_seams", []) if isinstance(metadata.get("covered_seams"), list))
+        summary["coverage_ids"].update(str(value) for value in metadata.get("coverage_ids", []) if isinstance(metadata.get("coverage_ids"), list))
+        summary["gate_ids"].update(str(value) for value in metadata.get("gate_ids", []) if isinstance(metadata.get("gate_ids"), list))
+
+        denial_values = []
+        for field in ("denied_paths", "expected_denials"):
+            values = metadata.get(field, [])
+            if isinstance(values, list):
+                denial_values.extend(str(value) for value in values)
+        case_denied_values = []
+        if isinstance(case.get("denied_behaviors"), list):
+            case_denied_values.extend(str(value) for value in case.get("denied_behaviors", []))
+            denial_values.extend(case_denied_values)
+        if isinstance(case.get("prohibited_actions"), list):
+            denial_values.extend(str(value) for value in case.get("prohibited_actions", []))
+        if isinstance(case.get("no_write_expectations"), list):
+            denial_values.extend(str(value) for value in case.get("no_write_expectations", []))
+
+        denial_text = "\n".join(denial_values)
+        category_text = "\n".join(case_denied_values)
+        for category in GLOBAL_REQUIRED_DENIED_CATEGORIES:
+            if category in category_text:
+                summary["denied_categories"].add(category)
+
+        unsupported_values = []
+        if isinstance(metadata.get("expected_unsupported_surfaces"), list):
+            unsupported_values.extend(str(value) for value in metadata.get("expected_unsupported_surfaces", []))
+        if isinstance(case.get("unsupported_surface_expectations"), list):
+            unsupported_values.extend(str(value) for value in case.get("unsupported_surface_expectations", []))
+        summary["unsupported_text"].extend(unsupported_values)
+
+        rollback_values = [str(metadata.get("rollback_expectation", ""))]
+        if isinstance(case.get("rollback_expectations"), list):
+            rollback_values.extend(str(value) for value in case.get("rollback_expectations", []))
+        summary["rollback_text"].extend(rollback_values)
+
+        for value in denial_values + unsupported_values + rollback_values:
+            if "Pulse" in value:
+                summary["pulse_text"].append(value)
+            if "PAI Memory" in value or "ISA" in value:
+                summary["memory_isa_text"].append(value)
+            if "product memor" in value:
+                summary["product_memory_text"].append(value)
+            if "Claude file direct-copy" in value:
+                summary["claude_direct_copy_text"].append(value)
+
+    return summary
+
+
+def duplicate_values(values):
+    seen = set()
+    duplicates = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+        seen.add(value)
+    return sorted(duplicates)
+
+
+def validate_global_coverage(root, failures):
+    summary = collect_global_coverage(root)
+
+    duplicate_fixture_ids = duplicate_values(summary["fixture_ids"])
+    if duplicate_fixture_ids:
+        failures.append(f"duplicate fixture ID: {duplicate_fixture_ids}")
+
+    duplicate_case_ids = duplicate_values(summary["case_ids"])
+    if duplicate_case_ids:
+        failures.append(f"duplicate case ID: {duplicate_case_ids}")
+
+    missing_seams = sorted(GLOBAL_REQUIRED_SEAMS - summary["seams"])
+    if missing_seams:
+        failures.append(f"missing global seam coverage: {missing_seams}")
+
+    missing_coverage_ids = sorted(GLOBAL_REQUIRED_COVERAGE_IDS - summary["coverage_ids"])
+    if missing_coverage_ids:
+        failures.append(f"missing global coverage ID: {missing_coverage_ids}")
+
+    missing_gate_ids = sorted(GLOBAL_REQUIRED_GATE_IDS - summary["gate_ids"])
+    if missing_gate_ids:
+        failures.append(f"missing global gate ID: {missing_gate_ids}")
+
+    missing_denied = sorted(GLOBAL_REQUIRED_DENIED_CATEGORIES - summary["denied_categories"])
+    if missing_denied:
+        failures.append(f"missing global denied category: {missing_denied}")
+
+    if not summary["unsupported_text"]:
+        failures.append("missing global unsupported-surface expectation")
+
+    rollback_text = "\n".join(summary["rollback_text"])
+    if "rollback" not in rollback_text and "no-residue" not in rollback_text:
+        failures.append("missing rollback/no-residue expectation")
+
+    denied_text = "\n".join(summary["denied_categories"])
+    if "drop-in claim" not in denied_text:
+        failures.append("missing drop-in claim denial")
+
+    pulse_text = "\n".join(summary["pulse_text"])
+    if "Pulse startup" not in pulse_text or "Pulse endpoint call" not in pulse_text:
+        failures.append("missing Pulse no-start/no-call coverage")
+
+    memory_isa_text = "\n".join(summary["memory_isa_text"])
+    if "PAI Memory write" not in memory_isa_text or "ISA write" not in memory_isa_text:
+        failures.append("missing Memory/ISA no-write coverage")
+
+    product_text = "\n".join(summary["product_memory_text"])
+    if "product memory promotion" not in product_text:
+        failures.append("missing product-memory non-promotion coverage")
+
+    claude_text = "\n".join(summary["claude_direct_copy_text"])
+    if "Claude file direct-copy" not in claude_text:
+        failures.append("missing Claude file direct-copy denial")
+
+
+def global_coverage_counts(root):
+    summary = collect_global_coverage(root)
+    return {
+        "seam_count": len(summary["seams"] & GLOBAL_REQUIRED_SEAMS),
+        "coverage_id_count": len(summary["coverage_ids"] & GLOBAL_REQUIRED_COVERAGE_IDS),
+        "gate_id_count": len(summary["gate_ids"] & GLOBAL_REQUIRED_GATE_IDS),
+        "denied_category_count": len(summary["denied_categories"] & GLOBAL_REQUIRED_DENIED_CATEGORIES),
+    }
 
 
 def validate_fixture_root(root):
@@ -542,6 +727,8 @@ def validate_fixture_root(root):
     for fixture_id, dirname in EXPECTED_FIXTURES.items():
         validate_fixture(root, fixture_id, dirname, failures)
 
+    validate_global_coverage(root, failures)
+
     return failures
 
 
@@ -551,6 +738,12 @@ def count_case_files(root):
     return sum(1 for dirname in EXPECTED_FIXTURES.values() if (root / dirname / "case.json").is_file())
 
 
+def count_fixture_dirs(root):
+    if not root.is_dir():
+        return 0
+    return sum(1 for dirname in EXPECTED_FIXTURES.values() if (root / dirname).is_dir())
+
+
 def main(argv):
     parser = argparse.ArgumentParser(description="Validate S10D read-only fixture metadata and case data.")
     parser.add_argument("--fixture-root", required=True, help="Approved S10A fixture root.")
@@ -558,14 +751,20 @@ def main(argv):
 
     fixture_root = Path(args.fixture_root)
     failures = validate_fixture_root(fixture_root)
+    counts = global_coverage_counts(fixture_root)
 
     print("S10A read-only fixture validation report")
     print("S10C semantic validation")
     print("S10D fixture case validation")
+    print("S10E global coverage validation")
     print(f"fixture_root: {fixture_root}")
     print(f"expected_fixture_count: {len(EXPECTED_FIXTURES)}")
-    print(f"fixture_count: {len(EXPECTED_FIXTURES)}")
+    print(f"fixture_count: {count_fixture_dirs(fixture_root)}")
     print(f"case_count: {count_case_files(fixture_root)}")
+    print(f"seam_count: {counts['seam_count']}")
+    print(f"coverage_id_count: {counts['coverage_id_count']}")
+    print(f"gate_id_count: {counts['gate_id_count']}")
+    print(f"denied_category_count: {counts['denied_category_count']}")
     print("semantic_status: s10c-semantically-hardened")
     print("case_status: s10d-fixture-case-data-only")
 
@@ -580,6 +779,7 @@ def main(argv):
     print("validated: unsupported_surface_report coverage, rollback/no-residue posture, no live user-local paths")
     print("validated: no PAI Memory writes, no ISA writes, no Pulse startup, no Pulse endpoint calls")
     print("validated: fixture case expected behaviors, denied_behaviors, no_write_expectations, audit_expectations")
+    print("validated: global seam, coverage ID, gate ID, denied category, and no drop-in claim coverage")
     print("note: this harness does not prove Codex drop-in behavior or official upstream engine status")
     return 0
 

@@ -4,6 +4,12 @@
   "case_name": "hook lifecycle static boundary case",
   "case_type": "hook-lifecycle-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-007",
+    "CVG-008",
+    "CVG-009",
+    "CVG-019"
+  ],
   "input_symbols": [
     "hook/lifecycle seam",
     "event/context envelope seam",

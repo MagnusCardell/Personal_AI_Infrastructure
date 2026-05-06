@@ -4,6 +4,12 @@
   "case_name": "denied path negative boundary case",
   "case_type": "denied-path-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-020",
+    "CVG-021",
+    "CVG-024",
+    "CVG-025"
+  ],
   "input_symbols": [
     "denied-path seam",
     "no live user-local",

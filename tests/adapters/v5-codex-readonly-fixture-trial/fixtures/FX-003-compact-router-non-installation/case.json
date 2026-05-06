@@ -4,6 +4,12 @@
   "case_name": "compact router non-installation boundary case",
   "case_type": "router-non-installation-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-003",
+    "CVG-021",
+    "CVG-024",
+    "CVG-025"
+  ],
   "input_symbols": [
     "AGENTS.md compact router",
     "CLAUDE.md non-copy boundary",

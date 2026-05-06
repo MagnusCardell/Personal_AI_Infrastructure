@@ -4,6 +4,12 @@
   "case_name": "launcher inference static boundary case",
   "case_type": "launcher-inference-boundary",
   "case_status": "s10d-fixture-case-data-only",
+  "coverage_expectations": [
+    "CVG-004",
+    "CVG-005",
+    "CVG-006",
+    "CVG-019"
+  ],
   "input_symbols": [
     "launcher seam",
     "inference seam",
