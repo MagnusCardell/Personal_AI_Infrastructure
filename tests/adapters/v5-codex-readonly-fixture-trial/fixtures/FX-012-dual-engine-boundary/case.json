@@ -1,0 +1,84 @@
+{
+  "case_id": "CASE-FX-012",
+  "fixture_id": "FX-012",
+  "case_name": "dual engine boundary case",
+  "case_type": "dual-engine-boundary",
+  "case_status": "s10d-fixture-case-data-only",
+  "input_symbols": [
+    "dual-engine boundary seam",
+    "Claude Code remains current official/full-support upstream engine",
+    "Codex is not currently proven drop-in",
+    "single-writer",
+    "drop-in claim"
+  ],
+  "source_references": [
+    "tests/adapters/v5-codex-readonly-fixture-trial/fixtures/FX-012-dual-engine-boundary/fixture.json",
+    "docs/adapters/V5_CODEX_DROP_IN_READINESS_GATES.md",
+    "docs/adapters/V5_CODEX_INTEGRATED_TRIAL_DECISION_LOG.md",
+    "synthetic:dual-engine-boundary-case"
+  ],
+  "expected_behaviors": [
+    "Validate dual-engine boundaries without authorizing uncoordinated writes.",
+    "Preserve Claude Code as the current official/full-support upstream engine until replacement-grade validation exists.",
+    "Preserve that Codex is not currently proven drop-in for existing local PAI v5 files."
+  ],
+  "denied_behaviors": [
+    "root AGENTS.md write",
+    ".codex/ write",
+    "release file write",
+    "Claude file direct-copy",
+    "Codex runtime invocation",
+    "Claude Code invocation",
+    "Pulse startup",
+    "Pulse endpoint call",
+    "PAI Memory write",
+    "ISA write",
+    "product memory promotion",
+    "existing-local-v5 access",
+    "drop-in claim"
+  ],
+  "unsupported_surface_expectations": [
+    "dual-engine uncoordinated writes remain unsupported",
+    "drop-in replacement behavior remains unsupported"
+  ],
+  "no_write_expectations": [
+    "no dual-engine write",
+    "no PAI Memory write",
+    "no ISA write",
+    "no Pulse state write",
+    "no runtime payload"
+  ],
+  "audit_expectations": [
+    "drop_in_claim_status remains non-drop-in reporting only",
+    "denied_action_report records dual-engine write denials",
+    "case.json is not an audit artifact"
+  ],
+  "rollback_expectations": [
+    "rollback/no-residue requires no dual-engine state mutation"
+  ],
+  "prohibited_actions": [
+    "dual-engine uncoordinated write",
+    "drop-in claim",
+    "Codex runtime invocation",
+    "Claude Code invocation"
+  ],
+  "source_policy": {
+    "repository_relative_only": true,
+    "synthetic_markers_allowed": true,
+    "no_absolute_paths": true,
+    "no_home_paths": true,
+    "no_parent_traversal": true,
+    "no_protected_root_paths": true,
+    "no_live_user_local_paths": true,
+    "no_release_file_writes": true
+  },
+  "drop_in_claim_allowed": false,
+  "codex_runtime_invocation_allowed": false,
+  "claude_code_invocation_allowed": false,
+  "pulse_start_allowed": false,
+  "pulse_endpoint_call_allowed": false,
+  "pai_memory_write_allowed": false,
+  "isa_write_allowed": false,
+  "product_memory_promotion_allowed": false,
+  "existing_local_v5_access_allowed": false
+}

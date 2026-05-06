@@ -1,0 +1,84 @@
+{
+  "case_id": "CASE-FX-004",
+  "fixture_id": "FX-004",
+  "case_name": "launcher inference static boundary case",
+  "case_type": "launcher-inference-boundary",
+  "case_status": "s10d-fixture-case-data-only",
+  "input_symbols": [
+    "launcher seam",
+    "inference seam",
+    "engine profile/capability seam",
+    "Codex runtime invocation",
+    "Claude Code invocation",
+    "drop-in claim"
+  ],
+  "source_references": [
+    "tests/adapters/v5-codex-readonly-fixture-trial/fixtures/FX-004-launcher-inference-static/fixture.json",
+    "docs/adapters/V5_CODEX_LAUNCHER_SEAM_SPEC.md",
+    "docs/adapters/V5_CODEX_INFERENCE_SEAM_SPEC.md",
+    "docs/adapters/V5_CODEX_ENGINE_PROFILE_AND_CAPABILITY_CONTRACT.md"
+  ],
+  "expected_behaviors": [
+    "Validate launcher and inference expectations as static fixture case data only.",
+    "Keep Codex runtime invocation disabled.",
+    "Preserve non-drop-in posture until replacement-grade validation exists."
+  ],
+  "denied_behaviors": [
+    "root AGENTS.md write",
+    ".codex/ write",
+    "release file write",
+    "Claude file direct-copy",
+    "Codex runtime invocation",
+    "Claude Code invocation",
+    "Pulse startup",
+    "Pulse endpoint call",
+    "PAI Memory write",
+    "ISA write",
+    "product memory promotion",
+    "existing-local-v5 access",
+    "drop-in claim"
+  ],
+  "unsupported_surface_expectations": [
+    "live launcher execution remains unsupported",
+    "live inference execution remains unsupported"
+  ],
+  "no_write_expectations": [
+    "no launcher file write",
+    "no inference config write",
+    "no generated runtime config",
+    "no trial output"
+  ],
+  "audit_expectations": [
+    "denied_action_report records runtime invocation denials in future reporting only",
+    "unsupported_surface_report records launcher and inference unsupported surfaces",
+    "harness stdout is not an audit artifact"
+  ],
+  "rollback_expectations": [
+    "rollback/no-residue requires no launcher, inference, or runtime residue"
+  ],
+  "prohibited_actions": [
+    "Codex runtime invocation",
+    "Claude Code invocation",
+    "launcher command execution",
+    "inference command execution"
+  ],
+  "source_policy": {
+    "repository_relative_only": true,
+    "synthetic_markers_allowed": true,
+    "no_absolute_paths": true,
+    "no_home_paths": true,
+    "no_parent_traversal": true,
+    "no_protected_root_paths": true,
+    "no_live_user_local_paths": true,
+    "no_release_file_writes": true
+  },
+  "drop_in_claim_allowed": false,
+  "codex_runtime_invocation_allowed": false,
+  "claude_code_invocation_allowed": false,
+  "pulse_start_allowed": false,
+  "pulse_endpoint_call_allowed": false,
+  "pai_memory_write_allowed": false,
+  "isa_write_allowed": false,
+  "product_memory_promotion_allowed": false,
+  "existing_local_v5_access_allowed": false
+}

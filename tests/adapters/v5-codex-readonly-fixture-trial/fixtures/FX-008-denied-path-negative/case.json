@@ -1,0 +1,85 @@
+{
+  "case_id": "CASE-FX-008",
+  "fixture_id": "FX-008",
+  "case_name": "denied path negative boundary case",
+  "case_type": "denied-path-boundary",
+  "case_status": "s10d-fixture-case-data-only",
+  "input_symbols": [
+    "denied-path seam",
+    "no live user-local",
+    "root AGENTS.md",
+    ".codex/",
+    "Releases/ write",
+    "denied_action_report"
+  ],
+  "source_references": [
+    "tests/adapters/v5-codex-readonly-fixture-trial/fixtures/FX-008-denied-path-negative/fixture.json",
+    "docs/adapters/V5_CODEX_FIXTURE_TRIAL_SEQUENCE_AND_GATE_MODEL.md",
+    "docs/adapters/V5_CODEX_TRIAL_FAILURE_ROLLBACK_AND_AUDIT_MODEL.md",
+    "negative:denied-path-case"
+  ],
+  "expected_behaviors": [
+    "Validate denied-path expectations without touching denied paths.",
+    "Keep private user-local state inaccessible.",
+    "Keep protected repository paths unchanged."
+  ],
+  "denied_behaviors": [
+    "root AGENTS.md write",
+    ".codex/ write",
+    "release file write",
+    "Claude file direct-copy",
+    "Codex runtime invocation",
+    "Claude Code invocation",
+    "Pulse startup",
+    "Pulse endpoint call",
+    "PAI Memory write",
+    "ISA write",
+    "product memory promotion",
+    "existing-local-v5 access",
+    "drop-in claim"
+  ],
+  "unsupported_surface_expectations": [
+    "live private-state inspection remains unsupported",
+    "protected-path mutation remains unsupported"
+  ],
+  "no_write_expectations": [
+    "no protected path write",
+    "no live user-local read",
+    "no release file write",
+    "no root AGENTS.md write",
+    "no .codex/ write"
+  ],
+  "audit_expectations": [
+    "denied_action_report includes denied-path categories",
+    "files_not_inspected can include private user-local paths",
+    "case.json is not an audit artifact"
+  ],
+  "rollback_expectations": [
+    "rollback/no-residue requires no denied-path residue"
+  ],
+  "prohibited_actions": [
+    "private user-local read",
+    "root AGENTS.md write",
+    ".codex/ write",
+    "release file write"
+  ],
+  "source_policy": {
+    "repository_relative_only": true,
+    "synthetic_markers_allowed": true,
+    "no_absolute_paths": true,
+    "no_home_paths": true,
+    "no_parent_traversal": true,
+    "no_protected_root_paths": true,
+    "no_live_user_local_paths": true,
+    "no_release_file_writes": true
+  },
+  "drop_in_claim_allowed": false,
+  "codex_runtime_invocation_allowed": false,
+  "claude_code_invocation_allowed": false,
+  "pulse_start_allowed": false,
+  "pulse_endpoint_call_allowed": false,
+  "pai_memory_write_allowed": false,
+  "isa_write_allowed": false,
+  "product_memory_promotion_allowed": false,
+  "existing_local_v5_access_allowed": false
+}

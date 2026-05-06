@@ -29,3 +29,15 @@ The semantic fields connect fixtures to seam coverage, gate coverage, safety ass
 S10C extends negative controls from `NC-001` through `NC-030`, covering both the S10B structural failures and semantic policy failures. The harness remains a read-only harness. It does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not inspect live user-local state.
 
 The harness does not write PAI Memory or ISA. Fixture metadata is not a manifest. Harness stdout is not an audit artifact. Codex is not currently proven drop-in for existing local PAI v5 files.
+
+## S10D Fixture Case Data
+
+S10D adds `case.json` fixture case data to each approved fixture directory. `case.json` is fixture case data only. It is not a manifest, not an audit artifact, and not runtime payload.
+
+S10D adds expected-behavior and denied-behavior validation. The harness now validates fixture case input symbols, source references, expected behaviors, `denied_behaviors`, `unsupported_surface_expectations`, `no_write_expectations`, `audit_expectations`, `rollback_expectations`, `prohibited_actions`, source policy, and the false authorization booleans that preserve non-drop-in posture.
+
+S10D extends negative controls from `NC-001` through `NC-045`. The new controls cover missing or malformed `case.json`, fixture ID mismatch, required case fields, invalid case type or status, empty expected-behavior lists, denied behavior coverage, unsupported-surface coverage, no-write coverage, source policy failures, forbidden source references, prohibited booleans, and S10D fixture file-set rules.
+
+The harness remains a read-only harness. It does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not inspect live user-local state.
+
+The harness does not write PAI Memory or ISA. Codex is not currently proven drop-in for existing local PAI v5 files.

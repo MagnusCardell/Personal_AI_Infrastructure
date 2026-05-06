@@ -1,0 +1,84 @@
+{
+  "case_id": "CASE-FX-006",
+  "fixture_id": "FX-006",
+  "case_name": "Pulse static no-start boundary case",
+  "case_type": "pulse-boundary",
+  "case_status": "s10d-fixture-case-data-only",
+  "input_symbols": [
+    "Pulse identity seam",
+    "Pulse read-only event seam",
+    "Pulse observability/audit seam",
+    "Pulse startup",
+    "Pulse endpoint call",
+    "localhost:31337"
+  ],
+  "source_references": [
+    "tests/adapters/v5-codex-readonly-fixture-trial/fixtures/FX-006-pulse-static-no-start/fixture.json",
+    "docs/adapters/V5_CODEX_PULSE_BRIDGE_IDENTITY_SPEC.md",
+    "docs/adapters/V5_CODEX_PULSE_READ_ONLY_EVENT_MODEL_SPEC.md",
+    "docs/adapters/V5_CODEX_PULSE_OBSERVABILITY_AND_AUDIT_SPEC.md"
+  ],
+  "expected_behaviors": [
+    "Validate Pulse expectations without starting Pulse.",
+    "Validate Pulse endpoint calls remain denied.",
+    "Preserve the conclusion that Pulse is central v5 infrastructure but S10D does not claim Pulse parity."
+  ],
+  "denied_behaviors": [
+    "root AGENTS.md write",
+    ".codex/ write",
+    "release file write",
+    "Claude file direct-copy",
+    "Codex runtime invocation",
+    "Claude Code invocation",
+    "Pulse startup",
+    "Pulse endpoint call",
+    "PAI Memory write",
+    "ISA write",
+    "product memory promotion",
+    "existing-local-v5 access",
+    "drop-in claim"
+  ],
+  "unsupported_surface_expectations": [
+    "live Pulse status remains unsupported",
+    "Pulse bridge runtime behavior remains unsupported"
+  ],
+  "no_write_expectations": [
+    "no Pulse state write",
+    "no Pulse bridge file write",
+    "no Pulse endpoint call",
+    "no trial output"
+  ],
+  "audit_expectations": [
+    "pulse_action_status remains expected reporting only",
+    "denied_action_report records Pulse startup and endpoint denials",
+    "unsupported_surface_report records Pulse unsupported surfaces"
+  ],
+  "rollback_expectations": [
+    "rollback/no-residue requires no Pulse process, state, call, or bridge residue"
+  ],
+  "prohibited_actions": [
+    "Pulse startup",
+    "Pulse endpoint call",
+    "localhost:31337 probe",
+    "Pulse implementation"
+  ],
+  "source_policy": {
+    "repository_relative_only": true,
+    "synthetic_markers_allowed": true,
+    "no_absolute_paths": true,
+    "no_home_paths": true,
+    "no_parent_traversal": true,
+    "no_protected_root_paths": true,
+    "no_live_user_local_paths": true,
+    "no_release_file_writes": true
+  },
+  "drop_in_claim_allowed": false,
+  "codex_runtime_invocation_allowed": false,
+  "claude_code_invocation_allowed": false,
+  "pulse_start_allowed": false,
+  "pulse_endpoint_call_allowed": false,
+  "pai_memory_write_allowed": false,
+  "isa_write_allowed": false,
+  "product_memory_promotion_allowed": false,
+  "existing_local_v5_access_allowed": false
+}

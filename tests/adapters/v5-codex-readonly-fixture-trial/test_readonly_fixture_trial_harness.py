@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""S10C semantic negative-control self-tests for the read-only harness.
+"""S10D fixture case negative-control self-tests for the read-only harness.
 
 Codex is not currently proven drop-in for existing local PAI v5 files. These
 negative-control tests prove only fixture harness behavior. They do not run
 Codex, Claude Code, Pulse, network calls, subprocesses, or runtime adapter code.
 Temporary negative-control data is not a fixture corpus, not a manifest, not an
-audit artifact, and not runtime payload. S10C extends negative-control coverage
-for covered_seams, coverage_ids, gate_ids, safety_assertions, semantic_status,
-source path policy, denied_action_report, unsupported_surface_report, and
-rollback/no-residue posture.
+audit artifact, and not runtime payload. S10D extends negative-control coverage
+for fixture case data, expected behavior, denied_behaviors,
+unsupported_surface_expectations, no_write_expectations, audit_expectations,
+rollback_expectations, prohibited_actions, and non-drop-in posture.
 """
 
 import importlib.util
@@ -45,12 +45,24 @@ def metadata_path(root, fixture_id):
     return fixture_dir(root, fixture_id) / "fixture.json"
 
 
+def case_path(root, fixture_id):
+    return fixture_dir(root, fixture_id) / "case.json"
+
+
 def read_metadata(root, fixture_id):
     return json.loads(metadata_path(root, fixture_id).read_text(encoding="utf-8"))
 
 
+def read_case(root, fixture_id):
+    return json.loads(case_path(root, fixture_id).read_text(encoding="utf-8"))
+
+
 def store_metadata(root, fixture_id, data):
     metadata_path(root, fixture_id).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def store_case(root, fixture_id, data):
+    case_path(root, fixture_id).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
 def write_valid_temp_corpus(root, omit_fixture_id=None):
@@ -61,7 +73,7 @@ def write_valid_temp_corpus(root, omit_fixture_id=None):
         source_dir = APPROVED_FIXTURE_ROOT / dirname
         target_dir = root / dirname
         target_dir.mkdir()
-        for filename in ("README.md", "fixture.json"):
+        for filename in ("README.md", "fixture.json", "case.json"):
             (target_dir / filename).write_text(
                 (source_dir / filename).read_text(encoding="utf-8"),
                 encoding="utf-8",
@@ -72,6 +84,12 @@ def mutate_metadata(root, fixture_id, mutator):
     data = read_metadata(root, fixture_id)
     mutator(data)
     store_metadata(root, fixture_id, data)
+
+
+def mutate_case(root, fixture_id, mutator):
+    data = read_case(root, fixture_id)
+    mutator(data)
+    store_case(root, fixture_id, data)
 
 
 def remove_list_entries(data, field, forbidden_tokens):
@@ -261,6 +279,94 @@ def case_protected_source_path(root):
     mutate_metadata(root, "FX-001", lambda data: data.update({"source_paths": [".codex/config.toml"]}))
 
 
+def case_missing_case_json(root):
+    write_valid_temp_corpus(root)
+    case_path(root, "FX-001").unlink()
+
+
+def case_invalid_case_json(root):
+    write_valid_temp_corpus(root)
+    case_path(root, "FX-001").write_text("{ invalid case json\n", encoding="utf-8")
+
+
+def case_fixture_id_mismatch(root):
+    write_valid_temp_corpus(root)
+    mutate_case(root, "FX-001", lambda data: data.update({"fixture_id": "FX-999"}))
+
+
+def case_missing_required_case_field(root):
+    write_valid_temp_corpus(root)
+    mutate_case(root, "FX-001", lambda data: data.pop("case_name", None))
+
+
+def case_invalid_case_type(root):
+    write_valid_temp_corpus(root)
+    mutate_case(root, "FX-001", lambda data: data.update({"case_type": "runtime-boundary"}))
+
+
+def case_invalid_case_status(root):
+    write_valid_temp_corpus(root)
+    mutate_case(root, "FX-001", lambda data: data.update({"case_status": "runtime-ready"}))
+
+
+def case_empty_input_symbols(root):
+    write_valid_temp_corpus(root)
+    mutate_case(root, "FX-001", lambda data: data.update({"input_symbols": []}))
+
+
+def case_empty_expected_behaviors(root):
+    write_valid_temp_corpus(root)
+    mutate_case(root, "FX-001", lambda data: data.update({"expected_behaviors": []}))
+
+
+def case_missing_case_denied_behavior(root):
+    write_valid_temp_corpus(root)
+
+    def mutate(data):
+        data["denied_behaviors"] = [
+            behavior for behavior in data.get("denied_behaviors", []) if "drop-in claim" not in str(behavior)
+        ]
+
+    mutate_case(root, "FX-001", mutate)
+
+
+def case_empty_unsupported_surface_expectations(root):
+    write_valid_temp_corpus(root)
+    mutate_case(root, "FX-001", lambda data: data.update({"unsupported_surface_expectations": []}))
+
+
+def case_empty_no_write_expectations(root):
+    write_valid_temp_corpus(root)
+    mutate_case(root, "FX-001", lambda data: data.update({"no_write_expectations": []}))
+
+
+def case_false_source_policy(root):
+    write_valid_temp_corpus(root)
+
+    def mutate(data):
+        data["source_policy"]["no_home_paths"] = False
+
+    mutate_case(root, "FX-001", mutate)
+
+
+def case_forbidden_source_reference(root):
+    write_valid_temp_corpus(root)
+    mutate_case(root, "FX-001", lambda data: data.update({"source_references": ["~/.claude/PAI"]}))
+
+
+def case_prohibited_boolean_true(root):
+    write_valid_temp_corpus(root)
+    mutate_case(root, "FX-001", lambda data: data.update({"pulse_start_allowed": True}))
+
+
+def case_s10d_extra_fixture_file(root):
+    write_valid_temp_corpus(root)
+    (fixture_dir(root, "FX-001") / "extra-case.txt").write_text(
+        "temporary S10D negative-control file\n",
+        encoding="utf-8",
+    )
+
+
 NEGATIVE_CASES = [
     {
         "negative_id": "NC-001",
@@ -271,7 +377,7 @@ NEGATIVE_CASES = [
     {
         "negative_id": "NC-002",
         "description": "Extra file inside a fixture directory is detected.",
-        "expected_failure_signal": "expected exactly README.md and fixture.json",
+        "expected_failure_signal": "expected exactly README.md, case.json, fixture.json",
         "builder": case_extra_file,
     },
     {
@@ -349,7 +455,7 @@ NEGATIVE_CASES = [
     {
         "negative_id": "NC-015",
         "description": "Missing README is detected.",
-        "expected_failure_signal": "expected exactly README.md and fixture.json",
+        "expected_failure_signal": "expected exactly README.md, case.json, fixture.json",
         "builder": case_missing_readme,
     },
     {
@@ -442,6 +548,96 @@ NEGATIVE_CASES = [
         "expected_failure_signal": "protected source path",
         "builder": case_protected_source_path,
     },
+    {
+        "negative_id": "NC-031",
+        "description": "Missing case.json is detected.",
+        "expected_failure_signal": "missing case.json",
+        "builder": case_missing_case_json,
+    },
+    {
+        "negative_id": "NC-032",
+        "description": "Invalid JSON in case.json is detected.",
+        "expected_failure_signal": "invalid case JSON",
+        "builder": case_invalid_case_json,
+    },
+    {
+        "negative_id": "NC-033",
+        "description": "Fixture ID mismatch in case.json is detected.",
+        "expected_failure_signal": "fixture_id mismatch between directory, fixture.json, and case.json",
+        "builder": case_fixture_id_mismatch,
+    },
+    {
+        "negative_id": "NC-034",
+        "description": "Missing required case field is detected.",
+        "expected_failure_signal": "missing required case fields",
+        "builder": case_missing_required_case_field,
+    },
+    {
+        "negative_id": "NC-035",
+        "description": "Invalid case_type is detected.",
+        "expected_failure_signal": "invalid case_type",
+        "builder": case_invalid_case_type,
+    },
+    {
+        "negative_id": "NC-036",
+        "description": "Invalid case_status is detected.",
+        "expected_failure_signal": "invalid case_status",
+        "builder": case_invalid_case_status,
+    },
+    {
+        "negative_id": "NC-037",
+        "description": "Empty input_symbols is detected.",
+        "expected_failure_signal": "input_symbols must be a non-empty list",
+        "builder": case_empty_input_symbols,
+    },
+    {
+        "negative_id": "NC-038",
+        "description": "Empty expected_behaviors is detected.",
+        "expected_failure_signal": "expected_behaviors must be a non-empty list",
+        "builder": case_empty_expected_behaviors,
+    },
+    {
+        "negative_id": "NC-039",
+        "description": "Missing denied behavior category is detected.",
+        "expected_failure_signal": "missing denied behavior: drop-in claim",
+        "builder": case_missing_case_denied_behavior,
+    },
+    {
+        "negative_id": "NC-040",
+        "description": "Empty unsupported_surface_expectations is detected.",
+        "expected_failure_signal": "unsupported_surface_expectations must be a non-empty list",
+        "builder": case_empty_unsupported_surface_expectations,
+    },
+    {
+        "negative_id": "NC-041",
+        "description": "Empty no_write_expectations is detected.",
+        "expected_failure_signal": "no_write_expectations must be a non-empty list",
+        "builder": case_empty_no_write_expectations,
+    },
+    {
+        "negative_id": "NC-042",
+        "description": "False or missing source_policy key is detected.",
+        "expected_failure_signal": "source_policy.no_home_paths must be true",
+        "builder": case_false_source_policy,
+    },
+    {
+        "negative_id": "NC-043",
+        "description": "Forbidden source reference such as ~/.claude/PAI is detected.",
+        "expected_failure_signal": "forbidden source reference",
+        "builder": case_forbidden_source_reference,
+    },
+    {
+        "negative_id": "NC-044",
+        "description": "Prohibited action boolean set to true is detected.",
+        "expected_failure_signal": "pulse_start_allowed must be false",
+        "builder": case_prohibited_boolean_true,
+    },
+    {
+        "negative_id": "NC-045",
+        "description": "Extra unexpected file in fixture directory is detected after S10D file-set rules.",
+        "expected_failure_signal": "expected exactly README.md, case.json, fixture.json",
+        "builder": case_s10d_extra_fixture_file,
+    },
 ]
 
 
@@ -454,7 +650,7 @@ def run_positive_control():
 
 
 def run_negative_case(case):
-    with tempfile.TemporaryDirectory(prefix="s10c-harness-negative-control-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="s10d-harness-negative-control-") as temp_dir:
         temp_root = Path(temp_dir) / "fixtures"
         case["builder"](temp_root)
         failures = HARNESS.validate_fixture_root(temp_root)
@@ -476,7 +672,7 @@ def main():
     results = [run_negative_case(case) for case in NEGATIVE_CASES]
     overall_pass = positive["status"] == "pass" and all(result["status"] == "pass" for result in results)
 
-    print("S10C harness semantic negative-control self-test report")
+    print("S10D fixture case negative-control self-test report")
     print(f"positive_control_status: {positive['status']}")
     if positive["failures"]:
         for failure in positive["failures"]:
@@ -495,6 +691,7 @@ def main():
     print("scope: no PAI Memory writes; no ISA writes; not PAI Memory; product memories are not promoted")
     print("scope: PAI_SYSTEM_PROMPT.md remains high-authority; CLAUDE.md and AGENTS.md must not be copied directly")
     print("scope: rollback posture remains temporary-directory cleanup and no repository no-residue artifacts")
+    print("scope: case.json is fixture case data only, not a manifest, not an audit artifact, and not runtime payload")
     return 0 if overall_pass else 1
 
 

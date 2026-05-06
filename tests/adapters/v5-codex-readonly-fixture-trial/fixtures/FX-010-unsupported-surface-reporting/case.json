@@ -1,0 +1,85 @@
+{
+  "case_id": "CASE-FX-010",
+  "fixture_id": "FX-010",
+  "case_name": "unsupported surface reporting boundary case",
+  "case_type": "unsupported-surface-boundary",
+  "case_status": "s10d-fixture-case-data-only",
+  "input_symbols": [
+    "unsupported-surface seam",
+    "unsupported_surface_report",
+    "runtime adapter behavior",
+    "drop-in claim",
+    "Pulse",
+    "PAI Memory",
+    "ISA"
+  ],
+  "source_references": [
+    "tests/adapters/v5-codex-readonly-fixture-trial/fixtures/FX-010-unsupported-surface-reporting/fixture.json",
+    "docs/adapters/V5_CODEX_INTEGRATED_READ_ONLY_FIXTURE_TRIAL_ARCHITECTURE.md",
+    "docs/adapters/V5_CODEX_FIXTURE_TRIAL_COVERAGE_MATRIX.md",
+    "unsupported:unsupported-surface-case"
+  ],
+  "expected_behaviors": [
+    "Validate unsupported surfaces are reported rather than silently ignored.",
+    "Preserve non-drop-in posture for unsupported runtime surfaces.",
+    "Keep fixture case data advisory and non-runtime."
+  ],
+  "denied_behaviors": [
+    "root AGENTS.md write",
+    ".codex/ write",
+    "release file write",
+    "Claude file direct-copy",
+    "Codex runtime invocation",
+    "Claude Code invocation",
+    "Pulse startup",
+    "Pulse endpoint call",
+    "PAI Memory write",
+    "ISA write",
+    "product memory promotion",
+    "existing-local-v5 access",
+    "drop-in claim"
+  ],
+  "unsupported_surface_expectations": [
+    "runtime adapter behavior remains unsupported",
+    "live existing-local-v5 access remains unsupported",
+    "Pulse parity remains unsupported"
+  ],
+  "no_write_expectations": [
+    "no unsupported-surface report file is written",
+    "no audit artifact is written",
+    "no trial output is written"
+  ],
+  "audit_expectations": [
+    "unsupported_surface_report is an expected field only",
+    "denied_action_report is an expected field only",
+    "harness stdout is not an audit artifact"
+  ],
+  "rollback_expectations": [
+    "rollback/no-residue requires unsupported-surface validation to leave no repository residue"
+  ],
+  "prohibited_actions": [
+    "silently ignoring unsupported surfaces",
+    "drop-in claim",
+    "runtime adapter execution",
+    "trial output creation"
+  ],
+  "source_policy": {
+    "repository_relative_only": true,
+    "synthetic_markers_allowed": true,
+    "no_absolute_paths": true,
+    "no_home_paths": true,
+    "no_parent_traversal": true,
+    "no_protected_root_paths": true,
+    "no_live_user_local_paths": true,
+    "no_release_file_writes": true
+  },
+  "drop_in_claim_allowed": false,
+  "codex_runtime_invocation_allowed": false,
+  "claude_code_invocation_allowed": false,
+  "pulse_start_allowed": false,
+  "pulse_endpoint_call_allowed": false,
+  "pai_memory_write_allowed": false,
+  "isa_write_allowed": false,
+  "product_memory_promotion_allowed": false,
+  "existing_local_v5_access_allowed": false
+}

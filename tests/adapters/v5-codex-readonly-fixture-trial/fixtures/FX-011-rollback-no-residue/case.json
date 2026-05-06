@@ -1,0 +1,85 @@
+{
+  "case_id": "CASE-FX-011",
+  "fixture_id": "FX-011",
+  "case_name": "rollback no-residue boundary case",
+  "case_type": "rollback-boundary",
+  "case_status": "s10d-fixture-case-data-only",
+  "input_symbols": [
+    "rollback seam",
+    "no-residue",
+    "audit_expectations",
+    "rollback_expectations",
+    "prohibited_actions"
+  ],
+  "source_references": [
+    "tests/adapters/v5-codex-readonly-fixture-trial/fixtures/FX-011-rollback-no-residue/fixture.json",
+    "docs/adapters/V5_CODEX_TRIAL_FAILURE_ROLLBACK_AND_AUDIT_MODEL.md",
+    "docs/adapters/V5_CODEX_FIXTURE_TRIAL_SEQUENCE_AND_GATE_MODEL.md",
+    "synthetic:rollback-no-residue-case"
+  ],
+  "expected_behaviors": [
+    "Validate rollback/no-residue expectations as fixture case data only.",
+    "Keep harness stdout as non-audit output.",
+    "Reject trial output and runtime payload creation."
+  ],
+  "denied_behaviors": [
+    "root AGENTS.md write",
+    ".codex/ write",
+    "release file write",
+    "Claude file direct-copy",
+    "Codex runtime invocation",
+    "Claude Code invocation",
+    "Pulse startup",
+    "Pulse endpoint call",
+    "PAI Memory write",
+    "ISA write",
+    "product memory promotion",
+    "existing-local-v5 access",
+    "drop-in claim"
+  ],
+  "unsupported_surface_expectations": [
+    "actual rollback execution remains unsupported",
+    "trial artifact cleanup remains unsupported because no trial runs"
+  ],
+  "no_write_expectations": [
+    "no trial output",
+    "no audit artifact",
+    "no manifest instance",
+    "no executable schema",
+    "no runtime payload"
+  ],
+  "audit_expectations": [
+    "rollback_status remains expected reporting only",
+    "residue_status remains expected reporting only",
+    "case.json is not an audit artifact"
+  ],
+  "rollback_expectations": [
+    "no-residue means no repository writes beyond approved case files",
+    "temporary negative-control data is cleaned automatically"
+  ],
+  "prohibited_actions": [
+    "trial output creation",
+    "audit artifact creation",
+    "manifest instance creation",
+    "runtime payload creation"
+  ],
+  "source_policy": {
+    "repository_relative_only": true,
+    "synthetic_markers_allowed": true,
+    "no_absolute_paths": true,
+    "no_home_paths": true,
+    "no_parent_traversal": true,
+    "no_protected_root_paths": true,
+    "no_live_user_local_paths": true,
+    "no_release_file_writes": true
+  },
+  "drop_in_claim_allowed": false,
+  "codex_runtime_invocation_allowed": false,
+  "claude_code_invocation_allowed": false,
+  "pulse_start_allowed": false,
+  "pulse_endpoint_call_allowed": false,
+  "pai_memory_write_allowed": false,
+  "isa_write_allowed": false,
+  "product_memory_promotion_allowed": false,
+  "existing_local_v5_access_allowed": false
+}

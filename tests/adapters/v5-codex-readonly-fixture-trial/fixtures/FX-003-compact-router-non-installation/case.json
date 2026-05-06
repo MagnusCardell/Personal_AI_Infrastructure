@@ -1,0 +1,83 @@
+{
+  "case_id": "CASE-FX-003",
+  "fixture_id": "FX-003",
+  "case_name": "compact router non-installation boundary case",
+  "case_type": "router-non-installation-boundary",
+  "case_status": "s10d-fixture-case-data-only",
+  "input_symbols": [
+    "AGENTS.md compact router",
+    "CLAUDE.md non-copy boundary",
+    "PAI_SYSTEM_PROMPT.md high-authority doctrine",
+    "compact router seam",
+    "not runtime payload"
+  ],
+  "source_references": [
+    "tests/adapters/v5-codex-readonly-fixture-trial/fixtures/FX-003-compact-router-non-installation/fixture.json",
+    "docs/adapters/V5_CODEX_COMPACT_ROUTER_SPEC.md",
+    "docs/adapters/V5_CODEX_AUTHORITY_SEAM_SPEC.md",
+    "synthetic:compact-router-non-installation"
+  ],
+  "expected_behaviors": [
+    "Validate that future AGENTS.md remains a compact router only if later authorized.",
+    "Keep router material non-installed and non-runtime in S10D.",
+    "Reject direct copying of Claude-shaped files into Codex surfaces."
+  ],
+  "denied_behaviors": [
+    "root AGENTS.md write",
+    ".codex/ write",
+    "release file write",
+    "Claude file direct-copy",
+    "Codex runtime invocation",
+    "Claude Code invocation",
+    "Pulse startup",
+    "Pulse endpoint call",
+    "PAI Memory write",
+    "ISA write",
+    "product memory promotion",
+    "existing-local-v5 access",
+    "drop-in claim"
+  ],
+  "unsupported_surface_expectations": [
+    "root AGENTS.md installation remains unsupported",
+    "Codex config/profile generation remains unsupported"
+  ],
+  "no_write_expectations": [
+    "no root AGENTS.md write",
+    "no .codex/ write",
+    "no Codex config write",
+    "no runtime payload write"
+  ],
+  "audit_expectations": [
+    "denied_action_report records router installation denials only in future reporting",
+    "unsupported_surface_report records non-installed router status",
+    "case.json is not a manifest"
+  ],
+  "rollback_expectations": [
+    "no router residue is created because S10D writes only case data"
+  ],
+  "prohibited_actions": [
+    "root AGENTS.md write",
+    ".codex/ write",
+    "Codex runtime invocation",
+    "Claude file direct-copy"
+  ],
+  "source_policy": {
+    "repository_relative_only": true,
+    "synthetic_markers_allowed": true,
+    "no_absolute_paths": true,
+    "no_home_paths": true,
+    "no_parent_traversal": true,
+    "no_protected_root_paths": true,
+    "no_live_user_local_paths": true,
+    "no_release_file_writes": true
+  },
+  "drop_in_claim_allowed": false,
+  "codex_runtime_invocation_allowed": false,
+  "claude_code_invocation_allowed": false,
+  "pulse_start_allowed": false,
+  "pulse_endpoint_call_allowed": false,
+  "pai_memory_write_allowed": false,
+  "isa_write_allowed": false,
+  "product_memory_promotion_allowed": false,
+  "existing_local_v5_access_allowed": false
+}
