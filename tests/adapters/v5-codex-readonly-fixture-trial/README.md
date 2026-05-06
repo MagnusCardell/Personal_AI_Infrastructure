@@ -53,3 +53,13 @@ S10E extends negative controls to `NC-001` through `NC-060`, including missing g
 The harness does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not run live trials. It does not inspect live user-local state and does not write PAI Memory or ISA.
 
 Fixture metadata and case data are not manifests, not audit artifacts, and not runtime payload. Codex is not currently proven drop-in for existing local PAI v5 files.
+
+## S10F No-Residue Determinism
+
+S10F validates deterministic, no-residue harness behavior. The no-residue self-test imports the read-only harness in-process, runs it more than once against the approved fixture root, captures stdout in memory, compares fixture-tree digests before and after execution, and checks that no `__pycache__`, `.pyc`, or temporary residue is left in the repository.
+
+S10F does not create audit artifacts. Harness stdout remains validation output only, not an audit artifact.
+
+S10F does not run Codex, does not run Claude Code, does not start Pulse, does not call Pulse endpoints, and does not run live trials. It does not read live user-local state and does not write PAI Memory or ISA.
+
+Codex is not currently proven drop-in for existing local PAI v5 files. S10F proves only fixture-harness determinism and no-residue behavior, not runtime adapter readiness and not drop-in capability.
