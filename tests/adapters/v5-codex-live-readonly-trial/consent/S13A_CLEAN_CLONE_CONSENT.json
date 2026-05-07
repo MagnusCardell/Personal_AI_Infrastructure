@@ -1,0 +1,71 @@
+{
+  "allowed_read_roots": [
+    "docs/adapters",
+    "tests/adapters/v5-codex-readonly-fixture-trial",
+    "Releases/v5.0.0"
+  ],
+  "consent_id": "S13A-CLEAN-CLONE-CONSENT",
+  "consent_scope": "clean-clone repository-local read-only adapter-test preflight",
+  "consent_status": "approved-for-clean-clone-preflight-only",
+  "drop_in_claim_policy": "not-allowed",
+  "forbidden_read_roots": [
+    "~/.claude",
+    "~/.claude/PAI",
+    "~/.claude/projects",
+    "~/.codex",
+    "~/.codex/memories",
+    "/home",
+    "/Users"
+  ],
+  "forbidden_write_roots": [
+    "Releases",
+    ".claude",
+    "PAI",
+    "CLAUDE.md",
+    "AGENTS.md",
+    ".codex",
+    "install.sh",
+    "settings.json",
+    "hooks",
+    "skills",
+    "subagents",
+    "agents",
+    "commands",
+    ".github",
+    ".agents",
+    "PAI_SYSTEM_PROMPT.md"
+  ],
+  "isa_policy": "no-isa-writes",
+  "limitations": [
+    "S13A is a clean-clone read-only trial only.",
+    "S13A is not an existing-local-v5 trial.",
+    "S13A is not a personal-clone trial.",
+    "S13A does not inspect live ~/.claude/PAI.",
+    "S13A does not inspect live ~/.claude/projects.",
+    "S13A does not inspect live ~/.codex.",
+    "S13A does not inspect arbitrary home directories.",
+    "S13A does not run Codex or Claude Code.",
+    "S13A does not start Pulse or call Pulse endpoints.",
+    "S13A does not write PAI Memory or ISA.",
+    "S13A does not read or promote product memories.",
+    "Codex is not currently proven drop-in for existing local PAI v5 files."
+  ],
+  "memory_policy": "no-pai-memory-writes",
+  "non_canonical_statement": "This S13A consent artifact is not PAI Memory, not ISA, not Pulse state, not Claude memory, not Codex memory, not a manifest, not runtime payload, and not proof that Codex is drop-in.",
+  "product_memory_policy": "no-product-memory-read-or-promotion",
+  "pulse_policy": "not-started-not-called",
+  "reporting_policy": "non-canonical adapter-test evidence only",
+  "retention_policy": "retain only as repository-local S13A adapter-test artifact in the approved write set",
+  "rollback_no_residue_policy": "no writes outside approved S13A artifact paths; reports may be regenerated deterministically",
+  "runtime_prohibitions": [
+    "no_codex_runtime_invocation",
+    "no_claude_code_invocation",
+    "no_pulse_start",
+    "no_pulse_endpoint_calls",
+    "no_installers",
+    "no_import_or_migration_tooling",
+    "no_hook_rule_or_execpolicy_commands"
+  ],
+  "source_kind": "clean-clone-read-only",
+  "source_root": "."
+}

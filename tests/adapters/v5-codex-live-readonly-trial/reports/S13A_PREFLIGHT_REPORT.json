@@ -1,0 +1,58 @@
+{
+  "abort_reasons": [],
+  "abort_required": false,
+  "allowed_read_roots": [
+    "docs/adapters",
+    "tests/adapters/v5-codex-readonly-fixture-trial",
+    "Releases/v5.0.0"
+  ],
+  "consent_status": "approved-for-clean-clone-preflight-only",
+  "drop_in_claim_status": "not-claimed",
+  "forbidden_read_roots": [
+    "~/.claude",
+    "~/.claude/PAI",
+    "~/.claude/projects",
+    "~/.codex",
+    "~/.codex/memories",
+    "/home",
+    "/Users"
+  ],
+  "forbidden_write_roots": [
+    "Releases",
+    ".claude",
+    "PAI",
+    "CLAUDE.md",
+    "AGENTS.md",
+    ".codex",
+    "install.sh",
+    "settings.json",
+    "hooks",
+    "skills",
+    "subagents",
+    "agents",
+    "commands",
+    ".github",
+    ".agents",
+    "PAI_SYSTEM_PROMPT.md"
+  ],
+  "isa_status": "no-isa-writes",
+  "limitations": [
+    "S13A is a clean-clone read-only trial only.",
+    "S13A is not an existing-local-v5 trial.",
+    "S13A is not a personal-clone trial.",
+    "S13A does not inspect user-local state or arbitrary home directories.",
+    "Codex is not currently proven drop-in for existing local PAI v5 files."
+  ],
+  "memory_status": "no-pai-memory-writes",
+  "non_canonical_statement": "This S13A adapter-test artifact is not PAI Memory, not ISA, not Pulse state, not Claude memory, not Codex memory, not a manifest, not runtime payload, and not proof that Codex is drop-in.",
+  "preflight_status": "pass-read-only-clean-clone",
+  "product_memory_status": "no-product-memory-read-or-promotion",
+  "protected_path_status": "no-protected-path-writes",
+  "pulse_status": "not-started-not-called",
+  "report_id": "S13A-PREFLIGHT-REPORT",
+  "report_status": "pass",
+  "report_type": "clean-clone-read-only-preflight",
+  "runtime_invocation_status": "no-codex-or-claude-runtime-invocation",
+  "source_kind": "clean-clone-read-only",
+  "source_root": "."
+}

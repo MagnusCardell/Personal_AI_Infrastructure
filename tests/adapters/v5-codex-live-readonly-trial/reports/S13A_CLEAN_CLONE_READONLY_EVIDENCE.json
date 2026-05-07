@@ -1,0 +1,95 @@
+{
+  "drop_in_claim_status": "not-claimed",
+  "files_checked": [
+    {
+      "path": "docs/adapters/V5_CODEX_S12_READINESS_CLOSEOUT_REPORT.md",
+      "status": "present"
+    },
+    {
+      "path": "docs/adapters/V5_CODEX_S13_LIVE_READ_ONLY_TRIAL_GATES.md",
+      "status": "present"
+    },
+    {
+      "path": "docs/adapters/V5_CODEX_S13_PROPOSED_WRITE_SET_AND_COMPLETION_CONTRACT.md",
+      "status": "present"
+    },
+    {
+      "path": "docs/adapters/V5_CODEX_S13_RISK_REGISTER.md",
+      "status": "present"
+    },
+    {
+      "path": "docs/adapters/V5_CODEX_S12_TO_S13_DECISION_LOG.md",
+      "status": "present"
+    },
+    {
+      "path": "tests/adapters/v5-codex-readonly-fixture-trial/run_readonly_fixture_trial.py",
+      "status": "present"
+    },
+    {
+      "path": "tests/adapters/v5-codex-readonly-fixture-trial/test_readonly_fixture_trial_harness.py",
+      "status": "present"
+    },
+    {
+      "path": "tests/adapters/v5-codex-readonly-fixture-trial/test_readonly_fixture_trial_no_residue.py",
+      "status": "present"
+    },
+    {
+      "path": "tests/adapters/v5-codex-readonly-fixture-trial/reports/S11A_RELEASE_FIXTURE_TRIAL_REPORT.json",
+      "status": "present"
+    },
+    {
+      "path": "tests/adapters/v5-codex-readonly-fixture-trial/reports/S11C_READINESS_GATE_EVALUATION.json",
+      "status": "present"
+    },
+    {
+      "path": "tests/adapters/v5-codex-readonly-fixture-trial/fixtures",
+      "status": "present"
+    },
+    {
+      "path": "Releases/v5.0.0/.claude/CLAUDE.md",
+      "status": "present"
+    },
+    {
+      "path": "Releases/v5.0.0/.claude/PAI/PAI_SYSTEM_PROMPT.md",
+      "status": "present"
+    }
+  ],
+  "isa_status": "no-isa-writes",
+  "limitations": [
+    "S13A validates clean-clone repository-local evidence only.",
+    "S13A does not validate existing-local-v5 user state.",
+    "S13A does not validate a personal clone.",
+    "S13A does not validate Codex runtime adapter behavior.",
+    "Codex is not currently proven drop-in for existing local PAI v5 files."
+  ],
+  "memory_status": "no-pai-memory-writes",
+  "missing_evidence": [],
+  "non_canonical_statement": "This S13A adapter-test artifact is not PAI Memory, not ISA, not Pulse state, not Claude memory, not Codex memory, not a manifest, not runtime payload, and not proof that Codex is drop-in.",
+  "personal_clone_access_status": "not-accessed",
+  "product_memory_status": "no-product-memory-read-or-promotion",
+  "protected_paths_modified": false,
+  "pulse_status": "not-started-not-called",
+  "release_files_modified": false,
+  "report_id": "S13A-CLEAN-CLONE-READONLY-EVIDENCE",
+  "report_status": "pass",
+  "report_type": "clean-clone-read-only-evidence",
+  "required_evidence": [
+    "docs/adapters/V5_CODEX_S12_READINESS_CLOSEOUT_REPORT.md",
+    "docs/adapters/V5_CODEX_S13_LIVE_READ_ONLY_TRIAL_GATES.md",
+    "docs/adapters/V5_CODEX_S13_PROPOSED_WRITE_SET_AND_COMPLETION_CONTRACT.md",
+    "docs/adapters/V5_CODEX_S13_RISK_REGISTER.md",
+    "docs/adapters/V5_CODEX_S12_TO_S13_DECISION_LOG.md",
+    "tests/adapters/v5-codex-readonly-fixture-trial/run_readonly_fixture_trial.py",
+    "tests/adapters/v5-codex-readonly-fixture-trial/test_readonly_fixture_trial_harness.py",
+    "tests/adapters/v5-codex-readonly-fixture-trial/test_readonly_fixture_trial_no_residue.py",
+    "tests/adapters/v5-codex-readonly-fixture-trial/reports/S11A_RELEASE_FIXTURE_TRIAL_REPORT.json",
+    "tests/adapters/v5-codex-readonly-fixture-trial/reports/S11C_READINESS_GATE_EVALUATION.json",
+    "tests/adapters/v5-codex-readonly-fixture-trial/fixtures",
+    "Releases/v5.0.0/.claude/CLAUDE.md",
+    "Releases/v5.0.0/.claude/PAI/PAI_SYSTEM_PROMPT.md"
+  ],
+  "runtime_invocation_status": "no-codex-or-claude-runtime-invocation",
+  "source_kind": "clean-clone-read-only",
+  "source_root": ".",
+  "user_local_access_status": "not-accessed"
+}
