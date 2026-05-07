@@ -13,6 +13,7 @@ sys.dont_write_bytecode = True
 CONSENT_STATUS = "approved-for-clean-clone-preflight-only"
 SOURCE_KIND = "clean-clone-read-only"
 SOURCE_ROOT = "."
+CONSENT_SCOPE = "clean-clone repository-local read-only adapter-test preflight"
 
 ALLOWED_READ_ROOTS = [
     "docs/adapters",
@@ -103,6 +104,13 @@ EXPECTED_CONSENT_KEYS = {
     "limitations",
 }
 
+EXPECTED_POLICY_FIELDS = {
+    "consent_scope": CONSENT_SCOPE,
+    "reporting_policy": "non-canonical adapter-test evidence only",
+    "retention_policy": "retain only as repository-local S13A adapter-test artifact in the approved write set",
+    "rollback_no_residue_policy": "no writes outside approved S13A artifact paths; reports may be regenerated deterministically",
+}
+
 
 class TrialFailure(Exception):
     """Raised for fail-closed S13A trial validation errors."""
@@ -179,9 +187,9 @@ def _validate_consent(consent: dict, repo_root: Path) -> None:
         raise TrialFailure(f"consent missing fields: {missing}")
 
     checks = {
+        **EXPECTED_POLICY_FIELDS,
         "consent_status": CONSENT_STATUS,
         "source_kind": SOURCE_KIND,
-        "source_root": SOURCE_ROOT,
         "drop_in_claim_policy": "not-allowed",
         "product_memory_policy": "no-product-memory-read-or-promotion",
         "pulse_policy": "not-started-not-called",
@@ -192,7 +200,16 @@ def _validate_consent(consent: dict, repo_root: Path) -> None:
         if consent.get(key) != expected:
             raise TrialFailure(f"{key} mismatch: expected {expected!r}, got {consent.get(key)!r}")
 
-    if consent.get("allowed_read_roots") != ALLOWED_READ_ROOTS:
+    allowed_read_roots = consent.get("allowed_read_roots")
+    if not isinstance(allowed_read_roots, list):
+        raise TrialFailure("allowed_read_roots must be a list")
+
+    for root in allowed_read_roots:
+        resolved = _assert_safe_relative_root(root, repo_root, read_root=True)
+        if not resolved.exists():
+            raise TrialFailure(f"approved read root does not exist: {root}")
+
+    if allowed_read_roots != ALLOWED_READ_ROOTS:
         raise TrialFailure("allowed_read_roots must match the approved S13A roots exactly")
 
     for required in FORBIDDEN_READ_ROOTS:
@@ -226,11 +243,8 @@ def _validate_consent(consent: dict, repo_root: Path) -> None:
     if source_root_path.is_absolute() and source_root_path.resolve() != repo_root:
         raise TrialFailure("absolute source_root is refused unless it is the normalized repository root")
     _assert_safe_relative_root(source_root, repo_root, read_root=False)
-
-    for root in consent["allowed_read_roots"]:
-        resolved = _assert_safe_relative_root(root, repo_root, read_root=True)
-        if not resolved.exists():
-            raise TrialFailure(f"approved read root does not exist: {root}")
+    if source_root != SOURCE_ROOT:
+        raise TrialFailure(f"source_root mismatch: expected {SOURCE_ROOT!r}, got {source_root!r}")
 
 
 def _validate_output_path(path: Path, expected: str, repo_root: Path) -> Path:
