@@ -1,0 +1,15 @@
+{
+  "consent_phrase": "I approve a different preflight phrase.",
+  "declared_source_root": "~/.claude/PAI",
+  "excluded_surfaces": [
+    "Memory",
+    "ISA",
+    "Pulse",
+    "Claude memory",
+    "Codex memory"
+  ],
+  "milestone_name": "V5-S14C-LIVE-PREFLIGHT-FIXTURE-IMPLEMENTATION",
+  "operator_identity": "fixture-operator",
+  "timestamp": "2026-05-11T00:00:00Z",
+  "trial_mode": "read-only-preflight-only"
+}
