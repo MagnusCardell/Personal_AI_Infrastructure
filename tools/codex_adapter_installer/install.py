@@ -1,4 +1,4 @@
-"""S15A Codex peer beta adapter installer.
+"""Codex peer beta adapter installer.
 
 The installer copies only the staged adapter payload into approved PAI live
 targets. It does not inspect Memory, ISA, Pulse payloads, product memory, or
@@ -8,6 +8,7 @@ runtime state, and it does not invoke external runtimes or network services.
 from __future__ import annotations
 
 import json
+import stat
 from pathlib import Path
 from typing import Iterable
 
@@ -16,29 +17,54 @@ class InstallerError(ValueError):
     """Raised when installer input, safety validation, or payload validation fails."""
 
 
-MILESTONE = "V5-S15A-CODEX-ADAPTER-LIVE-ACTIVATION-PILOT"
+MILESTONE = "V5-S15B-R1-CODEX-RUNTIME-CONTAINED-WORKLOOP"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STAGED_ADAPTER_DIR = REPO_ROOT / "adapters" / "codex"
 
 ROUTER_RELATIVE = Path("AGENTS.md")
 ADAPTER_DIR_RELATIVE = Path("adapters") / "codex"
 INSTALL_STATE_RELATIVE = ADAPTER_DIR_RELATIVE / "install-state.json"
+RUNTIME_STATE_RELATIVE = ADAPTER_DIR_RELATIVE / "runtime-state.json"
+LAUNCHER_RELATIVE = ADAPTER_DIR_RELATIVE / "bin" / "pai-codex"
+RUNTIME_PROOF_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "runtime-proof.schema.json"
+WORKLOOP_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "workloop-once.schema.json"
+RUN_DIR_RELATIVE = ADAPTER_DIR_RELATIVE / "runs" / "s15b-r1"
+RUNTIME_PROOF_RELATIVE = RUN_DIR_RELATIVE / "runtime-proof.json"
+WORKLOOP_ONCE_RELATIVE = RUN_DIR_RELATIVE / "workloop-once.json"
+RUNTIME_VALIDATION_RELATIVE = RUN_DIR_RELATIVE / "runtime-validation.json"
 
-STAGED_COPY_TARGETS = {
+STAGED_TEXT_COPY_TARGETS = {
     "AGENTS.md": ADAPTER_DIR_RELATIVE / "AGENTS.md",
     "README.md": ADAPTER_DIR_RELATIVE / "README.md",
     "adapter-manifest.json": ADAPTER_DIR_RELATIVE / "adapter-manifest.json",
+    "runtime-proof.schema.json": RUNTIME_PROOF_SCHEMA_RELATIVE,
+    "workloop-once.schema.json": WORKLOOP_SCHEMA_RELATIVE,
 }
 
-APPROVED_LIVE_RELATIVES = (
+STAGED_EXECUTABLE_COPY_TARGETS = {
+    "bin/pai-codex": LAUNCHER_RELATIVE,
+}
+
+INSTALL_REQUIRED_RELATIVES = (
     ROUTER_RELATIVE,
     ADAPTER_DIR_RELATIVE / "AGENTS.md",
     ADAPTER_DIR_RELATIVE / "README.md",
     ADAPTER_DIR_RELATIVE / "adapter-manifest.json",
     INSTALL_STATE_RELATIVE,
+    LAUNCHER_RELATIVE,
+    RUNTIME_PROOF_SCHEMA_RELATIVE,
+    WORKLOOP_SCHEMA_RELATIVE,
+    RUNTIME_STATE_RELATIVE,
+)
+
+APPROVED_LIVE_RELATIVES = INSTALL_REQUIRED_RELATIVES + (
+    RUNTIME_PROOF_RELATIVE,
+    WORKLOOP_ONCE_RELATIVE,
+    RUNTIME_VALIDATION_RELATIVE,
 )
 
 REQUIRED_ROUTER_CONCEPTS = (
+    "PAI_CODEX_PEER_BETA_ADAPTER",
     "Codex is a peer beta adapter for PAI v5.",
     "Claude remains the official/full-support upstream adapter.",
     "PAI v5 is a Life OS, not just Claude config.",
@@ -49,7 +75,7 @@ REQUIRED_ROUTER_CONCEPTS = (
     "Memory v7.6 has WORK, LEARNING, and KNOWLEDGE.",
     "Codex must not write PAI Memory unless a later architect-approved policy allows it.",
     "Codex must not write ISA unless a later architect-approved policy allows it.",
-    "Codex must not create or emulate Claude-specific hooks, agents, commands, or runtime files.",
+    "Codex must not start, probe, or call Pulse.",
     "AGENTS.md is a router into PAI v5, not a clone of CLAUDE.md.",
     "When operating in a PAI workspace, identify PAI_DIR, read PAI_SYSTEM_PROMPT.md if available, then follow Codex adapter constraints.",
 )
@@ -76,6 +102,7 @@ REQUIRED_MANIFEST_KEYS = (
     "pulse_policy",
     "runtime_surface_policy",
     "rollback_policy",
+    "runtime_launcher_policy",
 )
 
 FORBIDDEN_ROUTER_MARKERS = (
@@ -84,7 +111,11 @@ FORBIDDEN_ROUTER_MARKERS = (
     "Claude Code configuration",
     "MCP servers",
     "slash commands",
-    "replacement-grade",
+    "Codex is replacement-grade",
+    "Codex replaces Claude",
+    "Codex may write Memory",
+    "Codex may write ISA",
+    "Codex may probe Pulse",
     "repo root AGENTS.md approved",
     ".codex/ approved",
     "~/.codex approved",
@@ -93,16 +124,54 @@ FORBIDDEN_ROUTER_MARKERS = (
 NOT_APPROVED_SURFACES = (
     "repo root AGENTS.md",
     "repo .codex/",
-    "~/.codex/",
+    "~/.codex adapter files",
     "Codex hooks",
     "Codex rules",
     "Codex skills",
     "Codex agents",
     "Codex commands",
-    "Codex launchers",
+    "Codex launchers outside ~/.claude/PAI/adapters/codex/bin/",
     "Pulse bridge",
     "Memory writer",
     "ISA writer",
+)
+
+RUNTIME_SCHEMA_REQUIRED_FIELDS = (
+    "milestone_name",
+    "runtime_invocation",
+    "pai_dir",
+    "adapter_identity_marker",
+    "adapter_status",
+    "upstream_adapter",
+    "agents_router_observed",
+    "pai_system_prompt_policy_observed",
+    "memory_write_performed",
+    "isa_write_performed",
+    "pulse_probe_performed",
+    "localhost_31337_called",
+    "runtime_surface_created",
+    "evidence_classification",
+    "known_limits",
+)
+
+WORKLOOP_SCHEMA_REQUIRED_FIELDS = (
+    "milestone_name",
+    "workloop_kind",
+    "pai_dir",
+    "adapter_identity_marker",
+    "adapter_status",
+    "upstream_adapter",
+    "observed_instruction_sources",
+    "selected_work_policy",
+    "memory_write_performed",
+    "isa_write_performed",
+    "pulse_probe_performed",
+    "localhost_31337_called",
+    "runtime_surface_created",
+    "proposed_next_action",
+    "requires_architect_goal_card",
+    "evidence_classification",
+    "known_limits",
 )
 
 
@@ -195,6 +264,20 @@ def read_staged_agents() -> str:
     return _read_staged_text("AGENTS.md")
 
 
+def _load_staged_schema(filename: str, required_fields: tuple[str, ...]) -> dict[str, object]:
+    try:
+        schema = json.loads(_read_staged_text(filename))
+    except json.JSONDecodeError as exc:
+        raise InstallerError(f"{filename} is not valid JSON") from exc
+    if not isinstance(schema, dict):
+        raise InstallerError(f"{filename} must be a JSON object")
+    schema_text = json.dumps(schema, sort_keys=True)
+    missing = [field for field in required_fields if field not in schema_text]
+    if missing:
+        raise InstallerError(f"{filename} is missing required fields: " + ", ".join(missing))
+    return schema
+
+
 def validate_router_text(text: str) -> None:
     missing = [concept for concept in REQUIRED_ROUTER_CONCEPTS if concept not in text]
     if missing:
@@ -218,6 +301,14 @@ def validate_manifest(manifest: dict[str, object]) -> None:
         if actual != expected:
             raise InstallerError(f"adapter manifest mismatch for {key}: expected {expected!r}, got {actual!r}")
 
+    launcher_policy = manifest.get("runtime_launcher_policy")
+    if not isinstance(launcher_policy, dict):
+        raise InstallerError("runtime_launcher_policy must be an object")
+    if launcher_policy.get("launcher_target") != "~/.claude/PAI/adapters/codex/bin/pai-codex":
+        raise InstallerError("runtime_launcher_policy must target the approved adapter launcher")
+    if launcher_policy.get("run_directory") != "~/.claude/PAI/adapters/codex/runs/s15b-r1/":
+        raise InstallerError("runtime_launcher_policy must target the approved S15B-R1 run directory")
+
     runtime_policy = manifest.get("runtime_surface_policy")
     if not isinstance(runtime_policy, dict):
         raise InstallerError("runtime_surface_policy must be an object")
@@ -231,10 +322,19 @@ def validate_manifest(manifest: dict[str, object]) -> None:
         )
 
 
+def validate_launcher_text(text: str) -> None:
+    missing = [token for token in ("doctor", "exec-proof", "workloop-once", "codex", "exec", "read-only") if token not in text]
+    if missing:
+        raise InstallerError("runtime launcher is missing required tokens: " + ", ".join(missing))
+
+
 def validate_staged_payload() -> None:
     validate_router_text(read_staged_agents())
     validate_manifest(load_staged_manifest())
     _read_staged_text("README.md")
+    validate_launcher_text(_read_staged_text("bin/pai-codex"))
+    _load_staged_schema("runtime-proof.schema.json", RUNTIME_SCHEMA_REQUIRED_FIELDS)
+    _load_staged_schema("workloop-once.schema.json", WORKLOOP_SCHEMA_REQUIRED_FIELDS)
 
 
 def _install_state_json() -> str:
@@ -251,6 +351,19 @@ def _install_state_json() -> str:
     return json.dumps(state, indent=2, sort_keys=True) + "\n"
 
 
+def _runtime_state_json() -> str:
+    state = {
+        "adapter_name": "codex",
+        "adapter_status": "peer-beta",
+        "launcher": "~/.claude/PAI/adapters/codex/bin/pai-codex",
+        "milestone": MILESTONE,
+        "runtime_mode": "contained-read-only",
+        "run_directory": "~/.claude/PAI/adapters/codex/runs/s15b-r1/",
+        "upstream_adapter": "claude",
+    }
+    return json.dumps(state, indent=2, sort_keys=True) + "\n"
+
+
 def _write_text_if_changed(path: Path, text: str) -> bool:
     if path.exists():
         if not path.is_file():
@@ -262,21 +375,37 @@ def _write_text_if_changed(path: Path, text: str) -> bool:
     return True
 
 
+def _mark_executable(path: Path) -> None:
+    mode = path.stat().st_mode
+    path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
 def _copy_payload_to_live(pai_dir: Path) -> list[Path]:
     changed: list[Path] = []
     router = read_staged_agents()
     if _write_text_if_changed(_safe_live_path(pai_dir, ROUTER_RELATIVE), router):
         changed.append(pai_dir / ROUTER_RELATIVE)
 
-    for filename, relative_target in STAGED_COPY_TARGETS.items():
+    for filename, relative_target in STAGED_TEXT_COPY_TARGETS.items():
         text = _read_staged_text(filename)
         target = _safe_live_path(pai_dir, relative_target)
         if _write_text_if_changed(target, text):
             changed.append(target)
 
-    state_target = _safe_live_path(pai_dir, INSTALL_STATE_RELATIVE)
-    if _write_text_if_changed(state_target, _install_state_json()):
-        changed.append(state_target)
+    for filename, relative_target in STAGED_EXECUTABLE_COPY_TARGETS.items():
+        text = _read_staged_text(filename)
+        target = _safe_live_path(pai_dir, relative_target)
+        if _write_text_if_changed(target, text):
+            changed.append(target)
+        _mark_executable(target)
+
+    for relative_target, text in (
+        (INSTALL_STATE_RELATIVE, _install_state_json()),
+        (RUNTIME_STATE_RELATIVE, _runtime_state_json()),
+    ):
+        target = _safe_live_path(pai_dir, relative_target)
+        if _write_text_if_changed(target, text):
+            changed.append(target)
     return changed
 
 
@@ -304,6 +433,18 @@ def _validate_live_text_matches(pai_dir: Path, relative_path: Path, expected: st
         raise InstallerError(f"installed file does not match staged payload: {target}")
 
 
+def _validate_live_json(path: Path, label: str) -> dict[str, object]:
+    if not path.exists():
+        raise InstallerError(f"{label} is missing: {path}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise InstallerError(f"{label} is not valid JSON") from exc
+    if not isinstance(data, dict):
+        raise InstallerError(f"{label} must be a JSON object")
+    return data
+
+
 def validate_install(
     pai_dir: str | Path | None,
     backup_root: str | Path | None = None,
@@ -318,25 +459,22 @@ def validate_install(
     _validate_live_text_matches(resolved_pai_dir, ROUTER_RELATIVE, staged_agents)
     _validate_live_text_matches(resolved_pai_dir, ADAPTER_DIR_RELATIVE / "AGENTS.md", staged_agents)
     _validate_live_text_matches(resolved_pai_dir, ADAPTER_DIR_RELATIVE / "README.md", _read_staged_text("README.md"))
+    _validate_live_text_matches(resolved_pai_dir, RUNTIME_PROOF_SCHEMA_RELATIVE, _read_staged_text("runtime-proof.schema.json"))
+    _validate_live_text_matches(resolved_pai_dir, WORKLOOP_SCHEMA_RELATIVE, _read_staged_text("workloop-once.schema.json"))
+
+    launcher_target = _safe_live_path(resolved_pai_dir, LAUNCHER_RELATIVE)
+    _validate_live_text_matches(resolved_pai_dir, LAUNCHER_RELATIVE, _read_staged_text("bin/pai-codex"))
+    if not launcher_target.stat().st_mode & stat.S_IXUSR:
+        raise InstallerError("installed runtime launcher is not executable")
 
     manifest_target = _safe_live_path(resolved_pai_dir, ADAPTER_DIR_RELATIVE / "adapter-manifest.json")
-    if not manifest_target.exists():
-        raise InstallerError(f"installed file is missing: {manifest_target}")
-    try:
-        installed_manifest = json.loads(manifest_target.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise InstallerError("installed adapter manifest is not valid JSON") from exc
+    installed_manifest = _validate_live_json(manifest_target, "installed adapter manifest")
     if installed_manifest != load_staged_manifest():
         raise InstallerError("installed adapter manifest does not match staged manifest")
     validate_manifest(installed_manifest)
 
     state_target = _safe_live_path(resolved_pai_dir, INSTALL_STATE_RELATIVE)
-    if not state_target.exists():
-        raise InstallerError(f"installed file is missing: {state_target}")
-    try:
-        state = json.loads(state_target.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise InstallerError("install-state.json is not valid JSON") from exc
+    state = _validate_live_json(state_target, "install-state.json")
     if state.get("installed") is not True:
         raise InstallerError("install-state.json does not record installed=true")
     if state.get("adapter_status") != "peer-beta":
@@ -344,10 +482,20 @@ def validate_install(
     if state.get("upstream_adapter") != "claude":
         raise InstallerError("install-state.json does not preserve upstream_adapter=claude")
 
+    runtime_state_target = _safe_live_path(resolved_pai_dir, RUNTIME_STATE_RELATIVE)
+    runtime_state = _validate_live_json(runtime_state_target, "runtime-state.json")
+    if runtime_state.get("runtime_mode") != "contained-read-only":
+        raise InstallerError("runtime-state.json does not record contained-read-only mode")
+    if runtime_state.get("adapter_status") != "peer-beta":
+        raise InstallerError("runtime-state.json does not preserve adapter_status=peer-beta")
+    if runtime_state.get("upstream_adapter") != "claude":
+        raise InstallerError("runtime-state.json does not preserve upstream_adapter=claude")
+
     return {
         "pai_dir": str(resolved_pai_dir),
         "adapter_status": installed_manifest["adapter_status"],
         "upstream_adapter": installed_manifest["upstream_adapter"],
+        "launcher": str(launcher_target),
     }
 
 
@@ -368,7 +516,10 @@ def _restore_or_remove_file(pai_dir: Path, backup_pai: Path, relative_path: Path
         if not backup_source.is_file():
             raise InstallerError(f"backup source for rollback is not a file: {backup_source}")
         text = backup_source.read_text(encoding="utf-8")
-        return _write_text_if_changed(live_target, text)
+        changed = _write_text_if_changed(live_target, text)
+        if live_target.name == "pai-codex":
+            _mark_executable(live_target)
+        return changed
 
     if live_target.exists():
         if not live_target.is_file():
@@ -399,13 +550,15 @@ def rollback_install(pai_dir: str | Path | None, backup_root: str | Path | None)
         if _restore_or_remove_file(resolved_pai_dir, backup_pai, relative_path):
             changed.append(resolved_pai_dir / relative_path)
 
-    if not (backup_pai / ADAPTER_DIR_RELATIVE).exists():
-        _remove_empty_dirs(
-            (
-                resolved_pai_dir / ADAPTER_DIR_RELATIVE,
-                resolved_pai_dir / "adapters",
-            )
+    _remove_empty_dirs(
+        (
+            resolved_pai_dir / RUN_DIR_RELATIVE,
+            resolved_pai_dir / ADAPTER_DIR_RELATIVE / "runs",
+            resolved_pai_dir / ADAPTER_DIR_RELATIVE / "bin",
+            resolved_pai_dir / ADAPTER_DIR_RELATIVE,
+            resolved_pai_dir / "adapters",
         )
+    )
 
     return {
         "pai_dir": str(resolved_pai_dir),

@@ -5,6 +5,8 @@
   "payload_type": "live-installable-router",
   "install_target": "~/.claude/PAI/AGENTS.md",
   "live_install_status": "installed-by-installer-only",
+  "milestone_name": "V5-S15B-R1-CODEX-RUNTIME-CONTAINED-WORKLOOP",
+  "adapter_identity_marker": "PAI_CODEX_PEER_BETA_ADAPTER",
   "authority_layers": {
     "pai_system_prompt": "PAI_SYSTEM_PROMPT.md remains a first-class high-authority instruction layer.",
     "router": "AGENTS.md is a compact Codex router into PAI v5, not a clone of CLAUDE.md.",
@@ -30,18 +32,30 @@
     "surface": "Pulse is the central daemon/dashboard/event surface on localhost:31337.",
     "bridge_status": "not-approved"
   },
+  "runtime_launcher_policy": {
+    "status": "contained-read-only-runtime-approved",
+    "launcher_target": "~/.claude/PAI/adapters/codex/bin/pai-codex",
+    "commands": [
+      "doctor",
+      "exec-proof",
+      "workloop-once"
+    ],
+    "runtime_mode": "codex exec with --sandbox read-only and --ephemeral",
+    "run_directory": "~/.claude/PAI/adapters/codex/runs/s15b-r1/",
+    "replacement_readiness": "not-approved"
+  },
   "runtime_surface_policy": {
     "claude_shaped_files": "must-not-be-copied-directly-into-codex-native-surfaces",
     "not_approved_by_this_milestone": [
       "repo root AGENTS.md",
       "repo .codex/",
-      "~/.codex/",
+      "~/.codex adapter files",
       "Codex hooks",
       "Codex rules",
       "Codex skills",
       "Codex agents",
       "Codex commands",
-      "Codex launchers",
+      "Codex launchers outside ~/.claude/PAI/adapters/codex/bin/",
       "Pulse bridge",
       "Memory writer",
       "ISA writer"
@@ -49,7 +63,7 @@
   },
   "rollback_policy": {
     "backup_required_before_live_writes": true,
-    "backup_shape": "~/.pai-codex-adapter-backups/s15a-<UTC_TIMESTAMP>/.claude/",
+    "backup_shape": "~/.pai-codex-adapter-backups/s15b-r1-<UTC_TIMESTAMP>/.claude/",
     "rollback_command_shape": "python3 -m tools.codex_adapter_installer --pai-dir \"$HOME/.claude/PAI\" --backup-root \"<backup-root>\" --rollback"
   }
 }

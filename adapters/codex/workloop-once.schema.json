@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "S15B-R1 Codex Workloop Once Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "workloop_kind",
+    "pai_dir",
+    "adapter_identity_marker",
+    "adapter_status",
+    "upstream_adapter",
+    "observed_instruction_sources",
+    "selected_work_policy",
+    "memory_write_performed",
+    "isa_write_performed",
+    "pulse_probe_performed",
+    "localhost_31337_called",
+    "runtime_surface_created",
+    "proposed_next_action",
+    "requires_architect_goal_card",
+    "evidence_classification",
+    "known_limits"
+  ],
+  "properties": {
+    "milestone_name": {
+      "type": "string",
+      "const": "V5-S15B-R1-CODEX-RUNTIME-CONTAINED-WORKLOOP"
+    },
+    "workloop_kind": {
+      "type": "string",
+      "const": "bounded-read-only-adapter-workloop"
+    },
+    "pai_dir": {
+      "type": "string"
+    },
+    "adapter_identity_marker": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter_status": {
+      "type": "string",
+      "const": "peer-beta"
+    },
+    "upstream_adapter": {
+      "type": "string",
+      "const": "claude"
+    },
+    "observed_instruction_sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "selected_work_policy": {
+      "type": "string",
+      "minLength": 1
+    },
+    "memory_write_performed": {
+      "type": "boolean",
+      "const": false
+    },
+    "isa_write_performed": {
+      "type": "boolean",
+      "const": false
+    },
+    "pulse_probe_performed": {
+      "type": "boolean",
+      "const": false
+    },
+    "localhost_31337_called": {
+      "type": "boolean",
+      "const": false
+    },
+    "runtime_surface_created": {
+      "type": "boolean",
+      "const": false
+    },
+    "proposed_next_action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requires_architect_goal_card": {
+      "type": "boolean",
+      "const": true
+    },
+    "evidence_classification": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "known_limits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

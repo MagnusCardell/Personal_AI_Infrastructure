@@ -1,0 +1,304 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+
+MILESTONE = "V5-S15B-R1-CODEX-RUNTIME-CONTAINED-WORKLOOP"
+MARKER_NAME = "adapter identity marker"
+MARKER_VALUE = "PAI_" + "CODEX_" + "PEER_" + "BETA_" + "ADAPTER"
+ADAPTER_STATUS = "peer-beta"
+UPSTREAM_ADAPTER = "claude"
+ADAPTER_RELATIVE = Path("adapters") / "codex"
+RUN_RELATIVE = ADAPTER_RELATIVE / "runs" / "s15b-r1"
+RUNTIME_PROOF_NAME = "runtime-proof.json"
+WORKLOOP_NAME = "workloop-once.json"
+
+
+class LauncherError(ValueError):
+    pass
+
+
+def _resolve_pai_dir(value: str | Path) -> Path:
+    path = Path(value)
+    if str(value) == "":
+        raise LauncherError("--pai-dir must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise LauncherError("--pai-dir must not contain path traversal")
+    resolved = path.resolve(strict=True)
+    if not resolved.is_dir():
+        raise LauncherError("--pai-dir must be a directory")
+    return resolved
+
+
+def _adapter_dir(pai_dir: Path) -> Path:
+    return pai_dir / ADAPTER_RELATIVE
+
+
+def _run_dir(pai_dir: Path) -> Path:
+    return pai_dir / RUN_RELATIVE
+
+
+def _is_within(root: Path, candidate: Path) -> bool:
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _safe_output_path(pai_dir: Path, output: str | Path, expected_name: str) -> Path:
+    if str(output) == "":
+        raise LauncherError("--output must not be empty")
+    output_path = Path(output)
+    if any(part == ".." for part in output_path.parts):
+        raise LauncherError("--output must not contain path traversal")
+    resolved = output_path.resolve(strict=False)
+    run_dir = _run_dir(pai_dir).resolve(strict=False)
+    if not _is_within(run_dir, resolved):
+        raise LauncherError("runtime output must stay under adapters/codex/runs/s15b-r1")
+    if resolved.name != expected_name:
+        raise LauncherError(f"runtime output must be named {expected_name}")
+    if output_path.exists() and not output_path.is_file():
+        raise LauncherError("runtime output target is not a file")
+    if output_path.is_symlink():
+        raise LauncherError("runtime output target is a symlink")
+    return output_path
+
+
+def _read_json(path: Path, label: str) -> dict[str, object]:
+    if not path.is_file():
+        raise LauncherError(f"{label} is missing: {path}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise LauncherError(f"{label} is not valid JSON") from exc
+    if not isinstance(data, dict):
+        raise LauncherError(f"{label} must be a JSON object")
+    return data
+
+
+def doctor(pai_dir: Path) -> dict[str, object]:
+    router = pai_dir / "AGENTS.md"
+    adapter_dir = _adapter_dir(pai_dir)
+    manifest_path = adapter_dir / "adapter-manifest.json"
+    launcher_path = adapter_dir / "bin" / "pai-codex"
+    runtime_schema_path = adapter_dir / "runtime-proof.schema.json"
+    workloop_schema_path = adapter_dir / "workloop-once.schema.json"
+
+    if not router.is_file():
+        raise LauncherError("PAI_DIR/AGENTS.md is missing")
+    router_text = router.read_text(encoding="utf-8")
+    if MARKER_VALUE not in router_text:
+        raise LauncherError(f"PAI_DIR/AGENTS.md is missing {MARKER_NAME}")
+    for forbidden in (
+        "Codex is replacement-grade",
+        "Codex replaces Claude",
+        "Codex may write Memory",
+        "Codex may write ISA",
+        "Codex may probe Pulse",
+    ):
+        if forbidden in router_text:
+            raise LauncherError(f"router contains forbidden claim: {forbidden}")
+
+    manifest = _read_json(manifest_path, "adapter manifest")
+    if manifest.get("adapter_status") != ADAPTER_STATUS:
+        raise LauncherError("manifest does not preserve adapter_status=peer-beta")
+    if manifest.get("upstream_adapter") != UPSTREAM_ADAPTER:
+        raise LauncherError("manifest does not preserve upstream_adapter=claude")
+    if manifest.get("adapter_status") == "replacement-grade":
+        raise LauncherError("manifest claims replacement-grade status")
+
+    memory_policy = manifest.get("memory_policy")
+    isa_policy = manifest.get("isa_policy")
+    pulse_policy = manifest.get("pulse_policy")
+    if not isinstance(memory_policy, dict) or memory_policy.get("status") != "writes-not-approved":
+        raise LauncherError("Memory write policy is not disabled")
+    if not isinstance(isa_policy, dict) or isa_policy.get("status") != "writes-not-approved":
+        raise LauncherError("ISA write policy is not disabled")
+    if not isinstance(pulse_policy, dict) or pulse_policy.get("bridge_status") != "not-approved":
+        raise LauncherError("Pulse bridge is not absent")
+
+    for path, label in (
+        (launcher_path, "runtime launcher"),
+        (runtime_schema_path, "runtime proof schema"),
+        (workloop_schema_path, "workloop schema"),
+    ):
+        if not path.is_file():
+            raise LauncherError(f"{label} is missing: {path}")
+
+    return {
+        "ok": True,
+        "pai_dir": str(pai_dir),
+        "adapter_status": ADAPTER_STATUS,
+        "upstream_adapter": UPSTREAM_ADAPTER,
+        "adapter_identity_marker_observed": True,
+    }
+
+
+def _proof_prompt(pai_dir: Path) -> str:
+    return (
+        "You are running the contained PAI Codex adapter runtime proof. "
+        "Work only from the current PAI_DIR and do not modify files. "
+        "Read AGENTS.md in PAI_DIR and report the adapter identity marker exactly as written there. "
+        "Confirm Codex remains peer beta and the upstream adapter remains claude. "
+        "Return only JSON matching the provided schema. "
+        f"Use milestone_name {MILESTONE!r}, pai_dir {str(pai_dir)!r}, "
+        "agents_router_observed true, memory_write_performed false, "
+        "isa_write_performed false, pulse_probe_performed false, "
+        "localhost_31337_called false, runtime_surface_created false. "
+        "Use evidence_classification values including 'runtime proof evidence', "
+        "'non-canonical evidence', and 'not replacement readiness'. "
+        "Use known_limits values that do not quote endpoint strings or raw file contents. "
+        "Do not include any host-and-port endpoint string. "
+        "Do not include raw Memory, ISA, Pulse, Claude product, Codex product, backup, or personal file contents."
+    )
+
+
+def _workloop_prompt(pai_dir: Path) -> str:
+    return (
+        "You are running one contained PAI Codex adapter work-loop pass. "
+        "Work only from the current PAI_DIR and do not modify files. "
+        "Read AGENTS.md in PAI_DIR and report the adapter identity marker exactly as written there. "
+        "Produce one bounded adapter decision artifact with workloop_kind "
+        "'bounded-read-only-adapter-workloop'. "
+        "Select a concrete next adapter-building action, not a documentation-only action, "
+        "and mark requires_architect_goal_card true. "
+        f"Use milestone_name {MILESTONE!r}, pai_dir {str(pai_dir)!r}, "
+        "adapter_status peer-beta, upstream_adapter claude, memory_write_performed false, "
+        "isa_write_performed false, pulse_probe_performed false, localhost_31337_called false, "
+        "runtime_surface_created false. "
+        "Use evidence_classification values including 'runtime workloop evidence', "
+        "'non-canonical evidence', and 'not replacement readiness'. "
+        "Use known_limits values that do not quote endpoint strings or raw file contents. "
+        "Return only JSON matching the provided schema. "
+        "Do not include any host-and-port endpoint string. "
+        "Do not include raw Memory, ISA, Pulse, Claude product, Codex product, backup, or personal file contents."
+    )
+
+
+def _build_codex_exec_command(pai_dir: Path, schema_path: Path, output_path: Path, prompt: str) -> list[str]:
+    return [
+        "codex",
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--ephemeral",
+        "--ignore-rules",
+        "--sandbox",
+        "read-only",
+        "--cd",
+        str(pai_dir),
+        "--skip-git-repo-check",
+        "--output-schema",
+        str(schema_path),
+        "-o",
+        str(output_path),
+        prompt,
+    ]
+
+
+def _run_codex_exec(pai_dir: Path, output: str | Path, schema_name: str, output_name: str, prompt: str, dry_run: bool) -> dict[str, object]:
+    doctor(pai_dir)
+    output_path = _safe_output_path(pai_dir, output, output_name)
+    schema_path = _adapter_dir(pai_dir) / schema_name
+    if not schema_path.is_file():
+        raise LauncherError(f"runtime schema is missing: {schema_path}")
+    command = _build_codex_exec_command(pai_dir, schema_path, output_path, prompt)
+    if dry_run:
+        return {
+            "dry_run": True,
+            "command": command,
+            "cwd": str(pai_dir),
+            "output": str(output_path),
+            "schema": str(schema_path),
+            "prompt": prompt,
+        }
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(command, cwd=pai_dir, text=True)
+    if result.returncode != 0:
+        raise LauncherError(f"codex exec failed with exit code {result.returncode}")
+    _read_json(output_path, output_name)
+    return {
+        "ok": True,
+        "pai_dir": str(pai_dir),
+        "output": str(output_path),
+        "schema": str(schema_path),
+        "runtime_invocation": "codex exec --sandbox read-only --ephemeral --cd PAI_DIR",
+    }
+
+
+def exec_proof(pai_dir: Path, output: str | Path, dry_run: bool = False) -> dict[str, object]:
+    return _run_codex_exec(
+        pai_dir,
+        output,
+        "runtime-proof.schema.json",
+        RUNTIME_PROOF_NAME,
+        _proof_prompt(pai_dir),
+        dry_run,
+    )
+
+
+def workloop_once(pai_dir: Path, output: str | Path, dry_run: bool = False) -> dict[str, object]:
+    return _run_codex_exec(
+        pai_dir,
+        output,
+        "workloop-once.schema.json",
+        WORKLOOP_NAME,
+        _workloop_prompt(pai_dir),
+        dry_run,
+    )
+
+
+def _default_output(pai_dir: Path, filename: str) -> Path:
+    return _run_dir(pai_dir) / filename
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="PAI Codex contained runtime launcher.")
+    subcommands = parser.add_subparsers(dest="command", required=True)
+
+    doctor_parser = subcommands.add_parser("doctor")
+    doctor_parser.add_argument("--pai-dir", required=True)
+
+    proof_parser = subcommands.add_parser("exec-proof")
+    proof_parser.add_argument("--pai-dir", required=True)
+    proof_parser.add_argument("--output")
+    proof_parser.add_argument("--dry-run", action="store_true")
+
+    workloop_parser = subcommands.add_parser("workloop-once")
+    workloop_parser.add_argument("--pai-dir", required=True)
+    workloop_parser.add_argument("--output")
+    workloop_parser.add_argument("--dry-run", action="store_true")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        pai_dir = _resolve_pai_dir(args.pai_dir)
+        if args.command == "doctor":
+            result = doctor(pai_dir)
+        elif args.command == "exec-proof":
+            output = args.output or _default_output(pai_dir, RUNTIME_PROOF_NAME)
+            result = exec_proof(pai_dir, output, args.dry_run)
+        elif args.command == "workloop-once":
+            output = args.output or _default_output(pai_dir, WORKLOOP_NAME)
+            result = workloop_once(pai_dir, output, args.dry_run)
+        else:
+            raise LauncherError(f"unknown command: {args.command}")
+    except (LauncherError, OSError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
