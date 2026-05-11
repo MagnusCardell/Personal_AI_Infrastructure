@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "V5-S15B Codex Runtime Proof",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "runtime_invocation",
+    "pai_dir",
+    "adapter_identity_marker",
+    "adapter_status",
+    "upstream_adapter",
+    "agents_router_observed",
+    "pai_system_prompt_policy_observed",
+    "memory_write_performed",
+    "isa_write_performed",
+    "pulse_probe_performed",
+    "localhost_31337_called",
+    "runtime_surface_created",
+    "evidence_classification",
+    "known_limits"
+  ],
+  "properties": {
+    "milestone_name": {
+      "type": "string",
+      "const": "V5-S15B-CODEX-RUNTIME-E2E-PILOT"
+    },
+    "runtime_invocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "mode",
+        "working_directory"
+      ],
+      "properties": {
+        "command": {
+          "type": "string",
+          "const": "codex exec"
+        },
+        "mode": {
+          "type": "string",
+          "const": "non-interactive"
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      }
+    },
+    "pai_dir": {
+      "type": "string"
+    },
+    "adapter_identity_marker": {
+      "type": "string",
+      "pattern": "^[A-Z0-9_]+$"
+    },
+    "adapter_status": {
+      "type": "string",
+      "const": "peer-beta"
+    },
+    "upstream_adapter": {
+      "type": "string",
+      "const": "claude"
+    },
+    "agents_router_observed": {
+      "type": "boolean",
+      "const": true
+    },
+    "pai_system_prompt_policy_observed": {
+      "type": "boolean"
+    },
+    "memory_write_performed": {
+      "type": "boolean",
+      "const": false
+    },
+    "isa_write_performed": {
+      "type": "boolean",
+      "const": false
+    },
+    "pulse_probe_performed": {
+      "type": "boolean",
+      "const": false
+    },
+    "localhost_31337_called": {
+      "type": "boolean",
+      "const": false
+    },
+    "runtime_surface_created": {
+      "type": "boolean",
+      "const": false
+    },
+    "evidence_classification": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "runtime proof evidence",
+          "non-canonical evidence",
+          "not replacement readiness",
+          "not Claude equivalence"
+        ]
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "known_limits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

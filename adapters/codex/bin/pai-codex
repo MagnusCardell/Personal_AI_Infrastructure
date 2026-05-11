@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+"""PAI v5 Codex peer beta runtime launcher."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+
+MILESTONE_NAME = "V5-S15B-CODEX-RUNTIME-E2E-PILOT"
+ADAPTER_IDENTITY_MARKER = "PAI_CODEX_PEER_BETA_ADAPTER"
+ADAPTER_STATUS = "peer-beta"
+UPSTREAM_ADAPTER = "claude"
+
+ADAPTER_RELATIVE = Path("adapters") / "codex"
+LAUNCHER_RELATIVE = ADAPTER_RELATIVE / "bin" / "pai-codex"
+SCHEMA_RELATIVE = ADAPTER_RELATIVE / "runtime-proof.schema.json"
+RUN_DIR_RELATIVE = ADAPTER_RELATIVE / "runs" / "s15b"
+PROOF_RELATIVE = RUN_DIR_RELATIVE / "runtime-proof.json"
+
+FORBIDDEN_PROOF_TOKENS = (
+    "localhost:31337",
+    "127.0.0.1:31337",
+    "Memory/WORK",
+    "Memory/LEARNING",
+    "Memory/KNOWLEDGE",
+    "ISA/",
+    "Pulse/events",
+    "CLAUDE.md contents",
+    "auth.json",
+)
+
+
+class LauncherError(ValueError):
+    """Raised when runtime launcher validation fails."""
+
+
+def _reject_path_value(value: str | Path | None, label: str) -> Path:
+    if value is None or str(value) == "":
+        raise LauncherError(f"{label} must not be empty")
+    text = str(value)
+    if "\x00" in text:
+        raise LauncherError(f"{label} contains a NUL byte")
+    candidate = Path(text)
+    if any(part == ".." for part in candidate.parts):
+        raise LauncherError("path traversal is detected")
+    return candidate
+
+
+def _is_within(root: Path, candidate: Path) -> bool:
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _resolve_pai_dir(value: str | Path | None) -> Path:
+    candidate = _reject_path_value(value, "--pai-dir")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise LauncherError("PAI_DIR does not exist") from exc
+    except RuntimeError as exc:
+        raise LauncherError("PAI_DIR has ambiguous path resolution") from exc
+    if not resolved.is_dir():
+        raise LauncherError("PAI_DIR must be a directory")
+    return resolved
+
+
+def _safe_child(root: Path, relative_path: Path) -> Path:
+    if relative_path.is_absolute() or any(part == ".." for part in relative_path.parts):
+        raise LauncherError("path traversal is detected")
+    target = root / relative_path
+    try:
+        resolved = target.resolve(strict=False)
+    except RuntimeError as exc:
+        raise LauncherError("target has ambiguous path resolution") from exc
+    if not _is_within(root, resolved):
+        raise LauncherError("symlink escape is detected")
+    if target.is_symlink():
+        raise LauncherError("target is a symlink")
+    return target
+
+
+def _load_json(path: Path) -> dict[str, object]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise LauncherError(f"required file is missing: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise LauncherError(f"required JSON file is invalid: {path}") from exc
+    if not isinstance(value, dict):
+        raise LauncherError(f"required JSON file must contain an object: {path}")
+    return value
+
+
+def _adapter_paths(pai_dir: Path) -> dict[str, Path]:
+    return {
+        "router": _safe_child(pai_dir, Path("AGENTS.md")),
+        "manifest": _safe_child(pai_dir, ADAPTER_RELATIVE / "adapter-manifest.json"),
+        "launcher": _safe_child(pai_dir, LAUNCHER_RELATIVE),
+        "schema": _safe_child(pai_dir, SCHEMA_RELATIVE),
+        "proof": _safe_child(pai_dir, PROOF_RELATIVE),
+    }
+
+
+def doctor(pai_dir_value: str | Path | None) -> dict[str, object]:
+    pai_dir = _resolve_pai_dir(pai_dir_value)
+    paths = _adapter_paths(pai_dir)
+
+    for label in ("router", "manifest", "launcher", "schema"):
+        path = paths[label]
+        if not path.exists() or not path.is_file():
+            raise LauncherError(f"{label} is missing: {path}")
+
+    router = paths["router"].read_text(encoding="utf-8")
+    if ADAPTER_IDENTITY_MARKER not in router:
+        raise LauncherError("AGENTS.md is missing the Codex adapter identity marker")
+
+    manifest = _load_json(paths["manifest"])
+    if manifest.get("adapter_status") != ADAPTER_STATUS:
+        raise LauncherError("manifest must say adapter_status=peer-beta")
+    if manifest.get("upstream_adapter") != UPSTREAM_ADAPTER:
+        raise LauncherError("manifest must say upstream_adapter=claude")
+    if manifest.get("adapter_status") == "replacement-grade":
+        raise LauncherError("manifest must not approve replacement-grade status")
+
+    memory_policy = manifest.get("memory_policy")
+    if not isinstance(memory_policy, dict) or memory_policy.get("status") != "writes-not-approved":
+        raise LauncherError("Memory write policy must remain disabled")
+
+    isa_policy = manifest.get("isa_policy")
+    if not isinstance(isa_policy, dict) or isa_policy.get("status") != "writes-not-approved":
+        raise LauncherError("ISA write policy must remain disabled")
+
+    pulse_policy = manifest.get("pulse_policy")
+    if not isinstance(pulse_policy, dict) or pulse_policy.get("bridge_status") != "not-approved":
+        raise LauncherError("Pulse bridge must remain absent")
+
+    return {
+        "status": "ok",
+        "milestone_name": MILESTONE_NAME,
+        "pai_dir": str(pai_dir),
+        "adapter_status": manifest["adapter_status"],
+        "upstream_adapter": manifest["upstream_adapter"],
+        "agents_router_observed": True,
+        "identity_marker_present": True,
+    }
+
+
+def _resolve_output(pai_dir: Path, value: str | Path | None) -> Path:
+    expected = _safe_child(pai_dir, PROOF_RELATIVE).resolve(strict=False)
+    if value is None:
+        return expected
+    candidate = _reject_path_value(value, "--output")
+    if not candidate.is_absolute():
+        candidate = pai_dir / candidate
+    try:
+        resolved = candidate.resolve(strict=False)
+    except RuntimeError as exc:
+        raise LauncherError("--output has ambiguous path resolution") from exc
+    if resolved != expected:
+        raise LauncherError("--output must be adapters/codex/runs/s15b/runtime-proof.json under PAI_DIR")
+    return candidate
+
+
+def _runtime_prompt() -> str:
+    return "\n".join(
+        [
+            "Produce the bounded PAI v5 Codex runtime proof JSON for the current working directory.",
+            "Use the active AGENTS.md router in this working directory as evidence.",
+            "Read only the router and high-level policy files needed for the proof.",
+            "Do not read Memory bodies, ISA bodies, Pulse payload bodies, product memory, backup contents, or personal file contents.",
+            "Do not create files, install surfaces, call network endpoints, or invoke services.",
+            "Report the stable adapter identity marker exactly as observed from AGENTS.md.",
+            "Set milestone_name exactly to V5-S15B-CODEX-RUNTIME-E2E-PILOT.",
+            "Set adapter_status exactly to peer-beta only if observed from the router or adapter metadata.",
+            "Set upstream_adapter exactly to claude only if observed from the router or adapter metadata.",
+            "For runtime_invocation, record command exactly as codex exec, mode exactly as non-interactive, and working_directory as the current PAI_DIR.",
+            "Use false for Memory, ISA, Pulse, endpoint-call, and runtime-surface creation booleans only if no such action was performed.",
+            "Set evidence_classification exactly to: runtime proof evidence; non-canonical evidence; not replacement readiness; not Claude equivalence.",
+            "Keep known_limits short and do not include endpoint literals, Memory subpaths, ISA subpaths, Pulse event paths, product memory filenames, personal contents, or backup contents.",
+            "The final answer must be JSON only and must match the provided schema.",
+        ]
+    )
+
+
+def build_exec_command(pai_dir: Path, output_path: Path) -> list[str]:
+    schema = _safe_child(pai_dir, SCHEMA_RELATIVE)
+    return [
+        "codex",
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--ephemeral",
+        "--sandbox",
+        "workspace-write",
+        "--cd",
+        str(pai_dir),
+        "--skip-git-repo-check",
+        "--output-schema",
+        str(schema),
+        "-o",
+        str(output_path),
+        _runtime_prompt(),
+    ]
+
+
+def validate_runtime_proof(path: Path) -> dict[str, object]:
+    proof = _load_json(path)
+    expected = {
+        "milestone_name": MILESTONE_NAME,
+        "adapter_identity_marker": ADAPTER_IDENTITY_MARKER,
+        "adapter_status": ADAPTER_STATUS,
+        "upstream_adapter": UPSTREAM_ADAPTER,
+        "agents_router_observed": True,
+        "memory_write_performed": False,
+        "isa_write_performed": False,
+        "pulse_probe_performed": False,
+        "localhost_31337_called": False,
+        "runtime_surface_created": False,
+    }
+    for key, value in expected.items():
+        if proof.get(key) != value:
+            raise LauncherError(f"runtime proof mismatch for {key}")
+    classification = json.dumps(proof.get("evidence_classification"), sort_keys=True)
+    for required in (
+        "runtime proof evidence",
+        "non-canonical evidence",
+        "not replacement readiness",
+        "not Claude equivalence",
+    ):
+        if required not in classification:
+            raise LauncherError(f"runtime proof evidence_classification missing {required}")
+    raw = path.read_text(encoding="utf-8")
+    for token in FORBIDDEN_PROOF_TOKENS:
+        if token in raw:
+            raise LauncherError(f"runtime proof includes forbidden marker: {token}")
+    return proof
+
+
+def exec_proof(pai_dir_value: str | Path | None, output_value: str | Path | None, *, dry_run: bool) -> dict[str, object]:
+    doctor_result = doctor(pai_dir_value)
+    pai_dir = Path(str(doctor_result["pai_dir"]))
+    output_path = _resolve_output(pai_dir, output_value)
+    command = build_exec_command(pai_dir, output_path)
+
+    if dry_run:
+        return {
+            "status": "dry-run",
+            "command": command,
+            "cwd": str(pai_dir),
+            "planned_writes": [str(output_path)],
+            "approved_run_dir": str(_safe_child(pai_dir, RUN_DIR_RELATIVE)),
+            "prompt": _runtime_prompt(),
+        }
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(command, cwd=pai_dir, text=True, check=False)
+    if result.returncode != 0:
+        raise LauncherError(f"codex exec failed with exit code {result.returncode}")
+    validate_runtime_proof(output_path)
+    return {
+        "status": "ok",
+        "proof_path": str(output_path),
+        "pai_dir": str(pai_dir),
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="PAI Codex peer beta runtime launcher.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    doctor_parser = subparsers.add_parser("doctor", help="Validate the live Codex adapter install.")
+    doctor_parser.add_argument("--pai-dir", required=True)
+
+    proof_parser = subparsers.add_parser("exec-proof", help="Run the bounded Codex runtime proof.")
+    proof_parser.add_argument("--pai-dir", required=True)
+    proof_parser.add_argument("--output")
+    proof_parser.add_argument("--dry-run", action="store_true")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "doctor":
+            result = doctor(args.pai_dir)
+        elif args.command == "exec-proof":
+            result = exec_proof(args.pai_dir, args.output, dry_run=args.dry_run)
+        else:
+            raise LauncherError(f"unknown command: {args.command}")
+    except LauncherError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

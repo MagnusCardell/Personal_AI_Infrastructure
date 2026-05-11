@@ -5,6 +5,13 @@
   "payload_type": "live-installable-router",
   "install_target": "~/.claude/PAI/AGENTS.md",
   "live_install_status": "installed-by-installer-only",
+  "runtime_pilot": {
+    "milestone_name": "V5-S15B-CODEX-RUNTIME-E2E-PILOT",
+    "identity_marker": "PAI_CODEX_PEER_BETA_ADAPTER",
+    "launcher_target": "~/.claude/PAI/adapters/codex/bin/pai-codex",
+    "proof_target": "~/.claude/PAI/adapters/codex/runs/s15b/runtime-proof.json",
+    "status": "bounded-runtime-proof-only"
+  },
   "authority_layers": {
     "pai_system_prompt": "PAI_SYSTEM_PROMPT.md remains a first-class high-authority instruction layer.",
     "router": "AGENTS.md is a compact Codex router into PAI v5, not a clone of CLAUDE.md.",
@@ -31,6 +38,7 @@
     "bridge_status": "not-approved"
   },
   "runtime_surface_policy": {
+    "approved_runtime_launcher": "~/.claude/PAI/adapters/codex/bin/pai-codex",
     "claude_shaped_files": "must-not-be-copied-directly-into-codex-native-surfaces",
     "not_approved_by_this_milestone": [
       "repo root AGENTS.md",
@@ -40,8 +48,8 @@
       "Codex rules",
       "Codex skills",
       "Codex agents",
-      "Codex commands",
-      "Codex launchers",
+      "Codex commands outside approved adapter launcher",
+      "Codex launchers outside ~/.claude/PAI/adapters/codex/bin/",
       "Pulse bridge",
       "Memory writer",
       "ISA writer"
@@ -49,7 +57,7 @@
   },
   "rollback_policy": {
     "backup_required_before_live_writes": true,
-    "backup_shape": "~/.pai-codex-adapter-backups/s15a-<UTC_TIMESTAMP>/.claude/",
+    "backup_shape": "~/.pai-codex-adapter-backups/s15b-<UTC_TIMESTAMP>/.claude/",
     "rollback_command_shape": "python3 -m tools.codex_adapter_installer --pai-dir \"$HOME/.claude/PAI\" --backup-root \"<backup-root>\" --rollback"
   }
 }

@@ -1,5 +1,7 @@
 # PAI v5 Codex Peer Beta Adapter Router
 
+PAI_CODEX_PEER_BETA_ADAPTER
+
 Codex is a peer beta adapter for PAI v5.
 Claude remains the official/full-support upstream adapter.
 PAI v5 is a Life OS, not just Claude config.
@@ -18,5 +20,6 @@ Codex must not create or emulate Claude-specific hooks, agents, commands, or run
 AGENTS.md is a router into PAI v5, not a clone of CLAUDE.md.
 
 This router does not authorize Codex to start, probe, or call Pulse.
-This router does not authorize Codex hooks, rules, skills, agents, commands, launchers, Memory writers, ISA writers, Pulse bridges, repo root AGENTS.md, repo .codex/, or ~/.codex/.
+This router authorizes only the S15B runtime launcher at PAI_DIR/adapters/codex/bin/pai-codex.
+This router does not authorize Codex hooks, rules, skills, agents, commands outside the approved adapter launcher, launchers outside the approved adapter directory, Memory writers, ISA writers, Pulse bridges, repo root AGENTS.md, repo .codex/, or ~/.codex adapter files.
 Claude-shaped files must not be copied directly into Codex native surfaces.

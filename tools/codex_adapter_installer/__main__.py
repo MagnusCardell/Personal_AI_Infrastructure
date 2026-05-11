@@ -7,7 +7,7 @@ from .install import InstallerError, apply_install, rollback_install, validate_i
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Install, validate, or rollback the S15A Codex adapter.")
+    parser = argparse.ArgumentParser(description="Install, validate, or rollback the PAI Codex adapter.")
     parser.add_argument("--pai-dir", required=True, help="PAI subsystem root, normally ~/.claude/PAI.")
     parser.add_argument("--backup-root", help="Backup root created before live writes.")
     action = parser.add_mutually_exclusive_group(required=True)

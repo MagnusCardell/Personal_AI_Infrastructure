@@ -1,8 +1,9 @@
-"""S15A Codex peer beta adapter installer.
+"""S15A/S15B Codex peer beta adapter installer.
 
 The installer copies only the staged adapter payload into approved PAI live
 targets. It does not inspect Memory, ISA, Pulse payloads, product memory, or
-runtime state, and it does not invoke external runtimes or network services.
+private runtime state, and it does not invoke external runtimes or network
+services.
 """
 
 from __future__ import annotations
@@ -16,26 +17,43 @@ class InstallerError(ValueError):
     """Raised when installer input, safety validation, or payload validation fails."""
 
 
-MILESTONE = "V5-S15A-CODEX-ADAPTER-LIVE-ACTIVATION-PILOT"
+MILESTONE = "V5-S15B-CODEX-RUNTIME-E2E-PILOT"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STAGED_ADAPTER_DIR = REPO_ROOT / "adapters" / "codex"
 
 ROUTER_RELATIVE = Path("AGENTS.md")
 ADAPTER_DIR_RELATIVE = Path("adapters") / "codex"
 INSTALL_STATE_RELATIVE = ADAPTER_DIR_RELATIVE / "install-state.json"
+LAUNCHER_RELATIVE = ADAPTER_DIR_RELATIVE / "bin" / "pai-codex"
+RUNTIME_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "runtime-proof.schema.json"
+RUNTIME_STATE_RELATIVE = ADAPTER_DIR_RELATIVE / "runtime-state.json"
+RUNTIME_PROOF_RELATIVE = ADAPTER_DIR_RELATIVE / "runs" / "s15b" / "runtime-proof.json"
+RUNTIME_VALIDATION_RELATIVE = ADAPTER_DIR_RELATIVE / "runs" / "s15b" / "runtime-validation.json"
+ADAPTER_IDENTITY_MARKER = "PAI_CODEX_PEER_BETA_ADAPTER"
 
 STAGED_COPY_TARGETS = {
     "AGENTS.md": ADAPTER_DIR_RELATIVE / "AGENTS.md",
     "README.md": ADAPTER_DIR_RELATIVE / "README.md",
     "adapter-manifest.json": ADAPTER_DIR_RELATIVE / "adapter-manifest.json",
+    "runtime-proof.schema.json": RUNTIME_SCHEMA_RELATIVE,
+    "bin/pai-codex": LAUNCHER_RELATIVE,
 }
 
-APPROVED_LIVE_RELATIVES = (
+INSTALL_MANAGED_RELATIVES = (
     ROUTER_RELATIVE,
     ADAPTER_DIR_RELATIVE / "AGENTS.md",
     ADAPTER_DIR_RELATIVE / "README.md",
     ADAPTER_DIR_RELATIVE / "adapter-manifest.json",
     INSTALL_STATE_RELATIVE,
+    LAUNCHER_RELATIVE,
+    RUNTIME_SCHEMA_RELATIVE,
+    RUNTIME_STATE_RELATIVE,
+)
+
+APPROVED_LIVE_RELATIVES = (
+    *INSTALL_MANAGED_RELATIVES,
+    RUNTIME_PROOF_RELATIVE,
+    RUNTIME_VALIDATION_RELATIVE,
 )
 
 REQUIRED_ROUTER_CONCEPTS = (
@@ -52,6 +70,7 @@ REQUIRED_ROUTER_CONCEPTS = (
     "Codex must not create or emulate Claude-specific hooks, agents, commands, or runtime files.",
     "AGENTS.md is a router into PAI v5, not a clone of CLAUDE.md.",
     "When operating in a PAI workspace, identify PAI_DIR, read PAI_SYSTEM_PROMPT.md if available, then follow Codex adapter constraints.",
+    ADAPTER_IDENTITY_MARKER,
 )
 
 EXPECTED_MANIFEST_VALUES = {
@@ -98,11 +117,29 @@ NOT_APPROVED_SURFACES = (
     "Codex rules",
     "Codex skills",
     "Codex agents",
-    "Codex commands",
-    "Codex launchers",
+    "Codex commands outside approved adapter launcher",
+    "Codex launchers outside ~/.claude/PAI/adapters/codex/bin/",
     "Pulse bridge",
     "Memory writer",
     "ISA writer",
+)
+
+RUNTIME_SCHEMA_REQUIRED_FIELDS = (
+    "milestone_name",
+    "runtime_invocation",
+    "pai_dir",
+    "adapter_identity_marker",
+    "adapter_status",
+    "upstream_adapter",
+    "agents_router_observed",
+    "pai_system_prompt_policy_observed",
+    "memory_write_performed",
+    "isa_write_performed",
+    "pulse_probe_performed",
+    "localhost_31337_called",
+    "runtime_surface_created",
+    "evidence_classification",
+    "known_limits",
 )
 
 
@@ -230,11 +267,43 @@ def validate_manifest(manifest: dict[str, object]) -> None:
             "adapter manifest is missing not-approved surfaces: " + ", ".join(missing_not_approved)
         )
 
+    runtime_pilot = manifest.get("runtime_pilot")
+    if not isinstance(runtime_pilot, dict):
+        raise InstallerError("runtime_pilot must be an object")
+    if runtime_pilot.get("identity_marker") != ADAPTER_IDENTITY_MARKER:
+        raise InstallerError("runtime_pilot identity marker is missing")
+    if runtime_pilot.get("launcher_target") != "~/.claude/PAI/adapters/codex/bin/pai-codex":
+        raise InstallerError("runtime_pilot launcher target is invalid")
+
+
+def validate_runtime_schema(schema: dict[str, object]) -> None:
+    required = schema.get("required")
+    if not isinstance(required, list):
+        raise InstallerError("runtime proof schema must define required fields")
+    missing = [field for field in RUNTIME_SCHEMA_REQUIRED_FIELDS if field not in required]
+    if missing:
+        raise InstallerError("runtime proof schema is missing required fields: " + ", ".join(missing))
+
+
+def load_staged_runtime_schema() -> dict[str, object]:
+    try:
+        schema = json.loads(_read_staged_text("runtime-proof.schema.json"))
+    except json.JSONDecodeError as exc:
+        raise InstallerError("runtime proof schema is not valid JSON") from exc
+    if not isinstance(schema, dict):
+        raise InstallerError("runtime proof schema must be a JSON object")
+    return schema
+
 
 def validate_staged_payload() -> None:
     validate_router_text(read_staged_agents())
     validate_manifest(load_staged_manifest())
+    validate_runtime_schema(load_staged_runtime_schema())
     _read_staged_text("README.md")
+    launcher = _read_staged_text("bin/pai-codex")
+    for token in ("doctor", "exec-proof", "codex", "exec"):
+        if token not in launcher:
+            raise InstallerError(f"runtime launcher is missing required token: {token}")
 
 
 def _install_state_json() -> str:
@@ -242,10 +311,26 @@ def _install_state_json() -> str:
         "adapter_name": "codex",
         "adapter_status": "peer-beta",
         "installed": True,
+        "identity_marker": ADAPTER_IDENTITY_MARKER,
         "install_target": "~/.claude/PAI/AGENTS.md",
         "managed_live_targets": [str(path) for path in APPROVED_LIVE_RELATIVES],
         "milestone": MILESTONE,
         "rollback_source": "backup-root/.claude/PAI",
+        "upstream_adapter": "claude",
+    }
+    return json.dumps(state, indent=2, sort_keys=True) + "\n"
+
+
+def _runtime_state_json() -> str:
+    state = {
+        "adapter_name": "codex",
+        "adapter_status": "peer-beta",
+        "identity_marker": ADAPTER_IDENTITY_MARKER,
+        "launcher_installed": True,
+        "launcher_target": "~/.claude/PAI/adapters/codex/bin/pai-codex",
+        "milestone": MILESTONE,
+        "proof_target": "~/.claude/PAI/adapters/codex/runs/s15b/runtime-proof.json",
+        "runtime_proof_status": "pending-exec-proof",
         "upstream_adapter": "claude",
     }
     return json.dumps(state, indent=2, sort_keys=True) + "\n"
@@ -262,6 +347,11 @@ def _write_text_if_changed(path: Path, text: str) -> bool:
     return True
 
 
+def _ensure_executable(path: Path) -> None:
+    mode = path.stat().st_mode
+    path.chmod(mode | 0o755)
+
+
 def _copy_payload_to_live(pai_dir: Path) -> list[Path]:
     changed: list[Path] = []
     router = read_staged_agents()
@@ -273,10 +363,15 @@ def _copy_payload_to_live(pai_dir: Path) -> list[Path]:
         target = _safe_live_path(pai_dir, relative_target)
         if _write_text_if_changed(target, text):
             changed.append(target)
+        if relative_target == LAUNCHER_RELATIVE:
+            _ensure_executable(target)
 
     state_target = _safe_live_path(pai_dir, INSTALL_STATE_RELATIVE)
     if _write_text_if_changed(state_target, _install_state_json()):
         changed.append(state_target)
+    runtime_state_target = _safe_live_path(pai_dir, RUNTIME_STATE_RELATIVE)
+    if _write_text_if_changed(runtime_state_target, _runtime_state_json()):
+        changed.append(runtime_state_target)
     return changed
 
 
@@ -318,6 +413,8 @@ def validate_install(
     _validate_live_text_matches(resolved_pai_dir, ROUTER_RELATIVE, staged_agents)
     _validate_live_text_matches(resolved_pai_dir, ADAPTER_DIR_RELATIVE / "AGENTS.md", staged_agents)
     _validate_live_text_matches(resolved_pai_dir, ADAPTER_DIR_RELATIVE / "README.md", _read_staged_text("README.md"))
+    _validate_live_text_matches(resolved_pai_dir, RUNTIME_SCHEMA_RELATIVE, _read_staged_text("runtime-proof.schema.json"))
+    _validate_live_text_matches(resolved_pai_dir, LAUNCHER_RELATIVE, _read_staged_text("bin/pai-codex"))
 
     manifest_target = _safe_live_path(resolved_pai_dir, ADAPTER_DIR_RELATIVE / "adapter-manifest.json")
     if not manifest_target.exists():
@@ -343,6 +440,26 @@ def validate_install(
         raise InstallerError("install-state.json does not preserve adapter_status=peer-beta")
     if state.get("upstream_adapter") != "claude":
         raise InstallerError("install-state.json does not preserve upstream_adapter=claude")
+    if state.get("identity_marker") != ADAPTER_IDENTITY_MARKER:
+        raise InstallerError("install-state.json does not preserve the adapter identity marker")
+
+    runtime_state_target = _safe_live_path(resolved_pai_dir, RUNTIME_STATE_RELATIVE)
+    if not runtime_state_target.exists():
+        raise InstallerError(f"installed file is missing: {runtime_state_target}")
+    try:
+        runtime_state = json.loads(runtime_state_target.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise InstallerError("runtime-state.json is not valid JSON") from exc
+    if runtime_state.get("launcher_installed") is not True:
+        raise InstallerError("runtime-state.json does not record launcher_installed=true")
+    if runtime_state.get("identity_marker") != ADAPTER_IDENTITY_MARKER:
+        raise InstallerError("runtime-state.json does not preserve the adapter identity marker")
+
+    launcher_target = _safe_live_path(resolved_pai_dir, LAUNCHER_RELATIVE)
+    if not launcher_target.exists() or not launcher_target.is_file():
+        raise InstallerError(f"installed launcher is missing: {launcher_target}")
+    if not launcher_target.stat().st_mode & 0o111:
+        raise InstallerError("installed launcher is not executable")
 
     return {
         "pai_dir": str(resolved_pai_dir),
