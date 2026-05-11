@@ -1,4 +1,4 @@
-"""Report writer for fixture-only S14C preflight evidence."""
+"""Report writer for S14 preflight evidence."""
 
 from __future__ import annotations
 
@@ -10,6 +10,14 @@ from .path_safety import is_within_root, reject_path_traversal
 
 class PreflightReportError(ValueError):
     """Raised when the fixture-only report path is outside the approved output root."""
+
+
+EVIDENCE_CLASSIFICATION_TERMS = (
+    "evidence_classification",
+    "fixture evidence",
+    "personal live-state evidence",
+    "non-canonical evidence",
+)
 
 
 def write_report(report: dict[str, object], output_root: str | Path, output_path: str | Path) -> Path:

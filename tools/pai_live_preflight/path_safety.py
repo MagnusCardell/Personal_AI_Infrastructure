@@ -1,4 +1,4 @@
-"""Path-safety helpers for fixture-only S14C preflight tests."""
+"""Path-safety helpers for S14 preflight tests."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 class PathSafetyError(ValueError):
-    """Raised when a fixture path would escape the approved boundary."""
+    """Raised when a source path would escape the approved boundary."""
 
 
 SOURCE_ROOT_EXISTENCE_CHECK = "source-root existence checks"
@@ -26,6 +26,8 @@ FORBIDDEN_SUBTREE_MARKERS = (
 
 
 def reject_path_traversal(path_value: str | Path, *, allow_absolute: bool = False) -> Path:
+    if str(path_value) == "":
+        raise PathSafetyError("empty paths are not allowed")
     candidate = Path(path_value)
     if not allow_absolute and candidate.is_absolute():
         raise PathSafetyError("absolute paths are not allowed for relative probes")

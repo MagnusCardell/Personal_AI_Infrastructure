@@ -1,4 +1,4 @@
-"""Consent parsing for fixture-only S14C preflight tests."""
+"""Consent parsing for S14 preflight tests."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ APPROVED_DECLARED_SOURCE_ROOT = "~/.claude/PAI"
 
 
 class ConsentValidationError(ValueError):
-    """Raised when the fixture-only consent artifact is invalid."""
+    """Raised when the consent artifact is invalid."""
 
 
 @dataclass(frozen=True)
