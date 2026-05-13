@@ -5,7 +5,7 @@
   "payload_type": "live-installable-router",
   "install_target": "~/.claude/PAI/AGENTS.md",
   "live_install_status": "installed-by-installer-only",
-  "milestone_name": "V5-S15B-R2-CODEX-RUNTIME-EVENT-ATTRIBUTED-WORKLOOP",
+  "milestone_name": "V5-S15C-CODEX-BOUNDED-TASK-EXECUTION",
   "adapter_identity_marker": "PAI_CODEX_PEER_BETA_ADAPTER",
   "authority_layers": {
     "pai_system_prompt": "PAI_SYSTEM_PROMPT.md remains a first-class high-authority instruction layer.",
@@ -33,21 +33,37 @@
     "bridge_status": "not-approved"
   },
   "runtime_launcher_policy": {
-    "status": "contained-read-only-runtime-approved",
+    "status": "bounded-task-runtime-approved",
     "launcher_target": "~/.claude/PAI/adapters/codex/bin/pai-codex",
     "commands": [
       "doctor",
       "exec-proof",
       "workloop-once",
-      "audit-run"
+      "audit-run",
+      "task-run",
+      "audit-task"
     ],
-    "runtime_mode": "codex exec with --sandbox read-only, --ephemeral, and --json event capture",
-    "run_directory": "~/.claude/PAI/adapters/codex/runs/s15b-r2/",
+    "runtime_mode": "codex exec with --sandbox read-only for proof/workloop and bounded task repair artifacts; workspace-write remains limited to the S15C task workspace when available",
+    "run_directory": "~/.claude/PAI/adapters/codex/runs/s15c/",
+    "task_workspace": "~/.claude/PAI/adapters/codex/runs/s15c/workspace/",
     "event_streams": [
       "runtime-events.jsonl",
-      "workloop-events.jsonl"
+      "workloop-events.jsonl",
+      "task-events.jsonl"
     ],
     "replacement_readiness": "not-approved"
+  },
+  "task_execution_policy": {
+    "task_id": "s15c-synthetic-bugfix",
+    "task_kind": "bounded-synthetic-code-repair",
+    "task_card": "~/.claude/PAI/adapters/codex/tasks/s15c-synthetic-bugfix.json",
+    "fixture": "~/.claude/PAI/adapters/codex/task-fixtures/s15c_bugfix/",
+    "workspace_write_scope": "~/.claude/PAI/adapters/codex/runs/s15c/workspace/",
+    "result": "~/.claude/PAI/adapters/codex/runs/s15c/task-result.json",
+    "events": "~/.claude/PAI/adapters/codex/runs/s15c/task-events.jsonl",
+    "diff": "~/.claude/PAI/adapters/codex/runs/s15c/task.diff",
+    "validation": "~/.claude/PAI/adapters/codex/runs/s15c/task-validation.json",
+    "materialized_repair_policy": "If nested Codex workspace writes are unavailable, the launcher may materialize Codex-authored repair_file_content only inside the approved S15C task workspace."
   },
   "runtime_surface_policy": {
     "claude_shaped_files": "must-not-be-copied-directly-into-codex-native-surfaces",
@@ -68,7 +84,7 @@
   },
   "rollback_policy": {
     "backup_required_before_live_writes": true,
-    "backup_shape": "~/.pai-codex-adapter-backups/s15b-r2-<UTC_TIMESTAMP>/.claude/",
+    "backup_shape": "~/.pai-codex-adapter-backups/s15c-<UTC_TIMESTAMP>/.claude/",
     "rollback_command_shape": "python3 -m tools.codex_adapter_installer --pai-dir \"$HOME/.claude/PAI\" --backup-root \"<backup-root>\" --rollback"
   }
 }

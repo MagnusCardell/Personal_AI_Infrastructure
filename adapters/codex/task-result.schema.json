@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "S15C Bounded Task Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "task_id",
+    "task_kind",
+    "pai_dir",
+    "adapter_identity_marker",
+    "adapter_status",
+    "upstream_adapter",
+    "agents_router_observed",
+    "task_workspace",
+    "files_modified",
+    "tests_run",
+    "tests_passed",
+    "memory_write_performed",
+    "isa_write_performed",
+    "pulse_probe_performed",
+    "localhost_31337_called",
+    "runtime_surface_created",
+    "result_summary",
+    "evidence_classification",
+    "known_limits",
+    "repair_file_path",
+    "repair_file_content"
+  ],
+  "properties": {
+    "milestone_name": {
+      "type": "string",
+      "const": "V5-S15C-CODEX-BOUNDED-TASK-EXECUTION"
+    },
+    "task_id": {
+      "type": "string",
+      "const": "s15c-synthetic-bugfix"
+    },
+    "task_kind": {
+      "type": "string",
+      "const": "bounded-synthetic-code-repair"
+    },
+    "pai_dir": {
+      "type": "string"
+    },
+    "adapter_identity_marker": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter_status": {
+      "type": "string",
+      "const": "peer-beta"
+    },
+    "upstream_adapter": {
+      "type": "string",
+      "const": "claude"
+    },
+    "agents_router_observed": {
+      "type": "boolean"
+    },
+    "task_workspace": {
+      "type": "string"
+    },
+    "files_modified": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tests_run": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tests_passed": {
+      "type": "boolean"
+    },
+    "memory_write_performed": {
+      "type": "boolean"
+    },
+    "isa_write_performed": {
+      "type": "boolean"
+    },
+    "pulse_probe_performed": {
+      "type": "boolean"
+    },
+    "localhost_31337_called": {
+      "type": "boolean"
+    },
+    "runtime_surface_created": {
+      "type": "boolean"
+    },
+    "result_summary": {
+      "type": "string"
+    },
+    "evidence_classification": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "known_limits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "repair_file_path": {
+      "type": "string"
+    },
+    "repair_file_content": {
+      "type": "string"
+    }
+  }
+}

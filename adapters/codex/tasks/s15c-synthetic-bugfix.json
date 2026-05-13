@@ -1,0 +1,30 @@
+{
+  "task_id": "s15c-synthetic-bugfix",
+  "task_kind": "bounded-synthetic-code-repair",
+  "title": "Fix normalize_priority alias handling",
+  "fixture": "task-fixtures/s15c_bugfix",
+  "workspace": "runs/s15c/workspace",
+  "implementation_file": "src/pai_priority.py",
+  "test_command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests"
+  ],
+  "initial_failure_expected": true,
+  "instructions": [
+    "Inspect README.md and src/pai_priority.py in the isolated workspace.",
+    "Repair normalize_priority so low, medium, high, and urgent aliases normalize consistently.",
+    "Reject invalid, empty, and non-string values with ValueError.",
+    "Preserve the public function name normalize_priority.",
+    "Run the unit tests with python3 -m unittest discover -s tests."
+  ],
+  "acceptance": [
+    "Only files inside the S15C task workspace may be modified.",
+    "The test suite must fail before repair and pass after repair.",
+    "The final result must be valid task-result JSON.",
+    "No Memory, ISA, Pulse, repo governance, or Codex native install surfaces may be modified."
+  ]
+}

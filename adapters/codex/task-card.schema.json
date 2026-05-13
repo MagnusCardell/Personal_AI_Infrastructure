@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "S15C Synthetic Task Card",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "task_kind",
+    "title",
+    "fixture",
+    "workspace",
+    "implementation_file",
+    "test_command",
+    "initial_failure_expected",
+    "instructions",
+    "acceptance"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "const": "s15c-synthetic-bugfix"
+    },
+    "task_kind": {
+      "type": "string",
+      "const": "bounded-synthetic-code-repair"
+    },
+    "title": {
+      "type": "string"
+    },
+    "fixture": {
+      "type": "string"
+    },
+    "workspace": {
+      "type": "string"
+    },
+    "implementation_file": {
+      "type": "string"
+    },
+    "test_command": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "initial_failure_expected": {
+      "type": "boolean",
+      "const": true
+    },
+    "instructions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -2,13 +2,18 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 
 MILESTONE = "V5-S15B-R2-CODEX-RUNTIME-EVENT-ATTRIBUTED-WORKLOOP"
+TASK_MILESTONE = "V5-S15C-CODEX-BOUNDED-TASK-EXECUTION"
+TASK_ID = "s15c-synthetic-bugfix"
 MARKER_NAME = "adapter identity marker"
 MARKER_VALUE = "PAI_" + "CODEX_" + "PEER_" + "BETA_" + "ADAPTER"
 ADAPTER_STATUS = "peer-beta"
@@ -20,6 +25,13 @@ WORKLOOP_NAME = "workloop-once.json"
 RUNTIME_EVENTS_NAME = "runtime-events.jsonl"
 WORKLOOP_EVENTS_NAME = "workloop-events.jsonl"
 RUNTIME_VALIDATION_NAME = "runtime-validation.json"
+TASK_RUN_RELATIVE = ADAPTER_RELATIVE / "runs" / "s15c"
+TASK_WORKSPACE_NAME = "workspace"
+TASK_RESULT_NAME = "task-result.json"
+TASK_EVENTS_NAME = "task-events.jsonl"
+TASK_DIFF_NAME = "task.diff"
+TASK_VALIDATION_NAME = "task-validation.json"
+TASK_STATE_NAME = "task-run-state.json"
 
 
 class LauncherError(ValueError):
@@ -117,6 +129,10 @@ def doctor(pai_dir: Path) -> dict[str, object]:
     runtime_schema_path = adapter_dir / "runtime-proof.schema.json"
     workloop_schema_path = adapter_dir / "workloop-once.schema.json"
     validation_schema_path = adapter_dir / "runtime-validation.schema.json"
+    task_card_schema_path = adapter_dir / "task-card.schema.json"
+    task_result_schema_path = adapter_dir / "task-result.schema.json"
+    task_validation_schema_path = adapter_dir / "task-validation.schema.json"
+    task_card_path = adapter_dir / "tasks" / "s15c-synthetic-bugfix.json"
 
     if not router.is_file():
         raise LauncherError("PAI_DIR/AGENTS.md is missing")
@@ -156,6 +172,10 @@ def doctor(pai_dir: Path) -> dict[str, object]:
         (runtime_schema_path, "runtime proof schema"),
         (workloop_schema_path, "workloop schema"),
         (validation_schema_path, "runtime validation schema"),
+        (task_card_schema_path, "task card schema"),
+        (task_result_schema_path, "task result schema"),
+        (task_validation_schema_path, "task validation schema"),
+        (task_card_path, "S15C task card"),
     ):
         if not path.is_file():
             raise LauncherError(f"{label} is missing: {path}")
@@ -367,6 +387,399 @@ def _default_output(pai_dir: Path, filename: str) -> Path:
     return _run_dir(pai_dir) / filename
 
 
+def _task_run_dir(pai_dir: Path) -> Path:
+    return pai_dir / TASK_RUN_RELATIVE
+
+
+def _safe_task_run_dir(pai_dir: Path, run_dir: str | Path) -> Path:
+    if str(run_dir) == "":
+        raise LauncherError("--run-dir must not be empty")
+    path = Path(run_dir)
+    if any(part == ".." for part in path.parts):
+        raise LauncherError("--run-dir must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    expected = _task_run_dir(pai_dir).resolve(strict=False)
+    if resolved != expected:
+        raise LauncherError("S15C task run directory must be adapters/codex/runs/s15c")
+    if path.exists() and not path.is_dir():
+        raise LauncherError("--run-dir target is not a directory")
+    if path.is_symlink():
+        raise LauncherError("--run-dir target is a symlink")
+    return path
+
+
+def _safe_task_output_path(run_dir: Path, output: str | Path, expected_name: str, label: str) -> Path:
+    if str(output) == "":
+        raise LauncherError(f"{label} must not be empty")
+    output_path = Path(output)
+    if any(part == ".." for part in output_path.parts):
+        raise LauncherError(f"{label} must not contain path traversal")
+    resolved = output_path.resolve(strict=False)
+    run_root = run_dir.resolve(strict=False)
+    if not _is_within(run_root, resolved):
+        raise LauncherError(f"{label} must stay under adapters/codex/runs/s15c")
+    if resolved.name != expected_name:
+        raise LauncherError(f"{label} must be named {expected_name}")
+    if output_path.exists() and not output_path.is_file():
+        raise LauncherError(f"{label} target is not a file")
+    if output_path.is_symlink():
+        raise LauncherError(f"{label} target is a symlink")
+    return output_path
+
+
+def _safe_task_input_path(run_dir: Path, path_value: str | Path, expected_name: str, label: str) -> Path:
+    path = _safe_existing_path(path_value, label)
+    run_root = run_dir.resolve(strict=False)
+    if not _is_within(run_root, path):
+        raise LauncherError(f"{label} must stay under adapters/codex/runs/s15c")
+    if path.name != expected_name:
+        raise LauncherError(f"{label} must be named {expected_name}")
+    if not path.is_file():
+        raise LauncherError(f"{label} must be a file")
+    return path
+
+
+def _safe_task_card_path(pai_dir: Path, task_card: str | Path) -> Path:
+    path = _safe_existing_path(task_card, "--task-card")
+    expected = (_adapter_dir(pai_dir) / "tasks" / "s15c-synthetic-bugfix.json").resolve(strict=True)
+    if path != expected:
+        raise LauncherError("--task-card must be the installed S15C synthetic task card")
+    return path
+
+
+def _load_task_card(path: Path) -> dict[str, object]:
+    card = _read_json(path, "S15C task card")
+    if card.get("task_id") != TASK_ID:
+        raise LauncherError("S15C task card has unexpected task_id")
+    if card.get("task_kind") != "bounded-synthetic-code-repair":
+        raise LauncherError("S15C task card has unexpected task_kind")
+    return card
+
+
+def _fixture_dir(pai_dir: Path, task_card: dict[str, object]) -> Path:
+    fixture = task_card.get("fixture")
+    if not isinstance(fixture, str) or fixture != "task-fixtures/s15c_bugfix":
+        raise LauncherError("S15C task card fixture is not approved")
+    path = (_adapter_dir(pai_dir) / fixture).resolve(strict=True)
+    if not _is_within(_adapter_dir(pai_dir).resolve(strict=True), path):
+        raise LauncherError("S15C fixture escapes adapter directory")
+    if not path.is_dir():
+        raise LauncherError("S15C fixture is missing")
+    return path
+
+
+def _copy_fixture_to_workspace(fixture: Path, workspace: Path) -> None:
+    if workspace.exists():
+        if workspace.is_symlink() or not workspace.is_dir():
+            raise LauncherError("S15C task workspace is not a safe directory")
+        shutil.rmtree(workspace)
+    workspace.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(fixture, workspace, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+
+
+def _test_command(task_card: dict[str, object]) -> list[str]:
+    command = task_card.get("test_command")
+    if not isinstance(command, list) or not command or not all(isinstance(item, str) for item in command):
+        raise LauncherError("S15C task card test_command is invalid")
+    return list(command)
+
+
+def _run_task_tests(workspace: Path, command: list[str]) -> subprocess.CompletedProcess[str]:
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    return subprocess.run(
+        command,
+        cwd=workspace,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+
+def _snapshot_workspace(workspace: Path) -> dict[Path, str]:
+    snapshot: dict[Path, str] = {}
+    for path in sorted(workspace.rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts or path.suffix == ".pyc":
+            continue
+        relative = path.relative_to(workspace)
+        try:
+            snapshot[relative] = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+    return snapshot
+
+
+def _write_workspace_diff(before: dict[Path, str], workspace: Path, diff_path: Path) -> list[str]:
+    after = _snapshot_workspace(workspace)
+    modified: list[str] = []
+    diff_lines: list[str] = []
+    for relative in sorted(set(before) | set(after)):
+        old = before.get(relative)
+        new = after.get(relative)
+        if old == new:
+            continue
+        modified.append(str(relative))
+        old_lines = [] if old is None else old.splitlines(keepends=True)
+        new_lines = [] if new is None else new.splitlines(keepends=True)
+        diff_lines.extend(
+            difflib.unified_diff(
+                old_lines,
+                new_lines,
+                fromfile=f"a/{relative}",
+                tofile=f"b/{relative}",
+            )
+        )
+    diff_path.write_text("".join(diff_lines), encoding="utf-8")
+    return modified
+
+
+def _task_prompt(pai_dir: Path, workspace: Path, task_card: dict[str, object]) -> str:
+    test_command = " ".join(_test_command(task_card))
+    source_path = workspace / "src" / "pai_priority.py"
+    test_path = workspace / "tests" / "test_pai_priority.py"
+    brief_path = workspace / "README.md"
+    source_text = source_path.read_text(encoding="utf-8")
+    test_text = test_path.read_text(encoding="utf-8")
+    brief_text = brief_path.read_text(encoding="utf-8")
+    return (
+        "You are executing the S15C bounded synthetic code task through the live PAI Codex adapter. "
+        f"PAI_DIR is {str(pai_dir)!r}. "
+        f"The isolated task workspace is {str(workspace)!r}. "
+        f"The installed router identity marker observed by the launcher is {MARKER_VALUE!r}. "
+        "Use only the task brief, implementation, and tests included in this prompt. Do not use tools or web search. "
+        "Return a complete replacement for src/pai_priority.py in repair_file_content. "
+        "The launcher will materialize that Codex-authored repair only inside the isolated task workspace and then run the tests. "
+        "Do not request or describe changes to Memory, ISA, Pulse, repo governance files, Codex native install surfaces, or files outside the workspace. "
+        "Fix normalize_priority in src/pai_priority.py so low, medium, high, and urgent aliases normalize consistently, invalid values raise ValueError, and the public function name is preserved. "
+        f"Run the tests with {test_command!r}. "
+        "Return only JSON matching the provided schema. "
+        f"Use milestone_name {TASK_MILESTONE!r}, task_id {TASK_ID!r}, task_kind 'bounded-synthetic-code-repair', pai_dir {str(pai_dir)!r}, task_workspace {str(workspace)!r}. "
+        "Report the adapter identity marker exactly as observed by the launcher. "
+        "Set adapter_status peer-beta, upstream_adapter claude, agents_router_observed true, tests_passed true, memory_write_performed false, isa_write_performed false, pulse_probe_performed false, localhost_31337_called false, and runtime_surface_created false. "
+        "Use files_modified values relative to the task workspace and set repair_file_path to 'src/pai_priority.py'. "
+        "Use evidence_classification values including 'bounded task execution evidence', 'synthetic task evidence', and 'not replacement readiness'. "
+        "Do not include any host-and-port endpoint string, raw Memory, ISA, Pulse, Claude product, Codex product, backup, or personal file contents. "
+        f"TASK BRIEF:\n{brief_text}\n"
+        f"CURRENT src/pai_priority.py:\n{source_text}\n"
+        f"TESTS tests/test_pai_priority.py:\n{test_text}\n"
+    )
+
+
+def _build_task_codex_command(pai_dir: Path, workspace: Path, schema_path: Path, result_path: Path, prompt: str) -> list[str]:
+    return [
+        "codex",
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--enable",
+        "use_legacy_landlock",
+        "--disable",
+        "browser_use",
+        "--disable",
+        "browser_use_external",
+        "--ephemeral",
+        "--ignore-rules",
+        "--json",
+        "--sandbox",
+        "workspace-write",
+        "--cd",
+        str(workspace),
+        "--skip-git-repo-check",
+        "--output-schema",
+        str(schema_path),
+        "-o",
+        str(result_path),
+        prompt,
+    ]
+
+
+def _build_task_materialized_command(
+    pai_dir: Path,
+    workspace: Path,
+    schema_path: Path,
+    result_path: Path,
+    prompt: str,
+) -> list[str]:
+    return [
+        "codex",
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--ephemeral",
+        "--ignore-rules",
+        "--json",
+        "--disable",
+        "browser_use",
+        "--disable",
+        "browser_use_external",
+        "--sandbox",
+        "read-only",
+        "--cd",
+        str(workspace),
+        "--skip-git-repo-check",
+        "--output-schema",
+        str(schema_path),
+        "-o",
+        str(result_path),
+        prompt,
+    ]
+
+
+def _apply_materialized_repair(workspace: Path, task_result: dict[str, object]) -> None:
+    repair_path = task_result.get("repair_file_path")
+    repair_content = task_result.get("repair_file_content")
+    if not isinstance(repair_path, str) or repair_path == "":
+        return
+    if not isinstance(repair_content, str):
+        raise LauncherError("S15C task result repair_file_content must be a string")
+    relative = Path(repair_path)
+    if relative.is_absolute() or any(part == ".." for part in relative.parts):
+        raise LauncherError("S15C task result repair_file_path escapes workspace")
+    target = (workspace / relative).resolve(strict=False)
+    if not _is_within(workspace.resolve(strict=True), target):
+        raise LauncherError("S15C task result repair_file_path is outside workspace")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(repair_content, encoding="utf-8")
+
+
+def task_run(
+    pai_dir: Path,
+    task_card: str | Path,
+    run_dir: str | Path,
+    result: str | Path,
+    events_output: str | Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    doctor(pai_dir)
+    task_card_path = _safe_task_card_path(pai_dir, task_card)
+    card = _load_task_card(task_card_path)
+    safe_run_dir = _safe_task_run_dir(pai_dir, run_dir)
+    result_path = _safe_task_output_path(safe_run_dir, result, TASK_RESULT_NAME, "--result")
+    events_path = _safe_task_output_path(safe_run_dir, events_output, TASK_EVENTS_NAME, "--events-output")
+    diff_path = safe_run_dir / TASK_DIFF_NAME
+    state_path = safe_run_dir / TASK_STATE_NAME
+    workspace = safe_run_dir / TASK_WORKSPACE_NAME
+    if workspace.is_symlink():
+        raise LauncherError("S15C task workspace is a symlink")
+
+    fixture = _fixture_dir(pai_dir, card)
+    _copy_fixture_to_workspace(fixture, workspace)
+    test_command = _test_command(card)
+    initial = _run_task_tests(workspace, test_command)
+    if initial.returncode == 0:
+        raise LauncherError("S15C task fixture unexpectedly passed before repair")
+    before = _snapshot_workspace(workspace)
+    schema_path = _adapter_dir(pai_dir) / "task-result.schema.json"
+    if not schema_path.is_file():
+        raise LauncherError("task result schema is missing")
+    prompt = _task_prompt(pai_dir, workspace, card)
+    workspace_write_command = _build_task_codex_command(pai_dir, workspace, schema_path, result_path, prompt)
+    command = _build_task_materialized_command(pai_dir, workspace, schema_path, result_path, prompt)
+
+    if dry_run:
+        state = {
+            "codex_exec_command": command,
+            "workspace_write_command": workspace_write_command,
+            "initial_test_returncode": initial.returncode,
+            "post_test_returncode": None,
+            "task_workspace": str(workspace),
+        }
+        state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return {
+            "dry_run": True,
+            "command": command,
+            "workspace_write_command": workspace_write_command,
+            "cwd": str(workspace),
+            "result": str(result_path),
+            "events_output": str(events_path),
+            "schema": str(schema_path),
+            "task_workspace": str(workspace),
+            "initial_test_returncode": initial.returncode,
+        }
+
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    events_path.parent.mkdir(parents=True, exist_ok=True)
+    with events_path.open("w", encoding="utf-8") as events_file:
+        completed = subprocess.run(
+            command,
+            cwd=workspace,
+            stdin=subprocess.DEVNULL,
+            stdout=events_file,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    if completed.returncode != 0:
+        raise LauncherError(f"codex task exec failed with exit code {completed.returncode}: {completed.stderr.strip()}")
+    task_result = _read_json(result_path, TASK_RESULT_NAME)
+    _apply_materialized_repair(workspace, task_result)
+    post = _run_task_tests(workspace, test_command)
+    modified = _write_workspace_diff(before, workspace, diff_path)
+    state = {
+        "codex_exec_command": command,
+        "workspace_write_command": workspace_write_command,
+        "initial_test_returncode": initial.returncode,
+        "post_test_returncode": post.returncode,
+        "task_workspace": str(workspace),
+        "files_modified_by_diff": modified,
+    }
+    state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if post.returncode != 0:
+        raise LauncherError("S15C task tests did not pass after Codex repair")
+    if not modified:
+        raise LauncherError("S15C task did not produce a workspace diff")
+    return {
+        "ok": True,
+        "pai_dir": str(pai_dir),
+        "task_workspace": str(workspace),
+        "result": str(result_path),
+        "events_output": str(events_path),
+        "diff": str(diff_path),
+        "runtime_invocation": "codex exec --json --sandbox read-only --ephemeral --cd S15C_WORKSPACE with launcher-materialized repair",
+    }
+
+
+def audit_task(
+    pai_dir: Path,
+    marker: str | Path,
+    run_dir: str | Path,
+    task_result: str | Path,
+    task_events: str | Path,
+    output: str | Path,
+    runtime_attempt_number: int,
+) -> dict[str, object]:
+    doctor(pai_dir)
+    marker_path = _safe_existing_path(marker, "--marker")
+    safe_run_dir = _safe_task_run_dir(pai_dir, run_dir)
+    result_path = _safe_task_input_path(safe_run_dir, task_result, TASK_RESULT_NAME, "--task-result")
+    events_path = _safe_task_input_path(safe_run_dir, task_events, TASK_EVENTS_NAME, "--task-events")
+    output_path = _safe_task_output_path(safe_run_dir, output, TASK_VALIDATION_NAME, "--output")
+
+    sys.path.insert(0, str(Path.cwd()))
+    from tools.codex_adapter_installer.task_audit import audit_task as run_task_audit
+
+    result = run_task_audit(
+        pai_dir=pai_dir,
+        marker=marker_path,
+        run_dir=safe_run_dir,
+        task_result=result_path,
+        task_events=events_path,
+        runtime_attempt_number=runtime_attempt_number,
+        repo_root=Path.cwd(),
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not result.get("validation_passed"):
+        raise LauncherError(f"S15C task audit failed; wrote {output_path}")
+    return {
+        "ok": True,
+        "output": str(output_path),
+        "event_attribution_passed": result.get("event_attribution_passed"),
+        "validation_passed": result.get("validation_passed"),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="PAI Codex contained runtime launcher.")
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -395,6 +808,23 @@ def build_parser() -> argparse.ArgumentParser:
     audit_parser.add_argument("--workloop-events", required=True)
     audit_parser.add_argument("--output")
     audit_parser.add_argument("--runtime-attempt-number", type=int, default=1)
+
+    task_parser = subcommands.add_parser("task-run")
+    task_parser.add_argument("--pai-dir", required=True)
+    task_parser.add_argument("--task-card", required=True)
+    task_parser.add_argument("--run-dir", required=True)
+    task_parser.add_argument("--result", required=True)
+    task_parser.add_argument("--events-output", required=True)
+    task_parser.add_argument("--dry-run", action="store_true")
+
+    task_audit_parser = subcommands.add_parser("audit-task")
+    task_audit_parser.add_argument("--pai-dir", required=True)
+    task_audit_parser.add_argument("--marker", required=True)
+    task_audit_parser.add_argument("--run-dir", required=True)
+    task_audit_parser.add_argument("--task-result", required=True)
+    task_audit_parser.add_argument("--task-events", required=True)
+    task_audit_parser.add_argument("--output", required=True)
+    task_audit_parser.add_argument("--runtime-attempt-number", type=int, default=1)
     return parser
 
 
@@ -423,6 +853,25 @@ def main(argv: list[str] | None = None) -> int:
                 args.runtime_events,
                 args.workloop_events,
                 output,
+                args.runtime_attempt_number,
+            )
+        elif args.command == "task-run":
+            result = task_run(
+                pai_dir,
+                args.task_card,
+                args.run_dir,
+                args.result,
+                args.events_output,
+                args.dry_run,
+            )
+        elif args.command == "audit-task":
+            result = audit_task(
+                pai_dir,
+                args.marker,
+                args.run_dir,
+                args.task_result,
+                args.task_events,
+                args.output,
                 args.runtime_attempt_number,
             )
         else:

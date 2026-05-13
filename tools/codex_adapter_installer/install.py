@@ -8,6 +8,7 @@ runtime state, and it does not invoke external runtimes or network services.
 from __future__ import annotations
 
 import json
+import shutil
 import stat
 from pathlib import Path
 from typing import Iterable
@@ -17,7 +18,7 @@ class InstallerError(ValueError):
     """Raised when installer input, safety validation, or payload validation fails."""
 
 
-MILESTONE = "V5-S15B-R2-CODEX-RUNTIME-EVENT-ATTRIBUTED-WORKLOOP"
+MILESTONE = "V5-S15C-CODEX-BOUNDED-TASK-EXECUTION"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STAGED_ADAPTER_DIR = REPO_ROOT / "adapters" / "codex"
 
@@ -29,12 +30,25 @@ LAUNCHER_RELATIVE = ADAPTER_DIR_RELATIVE / "bin" / "pai-codex"
 RUNTIME_PROOF_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "runtime-proof.schema.json"
 WORKLOOP_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "workloop-once.schema.json"
 RUNTIME_VALIDATION_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "runtime-validation.schema.json"
+TASK_CARD_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "task-card.schema.json"
+TASK_RESULT_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "task-result.schema.json"
+TASK_VALIDATION_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "task-validation.schema.json"
+TASK_CARD_RELATIVE = ADAPTER_DIR_RELATIVE / "tasks" / "s15c-synthetic-bugfix.json"
+TASK_FIXTURE_README_RELATIVE = ADAPTER_DIR_RELATIVE / "task-fixtures" / "s15c_bugfix" / "README.md"
+TASK_FIXTURE_IMPL_RELATIVE = ADAPTER_DIR_RELATIVE / "task-fixtures" / "s15c_bugfix" / "src" / "pai_priority.py"
+TASK_FIXTURE_TEST_RELATIVE = ADAPTER_DIR_RELATIVE / "task-fixtures" / "s15c_bugfix" / "tests" / "test_pai_priority.py"
 RUN_DIR_RELATIVE = ADAPTER_DIR_RELATIVE / "runs" / "s15b-r2"
 RUNTIME_PROOF_RELATIVE = RUN_DIR_RELATIVE / "runtime-proof.json"
 WORKLOOP_ONCE_RELATIVE = RUN_DIR_RELATIVE / "workloop-once.json"
 RUNTIME_EVENTS_RELATIVE = RUN_DIR_RELATIVE / "runtime-events.jsonl"
 WORKLOOP_EVENTS_RELATIVE = RUN_DIR_RELATIVE / "workloop-events.jsonl"
 RUNTIME_VALIDATION_RELATIVE = RUN_DIR_RELATIVE / "runtime-validation.json"
+TASK_RUN_DIR_RELATIVE = ADAPTER_DIR_RELATIVE / "runs" / "s15c"
+TASK_RESULT_RELATIVE = TASK_RUN_DIR_RELATIVE / "task-result.json"
+TASK_EVENTS_RELATIVE = TASK_RUN_DIR_RELATIVE / "task-events.jsonl"
+TASK_DIFF_RELATIVE = TASK_RUN_DIR_RELATIVE / "task.diff"
+TASK_VALIDATION_RELATIVE = TASK_RUN_DIR_RELATIVE / "task-validation.json"
+TASK_STATE_RELATIVE = TASK_RUN_DIR_RELATIVE / "task-run-state.json"
 
 STAGED_TEXT_COPY_TARGETS = {
     "AGENTS.md": ADAPTER_DIR_RELATIVE / "AGENTS.md",
@@ -43,6 +57,13 @@ STAGED_TEXT_COPY_TARGETS = {
     "runtime-proof.schema.json": RUNTIME_PROOF_SCHEMA_RELATIVE,
     "workloop-once.schema.json": WORKLOOP_SCHEMA_RELATIVE,
     "runtime-validation.schema.json": RUNTIME_VALIDATION_SCHEMA_RELATIVE,
+    "task-card.schema.json": TASK_CARD_SCHEMA_RELATIVE,
+    "task-result.schema.json": TASK_RESULT_SCHEMA_RELATIVE,
+    "task-validation.schema.json": TASK_VALIDATION_SCHEMA_RELATIVE,
+    "tasks/s15c-synthetic-bugfix.json": TASK_CARD_RELATIVE,
+    "task-fixtures/s15c_bugfix/README.md": TASK_FIXTURE_README_RELATIVE,
+    "task-fixtures/s15c_bugfix/src/pai_priority.py": TASK_FIXTURE_IMPL_RELATIVE,
+    "task-fixtures/s15c_bugfix/tests/test_pai_priority.py": TASK_FIXTURE_TEST_RELATIVE,
 }
 
 STAGED_EXECUTABLE_COPY_TARGETS = {
@@ -59,6 +80,13 @@ INSTALL_REQUIRED_RELATIVES = (
     RUNTIME_PROOF_SCHEMA_RELATIVE,
     WORKLOOP_SCHEMA_RELATIVE,
     RUNTIME_VALIDATION_SCHEMA_RELATIVE,
+    TASK_CARD_SCHEMA_RELATIVE,
+    TASK_RESULT_SCHEMA_RELATIVE,
+    TASK_VALIDATION_SCHEMA_RELATIVE,
+    TASK_CARD_RELATIVE,
+    TASK_FIXTURE_README_RELATIVE,
+    TASK_FIXTURE_IMPL_RELATIVE,
+    TASK_FIXTURE_TEST_RELATIVE,
     RUNTIME_STATE_RELATIVE,
 )
 
@@ -68,6 +96,11 @@ APPROVED_LIVE_RELATIVES = INSTALL_REQUIRED_RELATIVES + (
     RUNTIME_EVENTS_RELATIVE,
     WORKLOOP_EVENTS_RELATIVE,
     RUNTIME_VALIDATION_RELATIVE,
+    TASK_RESULT_RELATIVE,
+    TASK_EVENTS_RELATIVE,
+    TASK_DIFF_RELATIVE,
+    TASK_VALIDATION_RELATIVE,
+    TASK_STATE_RELATIVE,
 )
 
 REQUIRED_ROUTER_CONCEPTS = (
@@ -110,6 +143,7 @@ REQUIRED_MANIFEST_KEYS = (
     "runtime_surface_policy",
     "rollback_policy",
     "runtime_launcher_policy",
+    "task_execution_policy",
 )
 
 FORBIDDEN_ROUTER_MARKERS = (
@@ -191,6 +225,72 @@ RUNTIME_VALIDATION_SCHEMA_REQUIRED_FIELDS = (
     "codex_file_change_events",
     "codex_command_execution_events",
     "codex_runtime_probe_events",
+    "approved_adapter_writes",
+    "ambient_pai_state_churn",
+    "forbidden_semantic_writes",
+    "unknown_unclassified_writes",
+    "memory_write_performed_by_codex",
+    "isa_write_performed_by_codex",
+    "pulse_probe_performed_by_codex",
+    "localhost_31337_called_by_codex",
+    "repo_root_agents_created",
+    "repo_dotcodex_created",
+    "codex_adapter_files_installed_under_home_codex",
+    "validation_passed",
+    "known_limits",
+)
+
+TASK_CARD_SCHEMA_REQUIRED_FIELDS = (
+    "task_id",
+    "task_kind",
+    "title",
+    "fixture",
+    "workspace",
+    "implementation_file",
+    "test_command",
+    "initial_failure_expected",
+    "instructions",
+    "acceptance",
+)
+
+TASK_RESULT_SCHEMA_REQUIRED_FIELDS = (
+    "milestone_name",
+    "task_id",
+    "task_kind",
+    "pai_dir",
+    "adapter_identity_marker",
+    "adapter_status",
+    "upstream_adapter",
+    "agents_router_observed",
+    "task_workspace",
+    "files_modified",
+    "tests_run",
+    "tests_passed",
+    "memory_write_performed",
+    "isa_write_performed",
+    "pulse_probe_performed",
+    "localhost_31337_called",
+    "runtime_surface_created",
+    "result_summary",
+    "evidence_classification",
+    "known_limits",
+)
+
+TASK_VALIDATION_SCHEMA_REQUIRED_FIELDS = (
+    "milestone_name",
+    "task_id",
+    "runtime_attempt_number",
+    "codex_exec_command",
+    "task_workspace",
+    "task_initially_failed",
+    "task_tests_passed_after_repair",
+    "diff_present",
+    "diff_limited_to_task_workspace",
+    "event_logs_present",
+    "event_attribution_passed",
+    "codex_file_change_events",
+    "codex_command_execution_events",
+    "approved_task_workspace_writes",
     "approved_adapter_writes",
     "ambient_pai_state_churn",
     "forbidden_semantic_writes",
@@ -338,8 +438,18 @@ def validate_manifest(manifest: dict[str, object]) -> None:
         raise InstallerError("runtime_launcher_policy must be an object")
     if launcher_policy.get("launcher_target") != "~/.claude/PAI/adapters/codex/bin/pai-codex":
         raise InstallerError("runtime_launcher_policy must target the approved adapter launcher")
-    if launcher_policy.get("run_directory") != "~/.claude/PAI/adapters/codex/runs/s15b-r2/":
-        raise InstallerError("runtime_launcher_policy must target the approved S15B-R2 run directory")
+    if launcher_policy.get("run_directory") != "~/.claude/PAI/adapters/codex/runs/s15c/":
+        raise InstallerError("runtime_launcher_policy must target the approved S15C run directory")
+    if launcher_policy.get("task_workspace") != "~/.claude/PAI/adapters/codex/runs/s15c/workspace/":
+        raise InstallerError("runtime_launcher_policy must target the approved S15C task workspace")
+
+    task_policy = manifest.get("task_execution_policy")
+    if not isinstance(task_policy, dict):
+        raise InstallerError("task_execution_policy must be an object")
+    if task_policy.get("task_id") != "s15c-synthetic-bugfix":
+        raise InstallerError("task_execution_policy must identify the S15C synthetic task")
+    if task_policy.get("workspace_write_scope") != "~/.claude/PAI/adapters/codex/runs/s15c/workspace/":
+        raise InstallerError("task_execution_policy must keep workspace-write scoped to the S15C workspace")
 
     runtime_policy = manifest.get("runtime_surface_policy")
     if not isinstance(runtime_policy, dict):
@@ -362,10 +472,14 @@ def validate_launcher_text(text: str) -> None:
             "exec-proof",
             "workloop-once",
             "audit-run",
+            "task-run",
+            "audit-task",
             "codex",
             "exec",
             "--json",
             "read-only",
+            "workspace-write",
+            "--output-schema",
         )
         if token not in text
     ]
@@ -381,6 +495,15 @@ def validate_staged_payload() -> None:
     _load_staged_schema("runtime-proof.schema.json", RUNTIME_SCHEMA_REQUIRED_FIELDS)
     _load_staged_schema("workloop-once.schema.json", WORKLOOP_SCHEMA_REQUIRED_FIELDS)
     _load_staged_schema("runtime-validation.schema.json", RUNTIME_VALIDATION_SCHEMA_REQUIRED_FIELDS)
+    _load_staged_schema("task-card.schema.json", TASK_CARD_SCHEMA_REQUIRED_FIELDS)
+    _load_staged_schema("task-result.schema.json", TASK_RESULT_SCHEMA_REQUIRED_FIELDS)
+    _load_staged_schema("task-validation.schema.json", TASK_VALIDATION_SCHEMA_REQUIRED_FIELDS)
+    task_card = json.loads(_read_staged_text("tasks/s15c-synthetic-bugfix.json"))
+    if task_card.get("task_id") != "s15c-synthetic-bugfix":
+        raise InstallerError("S15C task card must have task_id=s15c-synthetic-bugfix")
+    _read_staged_text("task-fixtures/s15c_bugfix/README.md")
+    _read_staged_text("task-fixtures/s15c_bugfix/src/pai_priority.py")
+    _read_staged_text("task-fixtures/s15c_bugfix/tests/test_pai_priority.py")
 
 
 def _install_state_json() -> str:
@@ -403,8 +526,9 @@ def _runtime_state_json() -> str:
         "adapter_status": "peer-beta",
         "launcher": "~/.claude/PAI/adapters/codex/bin/pai-codex",
         "milestone": MILESTONE,
-        "runtime_mode": "contained-read-only-event-attributed",
-        "run_directory": "~/.claude/PAI/adapters/codex/runs/s15b-r2/",
+        "runtime_mode": "bounded-task-execution-event-attributed",
+        "run_directory": "~/.claude/PAI/adapters/codex/runs/s15c/",
+        "task_workspace": "~/.claude/PAI/adapters/codex/runs/s15c/workspace/",
         "upstream_adapter": "claude",
     }
     return json.dumps(state, indent=2, sort_keys=True) + "\n"
@@ -512,6 +636,33 @@ def validate_install(
         RUNTIME_VALIDATION_SCHEMA_RELATIVE,
         _read_staged_text("runtime-validation.schema.json"),
     )
+    _validate_live_text_matches(resolved_pai_dir, TASK_CARD_SCHEMA_RELATIVE, _read_staged_text("task-card.schema.json"))
+    _validate_live_text_matches(resolved_pai_dir, TASK_RESULT_SCHEMA_RELATIVE, _read_staged_text("task-result.schema.json"))
+    _validate_live_text_matches(
+        resolved_pai_dir,
+        TASK_VALIDATION_SCHEMA_RELATIVE,
+        _read_staged_text("task-validation.schema.json"),
+    )
+    _validate_live_text_matches(
+        resolved_pai_dir,
+        TASK_CARD_RELATIVE,
+        _read_staged_text("tasks/s15c-synthetic-bugfix.json"),
+    )
+    _validate_live_text_matches(
+        resolved_pai_dir,
+        TASK_FIXTURE_README_RELATIVE,
+        _read_staged_text("task-fixtures/s15c_bugfix/README.md"),
+    )
+    _validate_live_text_matches(
+        resolved_pai_dir,
+        TASK_FIXTURE_IMPL_RELATIVE,
+        _read_staged_text("task-fixtures/s15c_bugfix/src/pai_priority.py"),
+    )
+    _validate_live_text_matches(
+        resolved_pai_dir,
+        TASK_FIXTURE_TEST_RELATIVE,
+        _read_staged_text("task-fixtures/s15c_bugfix/tests/test_pai_priority.py"),
+    )
 
     launcher_target = _safe_live_path(resolved_pai_dir, LAUNCHER_RELATIVE)
     _validate_live_text_matches(resolved_pai_dir, LAUNCHER_RELATIVE, _read_staged_text("bin/pai-codex"))
@@ -535,8 +686,8 @@ def validate_install(
 
     runtime_state_target = _safe_live_path(resolved_pai_dir, RUNTIME_STATE_RELATIVE)
     runtime_state = _validate_live_json(runtime_state_target, "runtime-state.json")
-    if runtime_state.get("runtime_mode") != "contained-read-only-event-attributed":
-        raise InstallerError("runtime-state.json does not record contained-read-only-event-attributed mode")
+    if runtime_state.get("runtime_mode") != "bounded-task-execution-event-attributed":
+        raise InstallerError("runtime-state.json does not record bounded-task-execution-event-attributed mode")
     if runtime_state.get("adapter_status") != "peer-beta":
         raise InstallerError("runtime-state.json does not preserve adapter_status=peer-beta")
     if runtime_state.get("upstream_adapter") != "claude":
@@ -590,6 +741,26 @@ def _remove_empty_dirs(paths: Iterable[Path]) -> None:
             continue
 
 
+def _rollback_s15c_run_dir(pai_dir: Path, backup_pai: Path) -> list[Path]:
+    live_run_dir = _safe_live_path(pai_dir, TASK_RUN_DIR_RELATIVE)
+    backup_run_dir = backup_pai / TASK_RUN_DIR_RELATIVE
+    changed: list[Path] = []
+
+    if live_run_dir.exists():
+        if live_run_dir.is_symlink() or not live_run_dir.is_dir():
+            raise InstallerError(f"S15C run directory rollback target is not a safe directory: {live_run_dir}")
+        shutil.rmtree(live_run_dir)
+        changed.append(live_run_dir)
+
+    if backup_run_dir.exists():
+        if backup_run_dir.is_symlink() or not backup_run_dir.is_dir():
+            raise InstallerError(f"S15C backup run directory is not a safe directory: {backup_run_dir}")
+        shutil.copytree(backup_run_dir, live_run_dir, symlinks=True)
+        changed.append(live_run_dir)
+
+    return changed
+
+
 def rollback_install(pai_dir: str | Path | None, backup_root: str | Path | None) -> dict[str, object]:
     resolved_pai_dir = _resolve_pai_dir(pai_dir)
     resolved_backup_root = _resolve_backup_root(backup_root)
@@ -597,13 +768,17 @@ def rollback_install(pai_dir: str | Path | None, backup_root: str | Path | None)
     backup_pai = _backup_pai_dir(resolved_backup_root)
 
     changed: list[Path] = []
+    changed.extend(_rollback_s15c_run_dir(resolved_pai_dir, backup_pai))
     for relative_path in APPROVED_LIVE_RELATIVES:
+        if relative_path == TASK_RUN_DIR_RELATIVE or _is_within(TASK_RUN_DIR_RELATIVE, relative_path):
+            continue
         if _restore_or_remove_file(resolved_pai_dir, backup_pai, relative_path):
             changed.append(resolved_pai_dir / relative_path)
 
     _remove_empty_dirs(
         (
             resolved_pai_dir / RUN_DIR_RELATIVE,
+            resolved_pai_dir / TASK_RUN_DIR_RELATIVE,
             resolved_pai_dir / ADAPTER_DIR_RELATIVE / "runs",
             resolved_pai_dir / ADAPTER_DIR_RELATIVE / "bin",
             resolved_pai_dir / ADAPTER_DIR_RELATIVE,
