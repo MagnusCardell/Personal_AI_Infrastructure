@@ -32,6 +32,15 @@ TASK_EVENTS_NAME = "task-events.jsonl"
 TASK_DIFF_NAME = "task.diff"
 TASK_VALIDATION_NAME = "task-validation.json"
 TASK_STATE_NAME = "task-run-state.json"
+PROVIDER_MILESTONE = "V5-S15D-PAI-RUNTIME-RUNNER-CODEX"
+PROVIDER_RUN_ID = "s15d-codex-synthetic-bugfix"
+PROVIDER_RUN_RELATIVE = Path("runs") / "s15d" / "codex-synthetic-bugfix"
+PROVIDER_TASK_CARD_RELATIVE = Path("runtime-tasks") / "s15d-codex-synthetic-bugfix.json"
+PROVIDER_FIXTURE_RELATIVE = Path("runtime-task-fixtures") / "s15d_bugfix"
+PROVIDER_RESULT_NAME = "run-result.json"
+PROVIDER_EVENTS_NAME = "runtime-events.jsonl"
+PROVIDER_DIFF_NAME = "task.diff"
+PROVIDER_STATE_NAME = "run-state.json"
 
 
 class LauncherError(ValueError):
@@ -740,6 +749,232 @@ def task_run(
     }
 
 
+def _provider_doctor(pai_dir: Path) -> dict[str, object]:
+    router = pai_dir / "AGENTS.md"
+    if not router.is_file():
+        raise LauncherError("PAI_DIR/AGENTS.md is missing")
+    router_text = router.read_text(encoding="utf-8")
+    if MARKER_VALUE not in router_text:
+        raise LauncherError(f"PAI_DIR/AGENTS.md is missing {MARKER_NAME}")
+    for path, label in (
+        (pai_dir / "runtime-schemas" / "run-result.schema.json", "PAI run result schema"),
+        (pai_dir / PROVIDER_TASK_CARD_RELATIVE, "S15D task card"),
+        (pai_dir / PROVIDER_FIXTURE_RELATIVE / "src" / "pai_priority.py", "S15D task fixture"),
+    ):
+        if not path.is_file():
+            raise LauncherError(f"{label} is missing: {path}")
+    return {
+        "ok": True,
+        "pai_dir": str(pai_dir),
+        "runtime": "codex",
+        "adapter_identity_marker_observed": True,
+    }
+
+
+def _provider_run_dir(pai_dir: Path) -> Path:
+    return pai_dir / PROVIDER_RUN_RELATIVE
+
+
+def _safe_provider_run_dir(pai_dir: Path, run_dir: str | Path) -> Path:
+    if str(run_dir) == "":
+        raise LauncherError("--run-dir must not be empty")
+    path = Path(run_dir)
+    if any(part == ".." for part in path.parts):
+        raise LauncherError("--run-dir must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    expected = _provider_run_dir(pai_dir).resolve(strict=False)
+    if resolved != expected:
+        raise LauncherError("PAI provider run directory must be runs/s15d/codex-synthetic-bugfix")
+    if path.exists() and not path.is_dir():
+        raise LauncherError("--run-dir target is not a directory")
+    if path.is_symlink():
+        raise LauncherError("--run-dir target is a symlink")
+    return path
+
+
+def _safe_provider_output_path(run_dir: Path, output: str | Path, expected_name: str, label: str) -> Path:
+    if str(output) == "":
+        raise LauncherError(f"{label} must not be empty")
+    output_path = Path(output)
+    if any(part == ".." for part in output_path.parts):
+        raise LauncherError(f"{label} must not contain path traversal")
+    resolved = output_path.resolve(strict=False)
+    run_root = run_dir.resolve(strict=False)
+    if not _is_within(run_root, resolved):
+        raise LauncherError(f"{label} must stay under runs/s15d/codex-synthetic-bugfix")
+    if resolved.name != expected_name:
+        raise LauncherError(f"{label} must be named {expected_name}")
+    if output_path.exists() and not output_path.is_file():
+        raise LauncherError(f"{label} target is not a file")
+    if output_path.is_symlink():
+        raise LauncherError(f"{label} target is a symlink")
+    return output_path
+
+
+def _safe_provider_task_card_path(pai_dir: Path, task_card: str | Path) -> Path:
+    path = _safe_existing_path(task_card, "--task-card")
+    expected = (pai_dir / PROVIDER_TASK_CARD_RELATIVE).resolve(strict=True)
+    if path != expected:
+        raise LauncherError("--task-card must be the installed S15D synthetic task card")
+    return path
+
+
+def _load_provider_task_card(path: Path) -> dict[str, object]:
+    card = _read_json(path, "S15D task card")
+    if card.get("task_id") != PROVIDER_RUN_ID:
+        raise LauncherError("S15D task card has unexpected task_id")
+    if card.get("task_kind") != "bounded-synthetic-code-repair":
+        raise LauncherError("S15D task card has unexpected task_kind")
+    if card.get("runtime") != "codex":
+        raise LauncherError("S15D task card runtime must be codex")
+    return card
+
+
+def _provider_fixture_dir(pai_dir: Path, task_card: dict[str, object]) -> Path:
+    fixture = task_card.get("fixture")
+    if not isinstance(fixture, str) or fixture != str(PROVIDER_FIXTURE_RELATIVE):
+        raise LauncherError("S15D task card fixture is not approved")
+    path = (pai_dir / fixture).resolve(strict=True)
+    if not _is_within(pai_dir.resolve(strict=True), path):
+        raise LauncherError("S15D fixture escapes PAI_DIR")
+    if not path.is_dir():
+        raise LauncherError("S15D fixture is missing")
+    return path
+
+
+def _provider_task_prompt(pai_dir: Path, workspace: Path, task_card: dict[str, object]) -> str:
+    test_command = " ".join(_test_command(task_card))
+    source_path = workspace / "src" / "pai_priority.py"
+    test_path = workspace / "tests" / "test_pai_priority.py"
+    brief_path = workspace / "README.md"
+    source_text = source_path.read_text(encoding="utf-8")
+    test_text = test_path.read_text(encoding="utf-8")
+    brief_text = brief_path.read_text(encoding="utf-8")
+    return (
+        "You are Codex running as runtime provider codex under the PAI-owned runtime runner. "
+        "PAI owns the run, the task card, the run directory, validation, and Memory/ISA/Pulse policy. "
+        f"PAI_DIR is {str(pai_dir)!r}. "
+        f"The PAI-owned isolated task workspace is {str(workspace)!r}. "
+        f"The installed router identity marker observed by the provider launcher is {MARKER_VALUE!r}. "
+        "Use only the task brief, implementation, and tests included in this prompt. Do not use tools or web search. "
+        "Return a complete replacement for src/pai_priority.py in repair_file_content. "
+        "The PAI runtime provider driver will materialize that Codex-authored repair only inside the PAI-owned task workspace and then run the tests. "
+        "Do not request or describe changes to Memory, ISA, Pulse, repo governance files, Codex native install surfaces, adapter install surfaces, or files outside the workspace. "
+        "Fix normalize_priority in src/pai_priority.py so low, medium, high, and urgent aliases normalize consistently, invalid values raise ValueError, and the public function name is preserved. "
+        f"Run the tests with {test_command!r}. "
+        "Return only JSON matching the provided schema. "
+        f"Use milestone_name {PROVIDER_MILESTONE!r}, run_id {PROVIDER_RUN_ID!r}, runtime 'codex', runtime_status 'peer-beta', provider_type 'codex-cli', pai_dir {str(pai_dir)!r}. "
+        f"Use task_id {PROVIDER_RUN_ID!r}, task_kind 'bounded-synthetic-code-repair', task_workspace {str(workspace)!r}, and pai_owned_run_directory true. "
+        "Report the adapter identity marker exactly as observed by the provider launcher. "
+        "Set adapter_status peer-beta, upstream_adapter claude, agents_router_observed true, tests_passed true, memory_write_performed false, isa_write_performed false, pulse_probe_performed false, localhost_31337_called false, and runtime_surface_created false. "
+        "Use files_modified values relative to the task workspace and set repair_file_path to 'src/pai_priority.py'. "
+        "Use evidence_classification values including 'PAI-owned runtime task evidence', 'bounded synthetic task evidence', and 'not replacement readiness'. "
+        "Do not include any host-and-port endpoint string, raw Memory, ISA, Pulse, Claude product, Codex product, backup, or personal file contents. "
+        f"TASK BRIEF:\n{brief_text}\n"
+        f"CURRENT src/pai_priority.py:\n{source_text}\n"
+        f"TESTS tests/test_pai_priority.py:\n{test_text}\n"
+    )
+
+
+def provider_run(
+    pai_dir: Path,
+    task_card: str | Path,
+    run_dir: str | Path,
+    result: str | Path,
+    events_output: str | Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    _provider_doctor(pai_dir)
+    task_card_path = _safe_provider_task_card_path(pai_dir, task_card)
+    card = _load_provider_task_card(task_card_path)
+    safe_run_dir = _safe_provider_run_dir(pai_dir, run_dir)
+    result_path = _safe_provider_output_path(safe_run_dir, result, PROVIDER_RESULT_NAME, "--result")
+    events_path = _safe_provider_output_path(safe_run_dir, events_output, PROVIDER_EVENTS_NAME, "--events-output")
+    diff_path = safe_run_dir / PROVIDER_DIFF_NAME
+    state_path = safe_run_dir / PROVIDER_STATE_NAME
+    workspace = safe_run_dir / TASK_WORKSPACE_NAME
+    if workspace.is_symlink():
+        raise LauncherError("S15D task workspace is a symlink")
+
+    fixture = _provider_fixture_dir(pai_dir, card)
+    _copy_fixture_to_workspace(fixture, workspace)
+    test_command = _test_command(card)
+    initial = _run_task_tests(workspace, test_command)
+    if initial.returncode == 0:
+        raise LauncherError("S15D task fixture unexpectedly passed before repair")
+    before = _snapshot_workspace(workspace)
+    schema_path = pai_dir / "runtime-schemas" / "run-result.schema.json"
+    if not schema_path.is_file():
+        raise LauncherError("PAI run result schema is missing")
+    prompt = _provider_task_prompt(pai_dir, workspace, card)
+    workspace_write_command = _build_task_codex_command(pai_dir, workspace, schema_path, result_path, prompt)
+    command = _build_task_materialized_command(pai_dir, workspace, schema_path, result_path, prompt)
+
+    if dry_run:
+        state = {
+            "codex_exec_command": command,
+            "workspace_write_command": workspace_write_command,
+            "initial_test_returncode": initial.returncode,
+            "post_test_returncode": None,
+            "task_workspace": str(workspace),
+        }
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return {
+            "dry_run": True,
+            "command": command,
+            "workspace_write_command": workspace_write_command,
+            "cwd": str(workspace),
+            "result": str(result_path),
+            "events_output": str(events_path),
+            "schema": str(schema_path),
+            "task_workspace": str(workspace),
+            "initial_test_returncode": initial.returncode,
+        }
+
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    events_path.parent.mkdir(parents=True, exist_ok=True)
+    with events_path.open("w", encoding="utf-8") as events_file:
+        completed = subprocess.run(
+            command,
+            cwd=workspace,
+            stdin=subprocess.DEVNULL,
+            stdout=events_file,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    if completed.returncode != 0:
+        raise LauncherError(f"codex provider exec failed with exit code {completed.returncode}: {completed.stderr.strip()}")
+    run_result = _read_json(result_path, PROVIDER_RESULT_NAME)
+    _apply_materialized_repair(workspace, run_result)
+    post = _run_task_tests(workspace, test_command)
+    modified = _write_workspace_diff(before, workspace, diff_path)
+    state = {
+        "codex_exec_command": command,
+        "workspace_write_command": workspace_write_command,
+        "initial_test_returncode": initial.returncode,
+        "post_test_returncode": post.returncode,
+        "task_workspace": str(workspace),
+        "files_modified_by_diff": modified,
+    }
+    state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if post.returncode != 0:
+        raise LauncherError("S15D task tests did not pass after Codex repair")
+    if not modified:
+        raise LauncherError("S15D task did not produce a workspace diff")
+    return {
+        "ok": True,
+        "pai_dir": str(pai_dir),
+        "run_id": PROVIDER_RUN_ID,
+        "runtime": "codex",
+        "task_workspace": str(workspace),
+        "result": str(result_path),
+        "events_output": str(events_path),
+        "diff": str(diff_path),
+        "runtime_invocation": "codex exec --json --sandbox read-only --ephemeral --cd PAI_OWNED_WORKSPACE with provider-materialized repair",
+    }
+
+
 def audit_task(
     pai_dir: Path,
     marker: str | Path,
@@ -817,6 +1052,14 @@ def build_parser() -> argparse.ArgumentParser:
     task_parser.add_argument("--events-output", required=True)
     task_parser.add_argument("--dry-run", action="store_true")
 
+    provider_parser = subcommands.add_parser("provider-run")
+    provider_parser.add_argument("--pai-dir", required=True)
+    provider_parser.add_argument("--task-card", required=True)
+    provider_parser.add_argument("--run-dir", required=True)
+    provider_parser.add_argument("--result", required=True)
+    provider_parser.add_argument("--events-output", required=True)
+    provider_parser.add_argument("--dry-run", action="store_true")
+
     task_audit_parser = subcommands.add_parser("audit-task")
     task_audit_parser.add_argument("--pai-dir", required=True)
     task_audit_parser.add_argument("--marker", required=True)
@@ -857,6 +1100,15 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "task-run":
             result = task_run(
+                pai_dir,
+                args.task_card,
+                args.run_dir,
+                args.result,
+                args.events_output,
+                args.dry_run,
+            )
+        elif args.command == "provider-run":
+            result = provider_run(
                 pai_dir,
                 args.task_card,
                 args.run_dir,

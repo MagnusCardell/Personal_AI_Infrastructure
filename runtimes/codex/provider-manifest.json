@@ -1,0 +1,15 @@
+{
+  "driver_path": "~/.claude/PAI/adapters/codex/bin/pai-codex",
+  "instruction_surface": "AGENTS.md plus PAI_SYSTEM_PROMPT.md policy",
+  "isa_write_policy": "disabled",
+  "memory_write_policy": "disabled",
+  "provider_type": "codex-cli",
+  "pulse_policy": "no-probe",
+  "replacement_status": "not-replacement-grade",
+  "runtime_name": "codex",
+  "runtime_status": "peer-beta",
+  "supports_codex_exec": true,
+  "supports_jsonl_events": true,
+  "supports_structured_output": true,
+  "upstream_adapter": "claude"
+}

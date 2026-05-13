@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI Runtime Provider Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "runtime_name",
+    "runtime_status",
+    "provider_type",
+    "upstream_adapter",
+    "driver_path",
+    "instruction_surface",
+    "supports_codex_exec",
+    "supports_jsonl_events",
+    "supports_structured_output",
+    "memory_write_policy",
+    "isa_write_policy",
+    "pulse_policy",
+    "replacement_status"
+  ],
+  "properties": {
+    "runtime_name": { "type": "string" },
+    "runtime_status": { "type": "string" },
+    "provider_type": { "type": "string" },
+    "upstream_adapter": { "type": "string" },
+    "driver_path": { "type": "string" },
+    "instruction_surface": { "type": "string" },
+    "supports_codex_exec": { "type": "boolean" },
+    "supports_jsonl_events": { "type": "boolean" },
+    "supports_structured_output": { "type": "boolean" },
+    "memory_write_policy": { "type": "string" },
+    "isa_write_policy": { "type": "string" },
+    "pulse_policy": { "type": "string" },
+    "replacement_status": { "type": "string" }
+  }
+}

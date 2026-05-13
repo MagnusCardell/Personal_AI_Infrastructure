@@ -1,0 +1,15 @@
+{
+  "task_id": "s15d-codex-synthetic-bugfix",
+  "task_kind": "bounded-synthetic-code-repair",
+  "fixture": "runtime-task-fixtures/s15d_bugfix",
+  "test_command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests"
+  ],
+  "instructions": "Fix normalize_priority so low, medium, high, and urgent aliases normalize consistently, invalid values raise ValueError, and the public function name remains normalize_priority.",
+  "runtime": "codex"
+}
