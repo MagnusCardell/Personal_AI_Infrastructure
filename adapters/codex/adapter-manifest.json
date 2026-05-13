@@ -5,7 +5,7 @@
   "payload_type": "live-installable-router",
   "install_target": "~/.claude/PAI/AGENTS.md",
   "live_install_status": "installed-by-installer-only",
-  "milestone_name": "V5-S15B-R1-CODEX-RUNTIME-CONTAINED-WORKLOOP",
+  "milestone_name": "V5-S15B-R2-CODEX-RUNTIME-EVENT-ATTRIBUTED-WORKLOOP",
   "adapter_identity_marker": "PAI_CODEX_PEER_BETA_ADAPTER",
   "authority_layers": {
     "pai_system_prompt": "PAI_SYSTEM_PROMPT.md remains a first-class high-authority instruction layer.",
@@ -38,10 +38,15 @@
     "commands": [
       "doctor",
       "exec-proof",
-      "workloop-once"
+      "workloop-once",
+      "audit-run"
     ],
-    "runtime_mode": "codex exec with --sandbox read-only and --ephemeral",
-    "run_directory": "~/.claude/PAI/adapters/codex/runs/s15b-r1/",
+    "runtime_mode": "codex exec with --sandbox read-only, --ephemeral, and --json event capture",
+    "run_directory": "~/.claude/PAI/adapters/codex/runs/s15b-r2/",
+    "event_streams": [
+      "runtime-events.jsonl",
+      "workloop-events.jsonl"
+    ],
     "replacement_readiness": "not-approved"
   },
   "runtime_surface_policy": {
@@ -63,7 +68,7 @@
   },
   "rollback_policy": {
     "backup_required_before_live_writes": true,
-    "backup_shape": "~/.pai-codex-adapter-backups/s15b-r1-<UTC_TIMESTAMP>/.claude/",
+    "backup_shape": "~/.pai-codex-adapter-backups/s15b-r2-<UTC_TIMESTAMP>/.claude/",
     "rollback_command_shape": "python3 -m tools.codex_adapter_installer --pai-dir \"$HOME/.claude/PAI\" --backup-root \"<backup-root>\" --rollback"
   }
 }

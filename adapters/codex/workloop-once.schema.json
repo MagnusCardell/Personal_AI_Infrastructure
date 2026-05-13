@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "S15B-R1 Codex Workloop Once Artifact",
+  "title": "S15B-R2 Codex Workloop Once Artifact",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -25,7 +25,7 @@
   "properties": {
     "milestone_name": {
       "type": "string",
-      "const": "V5-S15B-R1-CODEX-RUNTIME-CONTAINED-WORKLOOP"
+      "const": "V5-S15B-R2-CODEX-RUNTIME-EVENT-ATTRIBUTED-WORKLOOP"
     },
     "workloop_kind": {
       "type": "string",

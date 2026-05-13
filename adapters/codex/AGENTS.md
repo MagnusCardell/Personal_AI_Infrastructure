@@ -14,7 +14,8 @@ Memory v7.6 has WORK, LEARNING, and KNOWLEDGE.
 When operating in a PAI workspace, identify PAI_DIR, read PAI_SYSTEM_PROMPT.md if available, then follow Codex adapter constraints.
 
 The approved contained runtime surface for this adapter is `PAI_DIR/adapters/codex/bin/pai-codex`.
-That launcher may run `doctor`, `exec-proof`, and `workloop-once` for bounded adapter validation only.
+That launcher may run `doctor`, `exec-proof`, `workloop-once`, and `audit-run` for bounded adapter validation only.
+Runtime proof and work-loop runs must capture Codex JSONL event streams for event-attributed write-boundary validation.
 
 Codex must not write PAI Memory unless a later architect-approved policy allows it.
 Codex must not write ISA unless a later architect-approved policy allows it.

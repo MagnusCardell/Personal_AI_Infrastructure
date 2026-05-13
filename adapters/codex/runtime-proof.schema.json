@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "S15B-R1 Codex Runtime Proof",
+  "title": "S15B-R2 Codex Runtime Proof",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -23,7 +23,7 @@
   "properties": {
     "milestone_name": {
       "type": "string",
-      "const": "V5-S15B-R1-CODEX-RUNTIME-CONTAINED-WORKLOOP"
+      "const": "V5-S15B-R2-CODEX-RUNTIME-EVENT-ATTRIBUTED-WORKLOOP"
     },
     "runtime_invocation": {
       "type": "string"

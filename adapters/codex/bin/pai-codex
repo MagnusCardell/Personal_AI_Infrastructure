@@ -8,15 +8,18 @@ import sys
 from pathlib import Path
 
 
-MILESTONE = "V5-S15B-R1-CODEX-RUNTIME-CONTAINED-WORKLOOP"
+MILESTONE = "V5-S15B-R2-CODEX-RUNTIME-EVENT-ATTRIBUTED-WORKLOOP"
 MARKER_NAME = "adapter identity marker"
 MARKER_VALUE = "PAI_" + "CODEX_" + "PEER_" + "BETA_" + "ADAPTER"
 ADAPTER_STATUS = "peer-beta"
 UPSTREAM_ADAPTER = "claude"
 ADAPTER_RELATIVE = Path("adapters") / "codex"
-RUN_RELATIVE = ADAPTER_RELATIVE / "runs" / "s15b-r1"
+RUN_RELATIVE = ADAPTER_RELATIVE / "runs" / "s15b-r2"
 RUNTIME_PROOF_NAME = "runtime-proof.json"
 WORKLOOP_NAME = "workloop-once.json"
+RUNTIME_EVENTS_NAME = "runtime-events.jsonl"
+WORKLOOP_EVENTS_NAME = "workloop-events.jsonl"
+RUNTIME_VALIDATION_NAME = "runtime-validation.json"
 
 
 class LauncherError(ValueError):
@@ -60,7 +63,7 @@ def _safe_output_path(pai_dir: Path, output: str | Path, expected_name: str) -> 
     resolved = output_path.resolve(strict=False)
     run_dir = _run_dir(pai_dir).resolve(strict=False)
     if not _is_within(run_dir, resolved):
-        raise LauncherError("runtime output must stay under adapters/codex/runs/s15b-r1")
+        raise LauncherError("runtime output must stay under adapters/codex/runs/s15b-r2")
     if resolved.name != expected_name:
         raise LauncherError(f"runtime output must be named {expected_name}")
     if output_path.exists() and not output_path.is_file():
@@ -68,6 +71,30 @@ def _safe_output_path(pai_dir: Path, output: str | Path, expected_name: str) -> 
     if output_path.is_symlink():
         raise LauncherError("runtime output target is a symlink")
     return output_path
+
+
+def _safe_existing_path(path_value: str | Path, label: str) -> Path:
+    if str(path_value) == "":
+        raise LauncherError(f"{label} must not be empty")
+    path = Path(path_value)
+    if any(part == ".." for part in path.parts):
+        raise LauncherError(f"{label} must not contain path traversal")
+    resolved = path.resolve(strict=True)
+    if path.is_symlink():
+        raise LauncherError(f"{label} must not be a symlink")
+    return resolved
+
+
+def _safe_run_input_path(pai_dir: Path, path_value: str | Path, expected_name: str, label: str) -> Path:
+    path = _safe_existing_path(path_value, label)
+    run_dir = _run_dir(pai_dir).resolve(strict=False)
+    if not _is_within(run_dir, path):
+        raise LauncherError(f"{label} must stay under adapters/codex/runs/s15b-r2")
+    if path.name != expected_name:
+        raise LauncherError(f"{label} must be named {expected_name}")
+    if not path.is_file():
+        raise LauncherError(f"{label} must be a file")
+    return path
 
 
 def _read_json(path: Path, label: str) -> dict[str, object]:
@@ -89,6 +116,7 @@ def doctor(pai_dir: Path) -> dict[str, object]:
     launcher_path = adapter_dir / "bin" / "pai-codex"
     runtime_schema_path = adapter_dir / "runtime-proof.schema.json"
     workloop_schema_path = adapter_dir / "workloop-once.schema.json"
+    validation_schema_path = adapter_dir / "runtime-validation.schema.json"
 
     if not router.is_file():
         raise LauncherError("PAI_DIR/AGENTS.md is missing")
@@ -127,6 +155,7 @@ def doctor(pai_dir: Path) -> dict[str, object]:
         (launcher_path, "runtime launcher"),
         (runtime_schema_path, "runtime proof schema"),
         (workloop_schema_path, "workloop schema"),
+        (validation_schema_path, "runtime validation schema"),
     ):
         if not path.is_file():
             raise LauncherError(f"{label} is missing: {path}")
@@ -143,8 +172,8 @@ def doctor(pai_dir: Path) -> dict[str, object]:
 def _proof_prompt(pai_dir: Path) -> str:
     return (
         "You are running the contained PAI Codex adapter runtime proof. "
-        "Work only from the current PAI_DIR and do not modify files. "
-        "Read AGENTS.md in PAI_DIR and report the adapter identity marker exactly as written there. "
+        "Work only from the current PAI_DIR and do not modify files or run shell commands. "
+        "Use the active AGENTS.md instructions Codex loaded from PAI_DIR and report the adapter identity marker exactly as written there. "
         "Confirm Codex remains peer beta and the upstream adapter remains claude. "
         "Return only JSON matching the provided schema. "
         f"Use milestone_name {MILESTONE!r}, pai_dir {str(pai_dir)!r}, "
@@ -162,8 +191,8 @@ def _proof_prompt(pai_dir: Path) -> str:
 def _workloop_prompt(pai_dir: Path) -> str:
     return (
         "You are running one contained PAI Codex adapter work-loop pass. "
-        "Work only from the current PAI_DIR and do not modify files. "
-        "Read AGENTS.md in PAI_DIR and report the adapter identity marker exactly as written there. "
+        "Work only from the current PAI_DIR and do not modify files or run shell commands. "
+        "Use the active AGENTS.md instructions Codex loaded from PAI_DIR and report the adapter identity marker exactly as written there. "
         "Produce one bounded adapter decision artifact with workloop_kind "
         "'bounded-read-only-adapter-workloop'. "
         "Select a concrete next adapter-building action, not a documentation-only action, "
@@ -189,6 +218,7 @@ def _build_codex_exec_command(pai_dir: Path, schema_path: Path, output_path: Pat
         "exec",
         "--ephemeral",
         "--ignore-rules",
+        "--json",
         "--sandbox",
         "read-only",
         "--cd",
@@ -202,9 +232,19 @@ def _build_codex_exec_command(pai_dir: Path, schema_path: Path, output_path: Pat
     ]
 
 
-def _run_codex_exec(pai_dir: Path, output: str | Path, schema_name: str, output_name: str, prompt: str, dry_run: bool) -> dict[str, object]:
+def _run_codex_exec(
+    pai_dir: Path,
+    output: str | Path,
+    events_output: str | Path,
+    schema_name: str,
+    output_name: str,
+    events_name: str,
+    prompt: str,
+    dry_run: bool,
+) -> dict[str, object]:
     doctor(pai_dir)
     output_path = _safe_output_path(pai_dir, output, output_name)
+    events_path = _safe_output_path(pai_dir, events_output, events_name)
     schema_path = _adapter_dir(pai_dir) / schema_name
     if not schema_path.is_file():
         raise LauncherError(f"runtime schema is missing: {schema_path}")
@@ -215,44 +255,112 @@ def _run_codex_exec(pai_dir: Path, output: str | Path, schema_name: str, output_
             "command": command,
             "cwd": str(pai_dir),
             "output": str(output_path),
+            "events_output": str(events_path),
             "schema": str(schema_path),
             "prompt": prompt,
         }
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run(command, cwd=pai_dir, text=True)
+    events_path.parent.mkdir(parents=True, exist_ok=True)
+    with events_path.open("w", encoding="utf-8") as events_file:
+        result = subprocess.run(
+            command,
+            cwd=pai_dir,
+            stdin=subprocess.DEVNULL,
+            stdout=events_file,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
     if result.returncode != 0:
-        raise LauncherError(f"codex exec failed with exit code {result.returncode}")
+        raise LauncherError(f"codex exec failed with exit code {result.returncode}: {result.stderr.strip()}")
     _read_json(output_path, output_name)
     return {
         "ok": True,
         "pai_dir": str(pai_dir),
         "output": str(output_path),
+        "events_output": str(events_path),
         "schema": str(schema_path),
-        "runtime_invocation": "codex exec --sandbox read-only --ephemeral --cd PAI_DIR",
+        "runtime_invocation": "codex exec --json --sandbox read-only --ephemeral --cd PAI_DIR",
     }
 
 
-def exec_proof(pai_dir: Path, output: str | Path, dry_run: bool = False) -> dict[str, object]:
+def exec_proof(
+    pai_dir: Path,
+    output: str | Path,
+    events_output: str | Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
     return _run_codex_exec(
         pai_dir,
         output,
+        events_output,
         "runtime-proof.schema.json",
         RUNTIME_PROOF_NAME,
+        RUNTIME_EVENTS_NAME,
         _proof_prompt(pai_dir),
         dry_run,
     )
 
 
-def workloop_once(pai_dir: Path, output: str | Path, dry_run: bool = False) -> dict[str, object]:
+def workloop_once(
+    pai_dir: Path,
+    output: str | Path,
+    events_output: str | Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
     return _run_codex_exec(
         pai_dir,
         output,
+        events_output,
         "workloop-once.schema.json",
         WORKLOOP_NAME,
+        WORKLOOP_EVENTS_NAME,
         _workloop_prompt(pai_dir),
         dry_run,
     )
+
+
+def audit_run(
+    pai_dir: Path,
+    marker: str | Path,
+    runtime_proof: str | Path,
+    workloop: str | Path,
+    runtime_events: str | Path,
+    workloop_events: str | Path,
+    output: str | Path,
+    runtime_attempt_number: int,
+) -> dict[str, object]:
+    doctor(pai_dir)
+    marker_path = _safe_existing_path(marker, "--marker")
+    runtime_proof_path = _safe_run_input_path(pai_dir, runtime_proof, RUNTIME_PROOF_NAME, "--runtime-proof")
+    workloop_path = _safe_run_input_path(pai_dir, workloop, WORKLOOP_NAME, "--workloop")
+    runtime_events_path = _safe_run_input_path(pai_dir, runtime_events, RUNTIME_EVENTS_NAME, "--runtime-events")
+    workloop_events_path = _safe_run_input_path(pai_dir, workloop_events, WORKLOOP_EVENTS_NAME, "--workloop-events")
+    output_path = _safe_output_path(pai_dir, output, RUNTIME_VALIDATION_NAME)
+
+    sys.path.insert(0, str(Path.cwd()))
+    from tools.codex_adapter_installer.runtime_audit import audit_runtime
+
+    result = audit_runtime(
+        pai_dir=pai_dir,
+        marker=marker_path,
+        runtime_proof=runtime_proof_path,
+        workloop=workloop_path,
+        runtime_events=runtime_events_path,
+        workloop_events=workloop_events_path,
+        runtime_attempt_number=runtime_attempt_number,
+        repo_root=Path.cwd(),
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not result.get("validation_passed"):
+        raise LauncherError(f"event-attributed audit failed; wrote {output_path}")
+    return {
+        "ok": True,
+        "output": str(output_path),
+        "event_attribution_passed": result.get("event_attribution_passed"),
+        "validation_passed": result.get("validation_passed"),
+    }
 
 
 def _default_output(pai_dir: Path, filename: str) -> Path:
@@ -269,12 +377,24 @@ def build_parser() -> argparse.ArgumentParser:
     proof_parser = subcommands.add_parser("exec-proof")
     proof_parser.add_argument("--pai-dir", required=True)
     proof_parser.add_argument("--output")
+    proof_parser.add_argument("--events-output")
     proof_parser.add_argument("--dry-run", action="store_true")
 
     workloop_parser = subcommands.add_parser("workloop-once")
     workloop_parser.add_argument("--pai-dir", required=True)
     workloop_parser.add_argument("--output")
+    workloop_parser.add_argument("--events-output")
     workloop_parser.add_argument("--dry-run", action="store_true")
+
+    audit_parser = subcommands.add_parser("audit-run")
+    audit_parser.add_argument("--pai-dir", required=True)
+    audit_parser.add_argument("--marker", required=True)
+    audit_parser.add_argument("--runtime-proof", required=True)
+    audit_parser.add_argument("--workloop", required=True)
+    audit_parser.add_argument("--runtime-events", required=True)
+    audit_parser.add_argument("--workloop-events", required=True)
+    audit_parser.add_argument("--output")
+    audit_parser.add_argument("--runtime-attempt-number", type=int, default=1)
     return parser
 
 
@@ -287,10 +407,24 @@ def main(argv: list[str] | None = None) -> int:
             result = doctor(pai_dir)
         elif args.command == "exec-proof":
             output = args.output or _default_output(pai_dir, RUNTIME_PROOF_NAME)
-            result = exec_proof(pai_dir, output, args.dry_run)
+            events_output = args.events_output or _default_output(pai_dir, RUNTIME_EVENTS_NAME)
+            result = exec_proof(pai_dir, output, events_output, args.dry_run)
         elif args.command == "workloop-once":
             output = args.output or _default_output(pai_dir, WORKLOOP_NAME)
-            result = workloop_once(pai_dir, output, args.dry_run)
+            events_output = args.events_output or _default_output(pai_dir, WORKLOOP_EVENTS_NAME)
+            result = workloop_once(pai_dir, output, events_output, args.dry_run)
+        elif args.command == "audit-run":
+            output = args.output or _default_output(pai_dir, RUNTIME_VALIDATION_NAME)
+            result = audit_run(
+                pai_dir,
+                args.marker,
+                args.runtime_proof,
+                args.workloop,
+                args.runtime_events,
+                args.workloop_events,
+                output,
+                args.runtime_attempt_number,
+            )
         else:
             raise LauncherError(f"unknown command: {args.command}")
     except (LauncherError, OSError) as exc:

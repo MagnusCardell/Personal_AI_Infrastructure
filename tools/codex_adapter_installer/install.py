@@ -17,7 +17,7 @@ class InstallerError(ValueError):
     """Raised when installer input, safety validation, or payload validation fails."""
 
 
-MILESTONE = "V5-S15B-R1-CODEX-RUNTIME-CONTAINED-WORKLOOP"
+MILESTONE = "V5-S15B-R2-CODEX-RUNTIME-EVENT-ATTRIBUTED-WORKLOOP"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STAGED_ADAPTER_DIR = REPO_ROOT / "adapters" / "codex"
 
@@ -28,9 +28,12 @@ RUNTIME_STATE_RELATIVE = ADAPTER_DIR_RELATIVE / "runtime-state.json"
 LAUNCHER_RELATIVE = ADAPTER_DIR_RELATIVE / "bin" / "pai-codex"
 RUNTIME_PROOF_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "runtime-proof.schema.json"
 WORKLOOP_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "workloop-once.schema.json"
-RUN_DIR_RELATIVE = ADAPTER_DIR_RELATIVE / "runs" / "s15b-r1"
+RUNTIME_VALIDATION_SCHEMA_RELATIVE = ADAPTER_DIR_RELATIVE / "runtime-validation.schema.json"
+RUN_DIR_RELATIVE = ADAPTER_DIR_RELATIVE / "runs" / "s15b-r2"
 RUNTIME_PROOF_RELATIVE = RUN_DIR_RELATIVE / "runtime-proof.json"
 WORKLOOP_ONCE_RELATIVE = RUN_DIR_RELATIVE / "workloop-once.json"
+RUNTIME_EVENTS_RELATIVE = RUN_DIR_RELATIVE / "runtime-events.jsonl"
+WORKLOOP_EVENTS_RELATIVE = RUN_DIR_RELATIVE / "workloop-events.jsonl"
 RUNTIME_VALIDATION_RELATIVE = RUN_DIR_RELATIVE / "runtime-validation.json"
 
 STAGED_TEXT_COPY_TARGETS = {
@@ -39,6 +42,7 @@ STAGED_TEXT_COPY_TARGETS = {
     "adapter-manifest.json": ADAPTER_DIR_RELATIVE / "adapter-manifest.json",
     "runtime-proof.schema.json": RUNTIME_PROOF_SCHEMA_RELATIVE,
     "workloop-once.schema.json": WORKLOOP_SCHEMA_RELATIVE,
+    "runtime-validation.schema.json": RUNTIME_VALIDATION_SCHEMA_RELATIVE,
 }
 
 STAGED_EXECUTABLE_COPY_TARGETS = {
@@ -54,12 +58,15 @@ INSTALL_REQUIRED_RELATIVES = (
     LAUNCHER_RELATIVE,
     RUNTIME_PROOF_SCHEMA_RELATIVE,
     WORKLOOP_SCHEMA_RELATIVE,
+    RUNTIME_VALIDATION_SCHEMA_RELATIVE,
     RUNTIME_STATE_RELATIVE,
 )
 
 APPROVED_LIVE_RELATIVES = INSTALL_REQUIRED_RELATIVES + (
     RUNTIME_PROOF_RELATIVE,
     WORKLOOP_ONCE_RELATIVE,
+    RUNTIME_EVENTS_RELATIVE,
+    WORKLOOP_EVENTS_RELATIVE,
     RUNTIME_VALIDATION_RELATIVE,
 )
 
@@ -171,6 +178,31 @@ WORKLOOP_SCHEMA_REQUIRED_FIELDS = (
     "proposed_next_action",
     "requires_architect_goal_card",
     "evidence_classification",
+    "known_limits",
+)
+
+RUNTIME_VALIDATION_SCHEMA_REQUIRED_FIELDS = (
+    "milestone_name",
+    "pai_dir",
+    "runtime_attempt_number",
+    "codex_exec_commands",
+    "event_logs_present",
+    "event_attribution_passed",
+    "codex_file_change_events",
+    "codex_command_execution_events",
+    "codex_runtime_probe_events",
+    "approved_adapter_writes",
+    "ambient_pai_state_churn",
+    "forbidden_semantic_writes",
+    "unknown_unclassified_writes",
+    "memory_write_performed_by_codex",
+    "isa_write_performed_by_codex",
+    "pulse_probe_performed_by_codex",
+    "localhost_31337_called_by_codex",
+    "repo_root_agents_created",
+    "repo_dotcodex_created",
+    "codex_adapter_files_installed_under_home_codex",
+    "validation_passed",
     "known_limits",
 )
 
@@ -306,8 +338,8 @@ def validate_manifest(manifest: dict[str, object]) -> None:
         raise InstallerError("runtime_launcher_policy must be an object")
     if launcher_policy.get("launcher_target") != "~/.claude/PAI/adapters/codex/bin/pai-codex":
         raise InstallerError("runtime_launcher_policy must target the approved adapter launcher")
-    if launcher_policy.get("run_directory") != "~/.claude/PAI/adapters/codex/runs/s15b-r1/":
-        raise InstallerError("runtime_launcher_policy must target the approved S15B-R1 run directory")
+    if launcher_policy.get("run_directory") != "~/.claude/PAI/adapters/codex/runs/s15b-r2/":
+        raise InstallerError("runtime_launcher_policy must target the approved S15B-R2 run directory")
 
     runtime_policy = manifest.get("runtime_surface_policy")
     if not isinstance(runtime_policy, dict):
@@ -323,7 +355,20 @@ def validate_manifest(manifest: dict[str, object]) -> None:
 
 
 def validate_launcher_text(text: str) -> None:
-    missing = [token for token in ("doctor", "exec-proof", "workloop-once", "codex", "exec", "read-only") if token not in text]
+    missing = [
+        token
+        for token in (
+            "doctor",
+            "exec-proof",
+            "workloop-once",
+            "audit-run",
+            "codex",
+            "exec",
+            "--json",
+            "read-only",
+        )
+        if token not in text
+    ]
     if missing:
         raise InstallerError("runtime launcher is missing required tokens: " + ", ".join(missing))
 
@@ -335,6 +380,7 @@ def validate_staged_payload() -> None:
     validate_launcher_text(_read_staged_text("bin/pai-codex"))
     _load_staged_schema("runtime-proof.schema.json", RUNTIME_SCHEMA_REQUIRED_FIELDS)
     _load_staged_schema("workloop-once.schema.json", WORKLOOP_SCHEMA_REQUIRED_FIELDS)
+    _load_staged_schema("runtime-validation.schema.json", RUNTIME_VALIDATION_SCHEMA_REQUIRED_FIELDS)
 
 
 def _install_state_json() -> str:
@@ -357,8 +403,8 @@ def _runtime_state_json() -> str:
         "adapter_status": "peer-beta",
         "launcher": "~/.claude/PAI/adapters/codex/bin/pai-codex",
         "milestone": MILESTONE,
-        "runtime_mode": "contained-read-only",
-        "run_directory": "~/.claude/PAI/adapters/codex/runs/s15b-r1/",
+        "runtime_mode": "contained-read-only-event-attributed",
+        "run_directory": "~/.claude/PAI/adapters/codex/runs/s15b-r2/",
         "upstream_adapter": "claude",
     }
     return json.dumps(state, indent=2, sort_keys=True) + "\n"
@@ -461,6 +507,11 @@ def validate_install(
     _validate_live_text_matches(resolved_pai_dir, ADAPTER_DIR_RELATIVE / "README.md", _read_staged_text("README.md"))
     _validate_live_text_matches(resolved_pai_dir, RUNTIME_PROOF_SCHEMA_RELATIVE, _read_staged_text("runtime-proof.schema.json"))
     _validate_live_text_matches(resolved_pai_dir, WORKLOOP_SCHEMA_RELATIVE, _read_staged_text("workloop-once.schema.json"))
+    _validate_live_text_matches(
+        resolved_pai_dir,
+        RUNTIME_VALIDATION_SCHEMA_RELATIVE,
+        _read_staged_text("runtime-validation.schema.json"),
+    )
 
     launcher_target = _safe_live_path(resolved_pai_dir, LAUNCHER_RELATIVE)
     _validate_live_text_matches(resolved_pai_dir, LAUNCHER_RELATIVE, _read_staged_text("bin/pai-codex"))
@@ -484,8 +535,8 @@ def validate_install(
 
     runtime_state_target = _safe_live_path(resolved_pai_dir, RUNTIME_STATE_RELATIVE)
     runtime_state = _validate_live_json(runtime_state_target, "runtime-state.json")
-    if runtime_state.get("runtime_mode") != "contained-read-only":
-        raise InstallerError("runtime-state.json does not record contained-read-only mode")
+    if runtime_state.get("runtime_mode") != "contained-read-only-event-attributed":
+        raise InstallerError("runtime-state.json does not record contained-read-only-event-attributed mode")
     if runtime_state.get("adapter_status") != "peer-beta":
         raise InstallerError("runtime-state.json does not preserve adapter_status=peer-beta")
     if runtime_state.get("upstream_adapter") != "claude":
