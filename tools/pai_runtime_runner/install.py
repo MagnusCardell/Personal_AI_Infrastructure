@@ -18,7 +18,11 @@ INSTALL_TEXT_TARGETS = {
     REPO_ROOT / "pai-runtime" / "provider-manifest.schema.json": Path("runtime-schemas") / "provider-manifest.schema.json",
     REPO_ROOT / "pai-runtime" / "run-result.schema.json": Path("runtime-schemas") / "run-result.schema.json",
     REPO_ROOT / "pai-runtime" / "run-validation.schema.json": Path("runtime-schemas") / "run-validation.schema.json",
+    REPO_ROOT / "pai-runtime" / "repo-task.schema.json": Path("runtime-schemas") / "repo-task.schema.json",
+    REPO_ROOT / "pai-runtime" / "repo-run-result.schema.json": Path("runtime-schemas") / "repo-run-result.schema.json",
+    REPO_ROOT / "pai-runtime" / "repo-run-validation.schema.json": Path("runtime-schemas") / "repo-run-validation.schema.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15d-codex-synthetic-bugfix.json": Path("runtime-tasks") / "s15d-codex-synthetic-bugfix.json",
+    REPO_ROOT / "pai-runtime" / "tasks" / "s15e-provider-registry-repo-task.json": Path("runtime-tasks") / "s15e-provider-registry-repo-task.json",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "README.md": Path("runtime-task-fixtures") / "s15d_bugfix" / "README.md",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "src" / "pai_priority.py": Path("runtime-task-fixtures") / "s15d_bugfix" / "src" / "pai_priority.py",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "tests" / "test_pai_priority.py": Path("runtime-task-fixtures") / "s15d_bugfix" / "tests" / "test_pai_priority.py",
@@ -34,9 +38,15 @@ APPROVED_LIVE_RELATIVES = tuple(INSTALL_TEXT_TARGETS.values()) + (
     Path("runs") / "s15d" / "codex-synthetic-bugfix" / "task.diff",
     Path("runs") / "s15d" / "codex-synthetic-bugfix" / "run-validation.json",
     Path("runs") / "s15d" / "codex-synthetic-bugfix" / "run-state.json",
+    Path("runs") / "s15e" / "provider-registry" / "repo-run-result.json",
+    Path("runs") / "s15e" / "provider-registry" / "repo-events.jsonl",
+    Path("runs") / "s15e" / "provider-registry" / "repo-task.diff",
+    Path("runs") / "s15e" / "provider-registry" / "repo-run-validation.json",
+    Path("runs") / "s15e" / "provider-registry" / "repo-run-state.json",
 )
 
 RUN_DIR_RELATIVE = Path("runs") / "s15d" / "codex-synthetic-bugfix"
+S15E_RUN_DIR_RELATIVE = Path("runs") / "s15e" / "provider-registry"
 
 
 def _is_within(root: Path, candidate: Path) -> bool:
@@ -111,11 +121,12 @@ def _wrapper_text() -> str:
 def _runtime_state() -> str:
     payload = {
         "installed": True,
-        "milestone_name": "V5-S15D-PAI-RUNTIME-RUNNER-CODEX",
+        "milestone_name": "V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK",
         "ownership_model": "PAI owns the run; Codex is runtime provider codex.",
         "runtime_provider": "codex",
         "runtime_status": "peer-beta",
         "upstream_adapter": "claude",
+        "supports_repo_tasks": True,
     }
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
@@ -146,8 +157,20 @@ def validate_staged_payload() -> None:
         if not source.is_file():
             raise RuntimeInstallError(f"missing staged runtime file: {source}")
     runner = (REPO_ROOT / "tools" / "pai_runtime_runner" / "runner.py").read_text(encoding="utf-8")
-    if "PAI owns the run" not in runner or "runs/s15d" not in runner:
+    audit = (REPO_ROOT / "tools" / "pai_runtime_runner" / "audit.py").read_text(encoding="utf-8")
+    provider_registry = (REPO_ROOT / "tools" / "pai_runtime_runner" / "provider_registry.py").read_text(encoding="utf-8")
+    if "PAI owns the run" not in runner or "runs/s15d" not in runner or "run-repo" not in runner:
         raise RuntimeInstallError("runner is missing PAI ownership tokens")
+    if "audit-repo-run" not in runner or "approved_repository_write_set" not in runner + audit:
+        raise RuntimeInstallError("runner/audit is missing S15E repo-task tokens")
+    for token in (
+        "discover_runtime_providers",
+        "load_provider_manifest",
+        "validate_provider_manifest",
+        "get_provider_by_name",
+    ):
+        if token not in provider_registry:
+            raise RuntimeInstallError(f"provider registry is missing {token}")
 
 
 def install_runtime(pai_dir: str | Path | None, backup_root: str | Path | None) -> dict[str, object]:
@@ -200,9 +223,9 @@ def _restore_or_remove(pai_dir: Path, backup_pai: Path, relative: Path) -> bool:
     return False
 
 
-def _rollback_run_dir(pai_dir: Path, backup_pai: Path) -> list[Path]:
-    live_run = _safe_live_path(pai_dir, RUN_DIR_RELATIVE)
-    backup_run = backup_pai / RUN_DIR_RELATIVE
+def _rollback_run_dir(pai_dir: Path, backup_pai: Path, run_relative: Path) -> list[Path]:
+    live_run = _safe_live_path(pai_dir, run_relative)
+    backup_run = backup_pai / run_relative
     changed: list[Path] = []
     if live_run.exists():
         if live_run.is_symlink() or not live_run.is_dir():
@@ -229,15 +252,21 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
     resolved_pai_dir = _resolve_pai_dir(pai_dir)
     resolved_backup_root = _resolve_backup_root(backup_root)
     backup_pai = _backup_pai_dir(resolved_backup_root)
-    changed = _rollback_run_dir(resolved_pai_dir, backup_pai)
+    changed: list[Path] = []
+    for run_relative in (RUN_DIR_RELATIVE, S15E_RUN_DIR_RELATIVE):
+        changed.extend(_rollback_run_dir(resolved_pai_dir, backup_pai, run_relative))
     for relative in APPROVED_LIVE_RELATIVES:
         if relative == RUN_DIR_RELATIVE or _is_within(RUN_DIR_RELATIVE, relative):
+            continue
+        if relative == S15E_RUN_DIR_RELATIVE or _is_within(S15E_RUN_DIR_RELATIVE, relative):
             continue
         if _restore_or_remove(resolved_pai_dir, backup_pai, relative):
             changed.append(resolved_pai_dir / relative)
     _remove_empty_dirs(
         (
             resolved_pai_dir / RUN_DIR_RELATIVE,
+            resolved_pai_dir / S15E_RUN_DIR_RELATIVE,
+            resolved_pai_dir / "runs" / "s15e",
             resolved_pai_dir / "runs" / "s15d",
             resolved_pai_dir / "runs",
             resolved_pai_dir / "runtime-task-fixtures" / "s15d_bugfix" / "src",

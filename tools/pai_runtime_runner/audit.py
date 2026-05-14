@@ -14,6 +14,11 @@ RUN_RELATIVE = Path("runs") / "s15d" / "codex-synthetic-bugfix"
 WORKSPACE_RELATIVE = RUN_RELATIVE / "workspace"
 RUN_STATE_NAME = "run-state.json"
 TASK_DIFF_NAME = "task.diff"
+S15E_MILESTONE = "V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK"
+S15E_RUN_ID = "s15e-provider-registry"
+S15E_TASK_ID = "s15e-provider-registry-repo-task"
+S15E_RUN_RELATIVE = Path("runs") / "s15e" / "provider-registry"
+S15E_STATE_NAME = "repo-run-state.json"
 
 APPROVED_INSTALL_RELATIVES = {
     Path("bin") / "pai-runtime",
@@ -29,6 +34,40 @@ APPROVED_INSTALL_RELATIVES = {
     Path("runtime-task-fixtures") / "s15d_bugfix" / "tests" / "test_pai_priority.py",
     Path("adapters") / "codex" / "bin" / "pai-codex",
     Path("adapters") / "codex" / "install-state.json",
+}
+
+APPROVED_S15E_INSTALL_RELATIVES = {
+    Path("bin") / "pai-runtime",
+    Path("runtime-state.json"),
+    Path("runtime-schemas") / "repo-task.schema.json",
+    Path("runtime-schemas") / "repo-run-result.schema.json",
+    Path("runtime-schemas") / "repo-run-validation.schema.json",
+    Path("runtime-tasks") / "s15e-provider-registry-repo-task.json",
+    Path("runtimes") / "codex" / "README.md",
+    Path("runtimes") / "codex" / "provider-manifest.json",
+}
+
+APPROVED_REPOSITORY_WRITE_SET = {
+    "pai-runtime/README.md",
+    "pai-runtime/repo-task.schema.json",
+    "pai-runtime/repo-run-result.schema.json",
+    "pai-runtime/repo-run-validation.schema.json",
+    "pai-runtime/tasks/s15e-provider-registry-repo-task.json",
+    "tools/pai_runtime_runner/__main__.py",
+    "tools/pai_runtime_runner/runner.py",
+    "tools/pai_runtime_runner/audit.py",
+    "tools/pai_runtime_runner/install.py",
+    "tools/pai_runtime_runner/provider_registry.py",
+    "tools/pai_runtime_runner/providers/codex.py",
+    "tests/test_pai_runtime_runner_codex.py",
+    "tests/test_pai_runtime_runner_repo_task.py",
+    "tests/test_pai_runtime_provider_registry.py",
+    "docs/architecture/V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK.md",
+}
+
+S15E_REQUIRED_REPOSITORY_MODIFICATIONS = {
+    "tools/pai_runtime_runner/provider_registry.py",
+    "tests/test_pai_runtime_provider_registry.py",
 }
 
 CLASSIFICATIONS = (
@@ -336,6 +375,17 @@ def _load_run_state(run_dir: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _load_repo_run_state(run_dir: Path) -> dict[str, Any]:
+    path = run_dir / S15E_STATE_NAME
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def _scan_filesystem(pai_dir: Path, marker: Path) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
     approved_task: list[str] = []
     approved_run: list[str] = []
@@ -523,6 +573,340 @@ def audit_run(
         ],
         "runtime_warnings": event_warnings,
         "classifications": list(CLASSIFICATIONS),
+    }
+
+
+def _validate_repo_result(result: dict[str, Any], repo_root: Path) -> list[str]:
+    errors: list[str] = []
+    expected = {
+        "milestone_name": S15E_MILESTONE,
+        "run_id": S15E_RUN_ID,
+        "runtime": "codex",
+        "runtime_status": "peer-beta",
+        "provider_type": "codex-cli",
+        "task_id": S15E_TASK_ID,
+        "task_kind": "bounded-real-repository-code-change",
+        "adapter_identity_marker": MARKER_VALUE,
+        "adapter_status": "peer-beta",
+        "upstream_adapter": "claude",
+        "agents_router_observed": True,
+        "pai_owned_run_directory": True,
+        "tests_passed": True,
+        "memory_write_performed": False,
+        "isa_write_performed": False,
+        "pulse_probe_performed": False,
+        "localhost_31337_called": False,
+        "runtime_surface_created": False,
+    }
+    for key, value in expected.items():
+        if result.get(key) != value:
+            errors.append(f"repo-run-result mismatch for {key}")
+    if Path(str(result.get("repo_root", ""))).resolve(strict=False) != repo_root:
+        errors.append("repo-run-result repo_root mismatch")
+    modified = result.get("repository_files_modified")
+    if not isinstance(modified, list) or not modified:
+        errors.append("repo-run-result repository_files_modified must be a non-empty list")
+        return errors
+    modified_set: set[str] = set()
+    for item in modified:
+        if not isinstance(item, str) or item == "" or "\x00" in item:
+            errors.append("repo-run-result repository_files_modified contains invalid path")
+            continue
+        path = Path(item)
+        if path.is_absolute() or any(part == ".." for part in path.parts):
+            errors.append(f"repo-run-result repository_files_modified escapes repo: {item}")
+            continue
+        if item not in APPROVED_REPOSITORY_WRITE_SET:
+            errors.append(f"repo-run-result repository_files_modified includes unapproved path: {item}")
+        modified_set.add(item)
+    if not S15E_REQUIRED_REPOSITORY_MODIFICATIONS.issubset(modified_set):
+        errors.append("repo-run-result missing required provider registry modified files")
+    return errors
+
+
+def _diff_repository_paths(diff_text: str) -> set[str]:
+    paths: set[str] = set()
+    for line in diff_text.splitlines():
+        if not (line.startswith("--- ") or line.startswith("+++ ")):
+            continue
+        path_text = line[4:].strip()
+        if path_text == "/dev/null":
+            continue
+        if path_text.startswith(("a/", "b/")):
+            path_text = path_text[2:]
+        paths.add(path_text)
+    return paths
+
+
+def _diff_limited_to_approved_repository_write_set(diff_text: str) -> bool:
+    paths = _diff_repository_paths(diff_text)
+    if not paths:
+        return False
+    for item in paths:
+        path = Path(item)
+        if path.is_absolute() or any(part == ".." for part in path.parts):
+            return False
+        if item not in APPROVED_REPOSITORY_WRITE_SET:
+            return False
+    return True
+
+
+def _classify_repo_event_path(pai_dir: Path, repo_root: Path, run_dir: Path, raw: str) -> tuple[str, str]:
+    text = raw.strip()
+    if text.startswith("file://"):
+        text = text[7:]
+    candidates: list[Path] = []
+    if text.startswith("~/"):
+        candidates.append(Path.home() / text[2:])
+    else:
+        raw_path = Path(text)
+        if raw_path.is_absolute():
+            candidates.append(raw_path)
+        else:
+            candidates.extend([repo_root / raw_path, run_dir / raw_path, pai_dir / raw_path])
+
+    for candidate in candidates:
+        resolved = candidate.resolve(strict=False)
+        if _is_within(run_dir, resolved):
+            return "approved_pai_run_writes", str(resolved)
+        try:
+            relative_repo = resolved.relative_to(repo_root)
+        except ValueError:
+            relative_repo = None
+        if relative_repo is not None:
+            relative_text = str(relative_repo)
+            if relative_text in APPROVED_REPOSITORY_WRITE_SET:
+                return "approved_repository_write", relative_text
+            return "forbidden_repository_write", relative_text
+        relative_pai = _relative_to_pai(pai_dir, resolved)
+        if relative_pai is not None:
+            if _is_forbidden_semantic_path(relative_pai):
+                return "forbidden_semantic_write", str(resolved)
+            if _is_known_ambient_churn(relative_pai):
+                return "ambient_pai_state_churn", str(resolved)
+    return "unknown_unclassified_write", raw
+
+
+def _scan_repo_filesystem(repo_root: Path, marker: Path) -> tuple[list[str], list[str]]:
+    approved: list[str] = []
+    forbidden: list[str] = []
+    marker_mtime = marker.stat().st_mtime
+    for path in repo_root.rglob("*"):
+        if ".git" in path.parts:
+            continue
+        if not path.is_file():
+            continue
+        try:
+            if path.stat().st_mtime <= marker_mtime:
+                continue
+        except OSError:
+            continue
+        relative = str(path.resolve(strict=False).relative_to(repo_root))
+        if relative in APPROVED_REPOSITORY_WRITE_SET:
+            approved.append(relative)
+        else:
+            forbidden.append(relative)
+    return approved, forbidden
+
+
+def _scan_pai_filesystem_s15e(
+    pai_dir: Path,
+    marker: Path,
+    run_dir: Path,
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    approved_run: list[str] = []
+    ambient: list[str] = []
+    forbidden: list[str] = []
+    unknown: list[str] = []
+    marker_mtime = marker.stat().st_mtime
+
+    for path in pai_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            if path.stat().st_mtime <= marker_mtime:
+                continue
+        except OSError:
+            continue
+        resolved = path.resolve(strict=False)
+        relative_path = resolved.relative_to(pai_dir)
+        display = str(path)
+        if _is_within(run_dir, resolved):
+            approved_run.append(display)
+        elif relative_path in APPROVED_S15E_INSTALL_RELATIVES:
+            approved_run.append(display)
+        elif _is_forbidden_semantic_path(relative_path):
+            forbidden.append(display)
+        elif _is_known_ambient_churn(relative_path):
+            ambient.append(display)
+        else:
+            unknown.append(display)
+    return approved_run, ambient, forbidden, unknown
+
+
+def audit_repo_run(
+    *,
+    pai_dir: Path,
+    marker: Path,
+    repo_root: Path,
+    run_dir: Path,
+    result_path: Path,
+    events_path: Path,
+    diff_path: Path,
+    runtime_attempt_number: int = 1,
+) -> dict[str, Any]:
+    pai_dir = pai_dir.resolve(strict=True)
+    marker = marker.resolve(strict=True)
+    repo_root = repo_root.resolve(strict=True)
+    run_dir = run_dir.resolve(strict=True)
+
+    result = _load_json(result_path, "repo-run-result.json")
+    run_state = _load_repo_run_state(run_dir)
+    result_errors = _validate_repo_result(result, repo_root)
+
+    event_items, event_warnings = _parse_events(events_path)
+    codex_file_change_events: list[dict[str, Any]] = []
+    codex_command_execution_events: list[dict[str, Any]] = []
+    forbidden_event_writes: list[str] = []
+    forbidden_repo_event_writes: list[str] = []
+    unknown_event_writes: list[str] = []
+    runtime_probe_events: list[dict[str, Any]] = []
+    event_file_change_outside_approved = False
+
+    for event in event_items:
+        if _looks_like_file_change(event):
+            paths = _extract_paths(event)
+            classifications = [_classify_repo_event_path(pai_dir, repo_root, run_dir, raw) for raw in paths]
+            approved = bool(classifications) and all(
+                classification in {"approved_repository_write", "approved_pai_run_writes"}
+                for classification, _ in classifications
+            )
+            codex_file_change_events.append(
+                {
+                    "classification": "codex_event_file_change",
+                    "approved": approved,
+                    "paths": [path for _, path in classifications],
+                    "event_type": _event_type(event),
+                }
+            )
+            if not approved:
+                event_file_change_outside_approved = True
+                for classification, path in classifications:
+                    if classification == "forbidden_semantic_write":
+                        forbidden_event_writes.append(path)
+                    elif classification == "forbidden_repository_write":
+                        forbidden_repo_event_writes.append(path)
+                    elif classification == "unknown_unclassified_write":
+                        unknown_event_writes.append(path)
+
+        if _looks_like_command_execution(event):
+            command = _command_text(event)
+            codex_command_execution_events.append(
+                {
+                    "classification": "codex_event_command_execution",
+                    "command": command,
+                    "event_type": _event_type(event),
+                }
+            )
+            if _command_has_runtime_probe(command):
+                runtime_probe_events.append({"classification": "forbidden_runtime_probe", "command": command})
+            if _command_has_forbidden_semantic_write(command):
+                forbidden_event_writes.append(command)
+
+    approved_repository_writes, forbidden_repository_writes = _scan_repo_filesystem(repo_root, marker)
+    approved_pai_run_writes, ambient, forbidden_fs, unknown_fs = _scan_pai_filesystem_s15e(pai_dir, marker, run_dir)
+
+    repo_root_agents_created = (repo_root / "AGENTS.md").exists()
+    repo_dotcodex_created = (repo_root / ".codex").exists()
+    home_codex = Path.home() / ".codex"
+    codex_adapter_files_installed_under_home_codex = any(
+        path.exists()
+        for path in (
+            home_codex / "AGENTS.md",
+            home_codex / "AGENTS.override.md",
+            home_codex / "adapters" / "codex",
+        )
+    )
+
+    diff_text = diff_path.read_text(encoding="utf-8", errors="replace") if diff_path.is_file() else ""
+    diff_present = bool(diff_text.strip())
+    diff_limited = diff_present and _diff_limited_to_approved_repository_write_set(diff_text)
+    event_logs_present = events_path.is_file()
+    provider_registry_tests_passed = run_state.get("provider_registry_tests_returncode") == 0
+    repository_files_modified = result.get("repository_files_modified") if isinstance(result.get("repository_files_modified"), list) else []
+
+    memory_write_by_codex = any("memory" in item.lower() for item in forbidden_event_writes + forbidden_fs)
+    isa_write_by_codex = any("/isa" in item.lower() or "isa/" in item.lower() for item in forbidden_event_writes + forbidden_fs)
+    pulse_probe_by_codex = bool(runtime_probe_events)
+    localhost_called_by_codex = any(
+        "localhost:31337" in _stringify(event).lower() or "127.0.0.1:31337" in _stringify(event).lower()
+        for event in event_items
+        if _looks_like_command_execution(event)
+    )
+
+    forbidden_semantic_writes = forbidden_fs + forbidden_event_writes + result_errors
+    forbidden_repository = sorted(set(forbidden_repository_writes + forbidden_repo_event_writes))
+    unknown_unclassified = sorted(set(unknown_fs + unknown_event_writes))
+    event_attribution_passed = not (
+        event_file_change_outside_approved
+        or forbidden_event_writes
+        or forbidden_repo_event_writes
+        or unknown_event_writes
+        or pulse_probe_by_codex
+        or localhost_called_by_codex
+    )
+    validation_passed = bool(
+        diff_present
+        and diff_limited
+        and event_logs_present
+        and event_attribution_passed
+        and provider_registry_tests_passed
+        and not forbidden_repository
+        and not forbidden_semantic_writes
+        and not unknown_unclassified
+        and not repo_root_agents_created
+        and not repo_dotcodex_created
+        and not codex_adapter_files_installed_under_home_codex
+    )
+
+    return {
+        "milestone_name": S15E_MILESTONE,
+        "run_id": S15E_RUN_ID,
+        "runtime": "codex",
+        "runtime_attempt_number": runtime_attempt_number,
+        "pai_runtime_command": run_state.get("pai_runtime_command", []),
+        "provider_command": run_state.get("provider_command", []),
+        "repo_root": str(repo_root),
+        "approved_repository_write_set": sorted(APPROVED_REPOSITORY_WRITE_SET),
+        "repository_files_modified": repository_files_modified,
+        "diff_present": diff_present,
+        "diff_limited_to_approved_repository_write_set": diff_limited,
+        "event_logs_present": event_logs_present,
+        "event_attribution_passed": event_attribution_passed,
+        "codex_file_change_events": codex_file_change_events,
+        "codex_command_execution_events": codex_command_execution_events,
+        "approved_repository_writes": sorted(approved_repository_writes),
+        "approved_pai_run_writes": sorted(approved_pai_run_writes),
+        "ambient_pai_state_churn": sorted(ambient),
+        "forbidden_repository_writes": forbidden_repository,
+        "forbidden_semantic_writes": sorted(forbidden_semantic_writes),
+        "unknown_unclassified_writes": unknown_unclassified,
+        "provider_registry_tests_passed": provider_registry_tests_passed,
+        "memory_write_performed_by_codex": memory_write_by_codex,
+        "isa_write_performed_by_codex": isa_write_by_codex,
+        "pulse_probe_performed_by_codex": pulse_probe_by_codex,
+        "localhost_31337_called_by_codex": localhost_called_by_codex,
+        "repo_root_agents_created": repo_root_agents_created,
+        "repo_dotcodex_created": repo_dotcodex_created,
+        "codex_adapter_files_installed_under_home_codex": codex_adapter_files_installed_under_home_codex,
+        "validation_passed": validation_passed,
+        "known_limits": [
+            "Codex JSONL event attribution is a runtime-provider signal, not replacement readiness.",
+            "Filesystem mtime scanning is a secondary detector for repository and PAI write boundaries.",
+            "Ambient PAI state/cache/log churn is not adapter evidence.",
+            "S15E covers one bounded real repository task only.",
+        ],
+        "runtime_warnings": event_warnings,
     }
 
 

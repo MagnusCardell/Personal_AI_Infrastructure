@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -8,6 +9,12 @@ from pathlib import Path
 RUN_ID = "s15d-codex-synthetic-bugfix"
 RUN_RESULT_NAME = "run-result.json"
 EVENTS_NAME = "runtime-events.jsonl"
+REPO_RUN_RESULT_NAME = "repo-run-result.json"
+REPO_EVENTS_NAME = "repo-events.jsonl"
+REPO_RUN_ID = "s15e-provider-registry"
+REPO_TASK_ID = "s15e-provider-registry-repo-task"
+REPO_MILESTONE = "V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK"
+MARKER = "PAI_CODEX_PEER_BETA_ADAPTER"
 
 
 class CodexProviderError(ValueError):
@@ -71,5 +78,136 @@ def run_codex_provider(pai_dir: Path, task_card: Path, run_dir: Path, dry_run: b
         raise CodexProviderError("Codex provider did not return JSON") from exc
     if not isinstance(payload, dict):
         raise CodexProviderError("Codex provider response must be a JSON object")
+    payload["provider_command"] = command
+    return payload
+
+
+def _repo_task_prompt(pai_dir: Path, task_card: dict[str, object], repo_root: Path, run_dir: Path) -> str:
+    approved = task_card.get("approved_repository_write_set")
+    targets = task_card.get("repository_target_files")
+    test_command = task_card.get("test_command")
+    approved_lines = "\n".join(f"- {item}" for item in approved if isinstance(item, str)) if isinstance(approved, list) else ""
+    target_lines = "\n".join(f"- {item}" for item in targets if isinstance(item, str)) if isinstance(targets, list) else ""
+    test_text = " ".join(test_command) if isinstance(test_command, list) and all(isinstance(item, str) for item in test_command) else ""
+    registry_path = repo_root / "tools" / "pai_runtime_runner" / "provider_registry.py"
+    registry_test_path = repo_root / "tests" / "test_pai_runtime_provider_registry.py"
+    registry_text = registry_path.read_text(encoding="utf-8") if registry_path.is_file() else ""
+    registry_test_text = registry_test_path.read_text(encoding="utf-8") if registry_test_path.is_file() else ""
+    return (
+        "You are Codex running as runtime provider codex under the PAI-owned runtime runner. "
+        "PAI owns the run directory, task card, validation, and Memory/ISA/Pulse policy. "
+        f"PAI_DIR is {str(pai_dir)!r}. "
+        f"The actual adapter-development repository root is {str(repo_root)!r}. "
+        f"The PAI-owned S15E run directory is {str(run_dir)!r}. "
+        f"The installed router identity marker observed by the runtime runner is {MARKER!r}. "
+        "Implement the bounded real repository task: improve the PAI runtime provider registry module and tests. "
+        "Modify only the repository target files listed below. Do not create repo root AGENTS.md, repo .codex, "
+        "Codex native install surfaces, Memory writers, ISA writers, Pulse bridges, hooks, skills, agents, commands, "
+        "or files outside the approved repository write set. Do not call localhost:31337 or probe Pulse. "
+        "The provider registry must support discover_runtime_providers, load_provider_manifest, "
+        "validate_provider_manifest, and get_provider_by_name, and must enforce Codex peer-beta semantics: "
+        "runtime_name=codex, runtime_status=peer-beta, provider_type=codex-cli, upstream_adapter=claude, "
+        "supports_codex_exec=true, supports_jsonl_events=true, supports_structured_output=true, "
+        "memory_write_policy=disabled, isa_write_policy=disabled, pulse_policy=no-probe, "
+        "replacement_status=not-replacement-grade. "
+        "If the implementation already exists, make a small real improvement by adding an explicit exported "
+        "EXPECTED_CODEX_SEMANTIC_FIELDS tuple derived from the Codex semantics and add a provider-registry test "
+        "that asserts it covers the Memory, ISA, Pulse, and replacement-grade guard fields. "
+        "Always return complete final replacement contents in provider_registry_file_content and "
+        "provider_registry_test_file_content. If your direct repository editing tools work, still include the final "
+        "contents in those fields. If shell or direct edit tools fail, use these structured fields as the canonical "
+        "Codex-authored patch for the PAI runtime runner to materialize, and still report the target files in "
+        "repository_files_modified. "
+        f"Run the provider registry tests with {test_text!r}. "
+        "Return only JSON matching the provided schema. "
+        f"Use milestone_name {REPO_MILESTONE!r}, run_id {REPO_RUN_ID!r}, runtime 'codex', runtime_status 'peer-beta', "
+        "provider_type 'codex-cli', task_id 's15e-provider-registry-repo-task', "
+        "task_kind 'bounded-real-repository-code-change', adapter_identity_marker exactly as observed, "
+        "adapter_status 'peer-beta', upstream_adapter 'claude', agents_router_observed true, "
+        "pai_owned_run_directory true, tests_passed true, memory_write_performed false, isa_write_performed false, "
+        "pulse_probe_performed false, localhost_31337_called false, and runtime_surface_created false. "
+        "Set repository_files_modified to the repository-relative files you changed. "
+        "Use evidence_classification values including 'PAI-owned real repository task evidence', "
+        "'runtime provider registry evidence', and 'not replacement readiness'. "
+        "Do not include raw Memory, ISA, Pulse, backup, credential, or personal file contents. "
+        f"Approved repository write set:\n{approved_lines}\n"
+        f"Repository target files:\n{target_lines}\n"
+        f"Current tools/pai_runtime_runner/provider_registry.py:\n{registry_text}\n"
+        f"Current tests/test_pai_runtime_provider_registry.py:\n{registry_test_text}\n"
+    )
+
+
+def build_repo_provider_command(
+    pai_dir: Path,
+    task_card: dict[str, object],
+    repo_root: Path,
+    run_dir: Path,
+    result_path: Path,
+) -> list[str]:
+    schema_path = pai_dir / "runtime-schemas" / "repo-run-result.schema.json"
+    prompt = _repo_task_prompt(pai_dir, task_card, repo_root, run_dir)
+    return [
+        "codex",
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--ephemeral",
+        "--json",
+        "--sandbox",
+        "workspace-write",
+        "--cd",
+        str(repo_root),
+        "--add-dir",
+        str(run_dir),
+        "--output-schema",
+        str(schema_path),
+        "-o",
+        str(result_path),
+        prompt,
+    ]
+
+
+def run_codex_repo_provider(
+    pai_dir: Path,
+    task_card: dict[str, object],
+    repo_root: Path,
+    run_dir: Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    result_path = run_dir / REPO_RUN_RESULT_NAME
+    events_path = run_dir / REPO_EVENTS_NAME
+    command = build_repo_provider_command(pai_dir, task_card, repo_root, run_dir, result_path)
+    if dry_run:
+        return {
+            "dry_run": True,
+            "provider_command": command,
+            "repo_root": str(repo_root),
+            "run_dir": str(run_dir),
+            "result": str(result_path),
+            "events_output": str(events_path),
+        }
+
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    events_path.parent.mkdir(parents=True, exist_ok=True)
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    with events_path.open("w", encoding="utf-8") as events_file:
+        completed = subprocess.run(
+            command,
+            cwd=repo_root,
+            stdin=subprocess.DEVNULL,
+            stdout=events_file,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+    if completed.returncode != 0:
+        raise CodexProviderError(f"Codex repo provider failed: {completed.stderr.strip()}")
+    try:
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CodexProviderError("Codex repo provider did not write valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise CodexProviderError("Codex repo provider response must be a JSON object")
     payload["provider_command"] = command
     return payload

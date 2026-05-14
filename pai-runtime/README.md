@@ -6,3 +6,14 @@ bounded work under PAI control.
 
 The first provider is `codex`, registered as peer beta. Claude remains the
 official/full-support upstream adapter.
+
+S15E adds bounded real-repository execution through:
+
+```bash
+pai-runtime run-repo --runtime codex
+```
+
+The first real repository task is the PAI runtime provider registry. It remains
+bounded to an approved repository write set and emits `repo-run-result.json`,
+`repo-events.jsonl`, `repo-task.diff`, and `repo-run-validation.json` under a
+PAI-owned run directory.

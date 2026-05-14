@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "S15E PAI Runtime Repository Task",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "milestone_name",
+    "task_id",
+    "task_kind",
+    "runtime",
+    "run_id",
+    "approved_repository_write_set",
+    "repository_target_files",
+    "test_command"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK" },
+    "task_id": { "type": "string", "const": "s15e-provider-registry-repo-task" },
+    "task_kind": { "type": "string", "const": "bounded-real-repository-code-change" },
+    "runtime": { "type": "string", "const": "codex" },
+    "run_id": { "type": "string", "const": "s15e-provider-registry" },
+    "approved_repository_write_set": { "type": "array", "items": { "type": "string" } },
+    "repository_target_files": { "type": "array", "items": { "type": "string" } },
+    "test_command": { "type": "array", "items": { "type": "string" } }
+  }
+}
