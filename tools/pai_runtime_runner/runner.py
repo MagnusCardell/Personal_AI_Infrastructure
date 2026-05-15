@@ -27,6 +27,11 @@ from tools.pai_runtime_runner.capabilities import (
     enforce_capability_policy,
     task_required_capabilities,
 )
+from tools.pai_runtime_runner.beta_readiness import (
+    BetaReadinessError,
+    S15J_RUN_RELATIVE,
+    run_beta_readiness_gate,
+)
 from tools.pai_runtime_runner.pai_context import (
     PaiContextError,
     S15I_MILESTONE,
@@ -93,6 +98,10 @@ S15I_EVENTS_NAME = "pai-context-events.jsonl"
 S15I_STATE_NAME = "pai-context-state.json"
 S15I_VALIDATION_NAME = "pai-context-validation.json"
 S15I_REQUIRED_CAPABILITY = "pai.context.read.metadata"
+S15J_RESULT_NAME = "beta-readiness-result.json"
+S15J_EVENTS_NAME = "beta-readiness-events.jsonl"
+S15J_VALIDATION_NAME = "beta-readiness-validation.json"
+S15J_EVIDENCE_INDEX_NAME = "evidence-index.json"
 S15F_TARGET_FILES = {
     "tools/pai_runtime_runner/patch_proposal.py",
     "tests/test_pai_runtime_patch_proposal.py",
@@ -370,6 +379,23 @@ def _safe_pai_context_run_dir(pai_dir: Path, run_dir: str | Path) -> Path:
     return path
 
 
+def _safe_beta_readiness_run_dir(pai_dir: Path, run_dir: str | Path) -> Path:
+    path = Path(run_dir)
+    if str(run_dir) == "":
+        raise RunnerError("--run-dir must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--run-dir must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    expected = (pai_dir / S15J_RUN_RELATIVE).resolve(strict=False)
+    if resolved != expected:
+        raise RunnerError("S15J beta-readiness run directory must be runs/s15j/codex-beta-readiness")
+    if path.exists() and not path.is_dir():
+        raise RunnerError("--run-dir target is not a directory")
+    if path.is_symlink():
+        raise RunnerError("--run-dir target is a symlink")
+    return path
+
+
 def _safe_pai_context_audit_output(run_dir: Path, output: str | Path) -> Path:
     path = Path(output)
     if str(output) == "":
@@ -437,6 +463,9 @@ def doctor(pai_dir: Path) -> dict[str, object]:
         (pai_dir / "runtime-schemas" / "pai-context-capsule.schema.json", "PAI context capsule schema"),
         (pai_dir / "runtime-schemas" / "pai-context-report.schema.json", "PAI context report schema"),
         (pai_dir / "runtime-schemas" / "pai-context-validation.schema.json", "PAI context validation schema"),
+        (pai_dir / "runtime-schemas" / "beta-readiness-result.schema.json", "S15J beta-readiness result schema"),
+        (pai_dir / "runtime-schemas" / "beta-readiness-validation.schema.json", "S15J beta-readiness validation schema"),
+        (pai_dir / "runtime-schemas" / "evidence-index.schema.json", "S15J evidence index schema"),
         (pai_dir / TASK_RELATIVE, "S15D task card"),
         (pai_dir / S15E_TASK_RELATIVE, "S15E repo task card"),
         (pai_dir / S15F_TASK_RELATIVE, "S15F patch proposal repo task card"),
@@ -1119,6 +1148,28 @@ def run_pai_context_runtime(
     }
 
 
+def beta_readiness_runtime(
+    pai_dir: Path,
+    runtime: str,
+    run_dir: str | Path,
+    runtime_attempt_number: int = 1,
+) -> dict[str, object]:
+    doctor(pai_dir)
+    if runtime != "codex":
+        raise RunnerError(f"unknown runtime provider: {runtime}")
+    provider_validation = provider_lifecycle_validate(pai_dir, runtime)
+    if not provider_validation.get("valid"):
+        raise RunnerError("codex provider validation failed")
+    safe_run_dir = _safe_beta_readiness_run_dir(pai_dir, run_dir)
+    return run_beta_readiness_gate(
+        pai_dir=pai_dir,
+        runtime=runtime,
+        run_dir=safe_run_dir,
+        runtime_attempt_number=runtime_attempt_number,
+        repo_root=Path.cwd(),
+    )
+
+
 def audit_runtime_run(
     pai_dir: Path,
     marker: str | Path,
@@ -1333,6 +1384,12 @@ def build_parser() -> argparse.ArgumentParser:
     context_parser.add_argument("--run-dir", required=True)
     context_parser.add_argument("--dry-run", action="store_true")
 
+    beta_readiness_parser = subcommands.add_parser("beta-readiness")
+    beta_readiness_parser.add_argument("--pai-dir", required=True)
+    beta_readiness_parser.add_argument("--runtime", required=True)
+    beta_readiness_parser.add_argument("--run-dir", required=True)
+    beta_readiness_parser.add_argument("--runtime-attempt-number", type=int, default=1)
+
     audit_parser = subcommands.add_parser("audit-run")
     audit_parser.add_argument("--pai-dir", required=True)
     audit_parser.add_argument("--marker", required=True)
@@ -1407,6 +1464,13 @@ def main(argv: list[str] | None = None) -> int:
                 args.run_dir,
                 args.dry_run,
             )
+        elif args.command == "beta-readiness":
+            result = beta_readiness_runtime(
+                pai_dir,
+                args.runtime,
+                args.run_dir,
+                args.runtime_attempt_number,
+            )
         elif args.command == "audit-run":
             result = audit_runtime_run(pai_dir, args.marker, args.run_dir, args.output, args.runtime_attempt_number)
         elif args.command == "audit-repo-run":
@@ -1444,7 +1508,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             raise RunnerError(f"unknown command: {args.command}")
-    except (CapabilityPolicyError, PaiContextError, ProviderRegistryError, RunnerError, OSError) as exc:
+    except (BetaReadinessError, CapabilityPolicyError, PaiContextError, ProviderRegistryError, RunnerError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2, sort_keys=True))

@@ -39,6 +39,19 @@ intended run emits `pai-context-capsule.json`, `pai-context-report.json`, and
 `pai-context-events.jsonl`. The paired `audit-pai-context` command validates
 the run and writes `pai-context-validation.json`.
 
-The S15I repository payload is not accepted live evidence by itself. The first
-live S15I validation batch exhausted the three-attempt policy and rolled back;
-a later live revision attempt requires separate architect approval.
+S15I-R1 completed the read-only PAI metadata context task with a
+Codex-compatible provider-facing schema and PAI-owned semantic validation.
+
+S15J adds an executable closeout gate through:
+
+```bash
+pai-runtime beta-readiness --runtime codex
+```
+
+The gate verifies provider lifecycle, capability policy, patch proposal policy,
+read-only PAI context policy, event attribution, and protected surfaces. It
+emits `beta-readiness-result.json`, `beta-readiness-events.jsonl`,
+`beta-readiness-validation.json`, and `evidence-index.json` under a PAI-owned
+S15J run directory. The gate preserves the S15 boundary: Codex remains
+peer beta, Claude remains the official/full-support upstream adapter, and no
+replacement-readiness or Claude-equivalence claim is made.

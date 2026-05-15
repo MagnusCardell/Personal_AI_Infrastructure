@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI Codex Beta Readiness Evidence Index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "accepted_commits",
+    "live_artifacts_checked",
+    "live_artifacts_regenerated",
+    "runtime_provider_status",
+    "capability_summary",
+    "protected_surface_summary",
+    "s15_closeout_summary",
+    "recommended_s16_direction"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S15J-PAI-RUNTIME-CODEX-BETA-READINESS-GATE" },
+    "run_id": { "type": "string", "const": "s15j-codex-beta-readiness" },
+    "accepted_commits": {
+      "type": "array",
+      "minItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["milestone", "commit"],
+        "properties": {
+          "milestone": { "type": "string" },
+          "commit": { "type": "string", "minLength": 40, "maxLength": 40 }
+        }
+      }
+    },
+    "live_artifacts_checked": { "type": "array", "items": { "type": "object" } },
+    "live_artifacts_regenerated": { "type": "array", "items": { "type": "object" } },
+    "runtime_provider_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_name",
+        "runtime_status",
+        "provider_type",
+        "upstream_adapter",
+        "supports_codex_exec",
+        "supports_jsonl_events",
+        "supports_structured_output",
+        "memory_write_policy",
+        "isa_write_policy",
+        "pulse_policy",
+        "replacement_status"
+      ],
+      "properties": {
+        "runtime_name": { "type": "string", "const": "codex" },
+        "runtime_status": { "type": "string", "const": "peer-beta" },
+        "provider_type": { "type": "string", "const": "codex-cli" },
+        "upstream_adapter": { "type": "string", "const": "claude" },
+        "supports_codex_exec": { "type": "boolean", "const": true },
+        "supports_jsonl_events": { "type": "boolean", "const": true },
+        "supports_structured_output": { "type": "boolean", "const": true },
+        "memory_write_policy": { "type": "string", "const": "disabled" },
+        "isa_write_policy": { "type": "string", "const": "disabled" },
+        "pulse_policy": { "type": "string", "const": "no-probe" },
+        "replacement_status": { "type": "string", "const": "not-replacement-grade" }
+      }
+    },
+    "capability_summary": { "type": "object" },
+    "protected_surface_summary": { "type": "object" },
+    "s15_closeout_summary": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "type": "string" },
+      "contains": { "const": "Codex replacement readiness is not claimed." }
+    },
+    "recommended_s16_direction": {
+      "type": "string",
+      "const": "controlled real PAI-context task execution with proposal-only Memory/ISA semantics"
+    }
+  }
+}

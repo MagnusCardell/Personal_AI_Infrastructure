@@ -33,6 +33,9 @@ INSTALL_TEXT_TARGETS = {
     REPO_ROOT / "pai-runtime" / "pai-context-capsule.schema.json": Path("runtime-schemas") / "pai-context-capsule.schema.json",
     REPO_ROOT / "pai-runtime" / "pai-context-report.schema.json": Path("runtime-schemas") / "pai-context-report.schema.json",
     REPO_ROOT / "pai-runtime" / "pai-context-validation.schema.json": Path("runtime-schemas") / "pai-context-validation.schema.json",
+    REPO_ROOT / "pai-runtime" / "beta-readiness-result.schema.json": Path("runtime-schemas") / "beta-readiness-result.schema.json",
+    REPO_ROOT / "pai-runtime" / "beta-readiness-validation.schema.json": Path("runtime-schemas") / "beta-readiness-validation.schema.json",
+    REPO_ROOT / "pai-runtime" / "evidence-index.schema.json": Path("runtime-schemas") / "evidence-index.schema.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15d-codex-synthetic-bugfix.json": Path("runtime-tasks") / "s15d-codex-synthetic-bugfix.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15e-provider-registry-repo-task.json": Path("runtime-tasks") / "s15e-provider-registry-repo-task.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15f-patch-proposal-repo-task.json": Path("runtime-tasks") / "s15f-patch-proposal-repo-task.json",
@@ -69,12 +72,17 @@ APPROVED_LIVE_RELATIVES = tuple(INSTALL_TEXT_TARGETS.values()) + (
     Path("runs") / "s15i" / "read-only-pai-context" / "pai-context-events.jsonl",
     Path("runs") / "s15i" / "read-only-pai-context" / "pai-context-state.json",
     Path("runs") / "s15i" / "read-only-pai-context" / "pai-context-validation.json",
+    Path("runs") / "s15j" / "codex-beta-readiness" / "beta-readiness-result.json",
+    Path("runs") / "s15j" / "codex-beta-readiness" / "beta-readiness-events.jsonl",
+    Path("runs") / "s15j" / "codex-beta-readiness" / "beta-readiness-validation.json",
+    Path("runs") / "s15j" / "codex-beta-readiness" / "evidence-index.json",
 )
 
 RUN_DIR_RELATIVE = Path("runs") / "s15d" / "codex-synthetic-bugfix"
 S15E_RUN_DIR_RELATIVE = Path("runs") / "s15e" / "provider-registry"
 S15F_RUN_DIR_RELATIVE = Path("runs") / "s15f" / "patch-proposal"
 S15I_RUN_DIR_RELATIVE = Path("runs") / "s15i" / "read-only-pai-context"
+S15J_RUN_DIR_RELATIVE = Path("runs") / "s15j" / "codex-beta-readiness"
 S15I_MUTABLE_INSTALL_RELATIVES = {
     Path("bin") / "pai-runtime",
     Path("runtime-state.json"),
@@ -82,6 +90,9 @@ S15I_MUTABLE_INSTALL_RELATIVES = {
     Path("runtime-schemas") / "pai-context-capsule.schema.json",
     Path("runtime-schemas") / "pai-context-report.schema.json",
     Path("runtime-schemas") / "pai-context-validation.schema.json",
+    Path("runtime-schemas") / "beta-readiness-result.schema.json",
+    Path("runtime-schemas") / "beta-readiness-validation.schema.json",
+    Path("runtime-schemas") / "evidence-index.schema.json",
     Path("runtime-tasks") / "s15i-readonly-pai-context-task.json",
     Path("runtimes") / "codex" / "provider-manifest.json",
 }
@@ -163,7 +174,7 @@ def _wrapper_text() -> str:
 def _runtime_state() -> str:
     payload = {
         "installed": True,
-        "milestone_name": "V5-S15I-PAI-RUNTIME-READONLY-PAI-CONTEXT-TASK",
+        "milestone_name": "V5-S15J-PAI-RUNTIME-CODEX-BETA-READINESS-GATE",
         "ownership_model": "PAI owns the run; Codex is runtime provider codex.",
         "runtime_provider": "codex",
         "runtime_status": "peer-beta",
@@ -171,6 +182,7 @@ def _runtime_state() -> str:
         "supports_repo_tasks": True,
         "supports_patch_proposals": True,
         "supports_pai_context_metadata": True,
+        "supports_beta_readiness_gate": True,
     }
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
@@ -251,6 +263,9 @@ def validate_staged_payload() -> None:
         REPO_ROOT / "pai-runtime" / "pai-context-capsule.schema.json",
         REPO_ROOT / "pai-runtime" / "pai-context-report.schema.json",
         REPO_ROOT / "pai-runtime" / "pai-context-validation.schema.json",
+        REPO_ROOT / "pai-runtime" / "beta-readiness-result.schema.json",
+        REPO_ROOT / "pai-runtime" / "beta-readiness-validation.schema.json",
+        REPO_ROOT / "pai-runtime" / "evidence-index.schema.json",
     ):
         _validate_schema_file(source, source.name)
     _validate_json_instance(
@@ -277,6 +292,27 @@ def validate_staged_payload() -> None:
         raise RuntimeInstallError("runner/audit is missing S15I PAI context command tokens")
     if "pai.context.read.metadata" not in runner + audit + pai_context:
         raise RuntimeInstallError("S15I context pipeline is missing pai.context.read.metadata tokens")
+    beta_readiness = (REPO_ROOT / "tools" / "pai_runtime_runner" / "beta_readiness.py").read_text(encoding="utf-8")
+    if "beta-readiness" not in runner or "run_beta_readiness_gate" not in beta_readiness:
+        raise RuntimeInstallError("runner is missing S15J beta-readiness command tokens")
+    for token in (
+        "provider_registry_passed",
+        "provider_lifecycle_passed",
+        "capability_policy_passed",
+        "patch_proposal_policy_passed",
+        "readonly_pai_context_policy_passed",
+        "replacement_readiness_claimed",
+        "claude_equivalence_claimed",
+        "ee2479a2122022ca72ddfed37be4b889902f5077",
+        "9dd03b4a4d75b628980c8612acf989bcb892779a",
+        "64e15bcf95e763d93410065e6f8e6fc887367d5e",
+        "6aabb84af919cc965532e4d6ab8646660152d18c",
+        "65d77603c663cd2dc319a5f36575b4d1f71fdcb1",
+        "6485c3ceed3cb6d28131cb0c3722bed6fe1444f4",
+        "2407aee57ded9707dd37872a329aff05e8e7a798",
+    ):
+        if token not in beta_readiness:
+            raise RuntimeInstallError(f"S15J beta-readiness gate is missing token: {token}")
     for token in (
         "discover_runtime_providers",
         "load_provider_manifest",
@@ -372,7 +408,13 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
     resolved_backup_root = _resolve_backup_root(backup_root)
     backup_pai = _backup_pai_dir(resolved_backup_root)
     changed: list[Path] = []
-    for run_relative in (RUN_DIR_RELATIVE, S15E_RUN_DIR_RELATIVE, S15F_RUN_DIR_RELATIVE, S15I_RUN_DIR_RELATIVE):
+    for run_relative in (
+        RUN_DIR_RELATIVE,
+        S15E_RUN_DIR_RELATIVE,
+        S15F_RUN_DIR_RELATIVE,
+        S15I_RUN_DIR_RELATIVE,
+        S15J_RUN_DIR_RELATIVE,
+    ):
         changed.extend(_rollback_run_dir(resolved_pai_dir, backup_pai, run_relative))
     for relative in APPROVED_LIVE_RELATIVES:
         if relative == RUN_DIR_RELATIVE or _is_within(RUN_DIR_RELATIVE, relative):
@@ -383,6 +425,8 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
             continue
         if relative == S15I_RUN_DIR_RELATIVE or _is_within(S15I_RUN_DIR_RELATIVE, relative):
             continue
+        if relative == S15J_RUN_DIR_RELATIVE or _is_within(S15J_RUN_DIR_RELATIVE, relative):
+            continue
         if _restore_or_remove(resolved_pai_dir, backup_pai, relative):
             changed.append(resolved_pai_dir / relative)
     _remove_empty_dirs(
@@ -391,6 +435,8 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
             resolved_pai_dir / S15E_RUN_DIR_RELATIVE,
             resolved_pai_dir / S15F_RUN_DIR_RELATIVE,
             resolved_pai_dir / S15I_RUN_DIR_RELATIVE,
+            resolved_pai_dir / S15J_RUN_DIR_RELATIVE,
+            resolved_pai_dir / "runs" / "s15j",
             resolved_pai_dir / "runs" / "s15i",
             resolved_pai_dir / "runs" / "s15f",
             resolved_pai_dir / "runs" / "s15e",
