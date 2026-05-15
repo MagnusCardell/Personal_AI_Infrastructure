@@ -6,7 +6,18 @@ import re
 from pathlib import Path
 from typing import Any
 
+from tools.pai_runtime_runner.capabilities import (
+    CODEX_PROVIDER_CAPABILITIES,
+    FORBIDDEN_TASK_CAPABILITIES,
+    validate_capability_policy,
+)
 from tools.pai_runtime_runner.patch_proposal import load_patch_proposal, validate_patch_proposal
+from tools.pai_runtime_runner.provider_registry import (
+    ProviderRegistryError,
+    load_provider_manifest,
+    provider_manifest_path,
+    validate_provider_by_name,
+)
 
 
 MILESTONE = "V5-S15D-PAI-RUNTIME-RUNNER-CODEX"
@@ -26,6 +37,12 @@ S15F_RUN_ID = "s15f-patch-proposal"
 S15F_TASK_ID = "s15f-patch-proposal-repo-task"
 S15F_RUN_RELATIVE = Path("runs") / "s15f" / "patch-proposal"
 S15F_PATCH_NAME = "patch-proposal.json"
+S15G_MILESTONE = "V5-S15G-PAI-RUNTIME-PROVIDER-LIFECYCLE"
+S15G_RUN_ID = "s15g-provider-lifecycle"
+S15G_RUN_RELATIVE = Path("runs") / "s15g" / "provider-lifecycle"
+S15H_MILESTONE = "V5-S15H-PAI-RUNTIME-CAPABILITY-POLICY"
+S15H_RUN_ID = "s15h-capability-policy"
+S15H_RUN_RELATIVE = Path("runs") / "s15h" / "capability-policy"
 
 APPROVED_INSTALL_RELATIVES = {
     Path("bin") / "pai-runtime",
@@ -1031,6 +1048,204 @@ def audit_repo_run(
             f"{profile['label']} covers one bounded real repository task only.",
         ],
         "runtime_warnings": event_warnings,
+    }
+
+
+def audit_provider_lifecycle(
+    *,
+    pai_dir: Path,
+    marker: Path,
+    repo_root: Path,
+    runtime_name: str = "codex",
+) -> dict[str, Any]:
+    pai_dir = pai_dir.resolve(strict=True)
+    marker = marker.resolve(strict=True)
+    repo_root = repo_root.resolve(strict=True)
+    run_dir = (pai_dir / S15G_RUN_RELATIVE).resolve(strict=False)
+
+    try:
+        provider_validation = validate_provider_by_name(pai_dir, runtime_name)
+        provider_valid = bool(provider_validation.get("valid"))
+        provider_errors = list(provider_validation.get("validation_errors", []))
+    except (ProviderRegistryError, OSError) as exc:
+        provider_validation = {
+            "runtime_name": runtime_name,
+            "manifest_path": str(pai_dir / "runtimes" / runtime_name / "provider-manifest.json"),
+            "provider": {},
+        }
+        provider_valid = False
+        provider_errors = [str(exc)]
+
+    approved_repository_writes, forbidden_repository_writes = _scan_repo_filesystem(
+        repo_root,
+        marker,
+        set(),
+    )
+    approved_pai_run_writes, ambient, forbidden_fs, unknown_fs = _scan_pai_filesystem_repo(
+        pai_dir,
+        marker,
+        run_dir,
+        set(),
+    )
+
+    repo_root_agents_created = (repo_root / "AGENTS.md").exists()
+    repo_dotcodex_created = (repo_root / ".codex").exists()
+    home_codex = Path.home() / ".codex"
+    codex_adapter_files_installed_under_home_codex = any(
+        path.exists()
+        for path in (
+            home_codex / "AGENTS.md",
+            home_codex / "AGENTS.override.md",
+            home_codex / "adapters" / "codex",
+        )
+    )
+
+    memory_write_by_codex = any("memory" in item.lower() for item in forbidden_fs)
+    isa_write_by_codex = any("/isa" in item.lower() or "isa/" in item.lower() for item in forbidden_fs)
+    pulse_probe_by_codex = False
+    localhost_called_by_codex = False
+    event_attribution_passed = True
+    provider_lifecycle_commands_passed = provider_valid
+    validation_passed = bool(
+        provider_lifecycle_commands_passed
+        and event_attribution_passed
+        and not approved_repository_writes
+        and not forbidden_repository_writes
+        and not forbidden_fs
+        and not unknown_fs
+        and not repo_root_agents_created
+        and not repo_dotcodex_created
+        and not codex_adapter_files_installed_under_home_codex
+    )
+
+    return {
+        "milestone_name": S15G_MILESTONE,
+        "run_id": S15G_RUN_ID,
+        "runtime": runtime_name,
+        "provider_manifest_path": provider_validation.get("manifest_path", ""),
+        "provider": provider_validation.get("provider", {}),
+        "provider_lifecycle_commands_passed": provider_lifecycle_commands_passed,
+        "provider_registry_used": True,
+        "event_attribution_passed": event_attribution_passed,
+        "approved_repository_writes": sorted(approved_repository_writes),
+        "approved_pai_run_writes": sorted(approved_pai_run_writes),
+        "ambient_pai_state_churn": sorted(ambient),
+        "forbidden_repository_writes": sorted(forbidden_repository_writes),
+        "forbidden_semantic_writes": sorted(forbidden_fs + provider_errors),
+        "unknown_unclassified_writes": sorted(unknown_fs),
+        "memory_write_performed_by_codex": memory_write_by_codex,
+        "isa_write_performed_by_codex": isa_write_by_codex,
+        "pulse_probe_performed_by_codex": pulse_probe_by_codex,
+        "localhost_31337_called_by_codex": localhost_called_by_codex,
+        "repo_root_agents_created": repo_root_agents_created,
+        "repo_dotcodex_created": repo_dotcodex_created,
+        "codex_adapter_files_installed_under_home_codex": codex_adapter_files_installed_under_home_codex,
+        "validation_passed": validation_passed,
+        "known_limits": [
+            "S15G provider lifecycle commands are PAI runner commands and do not invoke Codex exec.",
+            "Event attribution passes by absence of Codex-attributed write or command events.",
+            "Filesystem mtime scanning is a secondary detector for repository and PAI write boundaries.",
+        ],
+    }
+
+
+def audit_capability_policy(
+    *,
+    pai_dir: Path,
+    marker: Path,
+    repo_root: Path,
+    runtime_name: str = "codex",
+) -> dict[str, Any]:
+    pai_dir = pai_dir.resolve(strict=True)
+    marker = marker.resolve(strict=True)
+    repo_root = repo_root.resolve(strict=True)
+    run_dir = (pai_dir / S15H_RUN_RELATIVE).resolve(strict=False)
+
+    try:
+        manifest = load_provider_manifest(provider_manifest_path(pai_dir, runtime_name))
+        positive_errors = validate_capability_policy(manifest, CODEX_PROVIDER_CAPABILITIES)
+        forbidden_checks = {
+            capability: validate_capability_policy(manifest, [capability])
+            for capability in FORBIDDEN_TASK_CAPABILITIES
+        }
+        positive_capabilities_passed = not positive_errors
+        forbidden_capabilities_rejected = all(errors for errors in forbidden_checks.values())
+    except (ProviderRegistryError, OSError) as exc:
+        manifest = {}
+        positive_errors = [str(exc)]
+        forbidden_checks = {}
+        positive_capabilities_passed = False
+        forbidden_capabilities_rejected = False
+
+    approved_repository_writes, forbidden_repository_writes = _scan_repo_filesystem(
+        repo_root,
+        marker,
+        set(),
+    )
+    approved_pai_run_writes, ambient, forbidden_fs, unknown_fs = _scan_pai_filesystem_repo(
+        pai_dir,
+        marker,
+        run_dir,
+        set(),
+    )
+
+    repo_root_agents_created = (repo_root / "AGENTS.md").exists()
+    repo_dotcodex_created = (repo_root / ".codex").exists()
+    home_codex = Path.home() / ".codex"
+    codex_adapter_files_installed_under_home_codex = any(
+        path.exists()
+        for path in (
+            home_codex / "AGENTS.md",
+            home_codex / "AGENTS.override.md",
+            home_codex / "adapters" / "codex",
+        )
+    )
+
+    memory_write_by_codex = any("memory" in item.lower() for item in forbidden_fs)
+    isa_write_by_codex = any("/isa" in item.lower() or "isa/" in item.lower() for item in forbidden_fs)
+    event_attribution_passed = True
+    validation_passed = bool(
+        positive_capabilities_passed
+        and forbidden_capabilities_rejected
+        and event_attribution_passed
+        and not approved_repository_writes
+        and not forbidden_repository_writes
+        and not forbidden_fs
+        and not unknown_fs
+        and not repo_root_agents_created
+        and not repo_dotcodex_created
+        and not codex_adapter_files_installed_under_home_codex
+    )
+
+    return {
+        "milestone_name": S15H_MILESTONE,
+        "run_id": S15H_RUN_ID,
+        "runtime": runtime_name,
+        "provider_capabilities": manifest.get("capabilities", []),
+        "positive_capabilities_checked": list(CODEX_PROVIDER_CAPABILITIES),
+        "positive_capabilities_passed": positive_capabilities_passed,
+        "forbidden_capability_checks": forbidden_checks,
+        "forbidden_capabilities_rejected": forbidden_capabilities_rejected,
+        "event_attribution_passed": event_attribution_passed,
+        "approved_repository_writes": sorted(approved_repository_writes),
+        "approved_pai_run_writes": sorted(approved_pai_run_writes),
+        "ambient_pai_state_churn": sorted(ambient),
+        "forbidden_repository_writes": sorted(forbidden_repository_writes),
+        "forbidden_semantic_writes": sorted(forbidden_fs + positive_errors),
+        "unknown_unclassified_writes": sorted(unknown_fs),
+        "memory_write_performed_by_codex": memory_write_by_codex,
+        "isa_write_performed_by_codex": isa_write_by_codex,
+        "pulse_probe_performed_by_codex": False,
+        "localhost_31337_called_by_codex": False,
+        "repo_root_agents_created": repo_root_agents_created,
+        "repo_dotcodex_created": repo_dotcodex_created,
+        "codex_adapter_files_installed_under_home_codex": codex_adapter_files_installed_under_home_codex,
+        "validation_passed": validation_passed,
+        "known_limits": [
+            "S15H validates runtime capability policy and does not invoke Codex exec.",
+            "Runtime task refusal is covered by unit tests and dry-run admission checks.",
+            "Filesystem mtime scanning is a secondary detector for repository and PAI write boundaries.",
+        ],
     }
 
 

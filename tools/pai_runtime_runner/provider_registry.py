@@ -33,6 +33,15 @@ class ProviderRegistryError(ValueError):
     pass
 
 
+def provider_manifest_path(pai_root: Path, runtime_name: str) -> Path:
+    if runtime_name == "":
+        raise ProviderRegistryError("runtime_name must not be empty")
+    runtime_path = Path(runtime_name)
+    if runtime_path.is_absolute() or any(part == ".." for part in runtime_path.parts):
+        raise ProviderRegistryError("runtime_name must be a safe relative runtime name")
+    return Path(pai_root) / "runtimes" / runtime_name / "provider-manifest.json"
+
+
 def load_provider_manifest(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise ProviderRegistryError(f"provider manifest is missing: {path}")
@@ -66,6 +75,19 @@ def validate_provider_manifest(manifest: dict[str, Any]) -> list[str]:
     return errors
 
 
+def summarize_provider_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "runtime_name": manifest.get("runtime_name", ""),
+        "runtime_status": manifest.get("runtime_status", ""),
+        "provider_type": manifest.get("provider_type", ""),
+        "upstream_adapter": manifest.get("upstream_adapter", ""),
+        "memory_write_policy": manifest.get("memory_write_policy", ""),
+        "isa_write_policy": manifest.get("isa_write_policy", ""),
+        "pulse_policy": manifest.get("pulse_policy", ""),
+        "replacement_status": manifest.get("replacement_status", ""),
+    }
+
+
 def discover_runtime_providers(pai_root: Path) -> list[dict[str, Any]]:
     runtimes_dir = Path(pai_root) / "runtimes"
     if not runtimes_dir.is_dir():
@@ -90,3 +112,50 @@ def get_provider_by_name(pai_root: Path, runtime_name: str) -> dict[str, Any]:
         if provider.get("runtime_name") == runtime_name:
             return provider
     raise ProviderRegistryError(f"runtime provider not found: {runtime_name}")
+
+
+def validate_provider_by_name(pai_root: Path, runtime_name: str) -> dict[str, Any]:
+    manifest_path = provider_manifest_path(pai_root, runtime_name)
+    manifest = load_provider_manifest(manifest_path)
+    errors = validate_provider_manifest(manifest)
+    return {
+        "runtime_name": runtime_name,
+        "manifest_path": str(manifest_path),
+        "valid": not errors,
+        "validation_errors": errors,
+        "provider": summarize_provider_manifest(manifest),
+    }
+
+
+def _resolve_manifest_path(pai_root: Path, value: str) -> Path:
+    if value.startswith("~/.claude/PAI/"):
+        return Path(pai_root) / value.removeprefix("~/.claude/PAI/")
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return Path(pai_root) / path
+
+
+def doctor_provider_by_name(pai_root: Path, runtime_name: str) -> dict[str, Any]:
+    validation = validate_provider_by_name(pai_root, runtime_name)
+    errors = list(validation["validation_errors"])
+    manifest = load_provider_manifest(provider_manifest_path(pai_root, runtime_name))
+
+    driver_path = manifest.get("driver_path")
+    resolved_driver = None
+    if isinstance(driver_path, str) and driver_path:
+        resolved_driver = _resolve_manifest_path(pai_root, driver_path).resolve(strict=False)
+        if not resolved_driver.is_file():
+            errors.append(f"driver_path is missing: {driver_path}")
+    else:
+        errors.append("driver_path must be a non-empty string")
+
+    return {
+        "runtime_name": runtime_name,
+        "manifest_path": validation["manifest_path"],
+        "provider": validation["provider"],
+        "driver_path": str(resolved_driver) if resolved_driver is not None else "",
+        "valid": not errors,
+        "doctor_passed": not errors,
+        "validation_errors": errors,
+    }

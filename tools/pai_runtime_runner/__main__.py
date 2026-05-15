@@ -8,7 +8,7 @@ from tools.pai_runtime_runner.install import RuntimeInstallError, install_runtim
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Install or rollback the PAI runtime runner.")
+    parser = argparse.ArgumentParser(description="Install or rollback the PAI runtime runner package.")
     parser.add_argument("--pai-dir", required=True)
     parser.add_argument("--backup-root", required=True)
     action = parser.add_mutually_exclusive_group(required=True)

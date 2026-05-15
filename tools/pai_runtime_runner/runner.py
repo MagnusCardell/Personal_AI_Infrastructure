@@ -9,13 +9,30 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tools.pai_runtime_runner.audit import audit_capability_policy as run_capability_policy_audit
 from tools.pai_runtime_runner.audit import audit_repo_run as run_repo_audit
+from tools.pai_runtime_runner.audit import audit_provider_lifecycle as run_provider_lifecycle_audit
 from tools.pai_runtime_runner.audit import audit_run as run_audit
+from tools.pai_runtime_runner.capabilities import (
+    CapabilityPolicyError,
+    MATERIALIZED_REPO_TASK_CAPABILITIES,
+    PATCH_PROPOSAL_REPO_TASK_CAPABILITIES,
+    enforce_capability_policy,
+    task_required_capabilities,
+)
 from tools.pai_runtime_runner.patch_proposal import (
     PatchProposalError,
     load_patch_proposal,
     materialize_patch_proposal,
     validate_patch_proposal,
+)
+from tools.pai_runtime_runner.provider_registry import (
+    ProviderRegistryError,
+    discover_runtime_providers,
+    doctor_provider_by_name,
+    get_provider_by_name,
+    summarize_provider_manifest,
+    validate_provider_by_name,
 )
 from tools.pai_runtime_runner.providers.codex import (
     build_provider_command,
@@ -147,27 +164,25 @@ def _load_json(path: Path, label: str) -> dict[str, object]:
     return data
 
 
-def _provider_manifest_path(pai_dir: Path, runtime: str) -> Path:
-    return pai_dir / "runtimes" / runtime / "provider-manifest.json"
+def _load_task_card(path: Path) -> dict[str, object]:
+    card = _load_json(path, "task card")
+    if card.get("runtime") != "codex":
+        raise RunnerError("task card runtime must be codex")
+    if card.get("task_kind") != "bounded-synthetic-code-repair":
+        raise RunnerError("task card has unexpected task_kind")
+    return card
 
 
-def _validate_codex_manifest(manifest: dict[str, object]) -> None:
-    expected = {
-        "runtime_name": "codex",
-        "runtime_status": "peer-beta",
-        "provider_type": "codex-cli",
-        "upstream_adapter": "claude",
-        "supports_codex_exec": True,
-        "supports_jsonl_events": True,
-        "supports_structured_output": True,
-        "memory_write_policy": "disabled",
-        "isa_write_policy": "disabled",
-        "pulse_policy": "no-probe",
-        "replacement_status": "not-replacement-grade",
-    }
-    for key, value in expected.items():
-        if manifest.get(key) != value:
-            raise RunnerError(f"codex provider manifest mismatch for {key}")
+def _enforce_runtime_capabilities(
+    pai_dir: Path,
+    runtime: str,
+    task_card: dict[str, object],
+    inferred: tuple[str, ...] = (),
+) -> list[str]:
+    manifest = get_provider_by_name(pai_dir, runtime)
+    required = task_required_capabilities(task_card, inferred)
+    enforce_capability_policy(manifest, required)
+    return sorted(required)
 
 
 def _safe_task_card(pai_dir: Path, task_card: str | Path) -> Path:
@@ -230,6 +245,44 @@ def _safe_audit_output(run_dir: Path, output: str | Path) -> Path:
     return path
 
 
+def _safe_provider_lifecycle_audit_output(pai_dir: Path, output: str | Path) -> Path:
+    path = Path(output)
+    if str(output) == "":
+        raise RunnerError("--output must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--output must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    run_root = (pai_dir / "runs" / "s15g" / "provider-lifecycle").resolve(strict=False)
+    if not _is_within(run_root, resolved):
+        raise RunnerError("--output must stay under runs/s15g/provider-lifecycle")
+    if resolved.name != "provider-lifecycle-validation.json":
+        raise RunnerError("--output must be named provider-lifecycle-validation.json")
+    if path.exists() and not path.is_file():
+        raise RunnerError("--output target is not a file")
+    if path.is_symlink():
+        raise RunnerError("--output target is a symlink")
+    return path
+
+
+def _safe_capability_policy_audit_output(pai_dir: Path, output: str | Path) -> Path:
+    path = Path(output)
+    if str(output) == "":
+        raise RunnerError("--output must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--output must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    run_root = (pai_dir / "runs" / "s15h" / "capability-policy").resolve(strict=False)
+    if not _is_within(run_root, resolved):
+        raise RunnerError("--output must stay under runs/s15h/capability-policy")
+    if resolved.name != "capability-policy-validation.json":
+        raise RunnerError("--output must be named capability-policy-validation.json")
+    if path.exists() and not path.is_file():
+        raise RunnerError("--output target is not a file")
+    if path.is_symlink():
+        raise RunnerError("--output target is a symlink")
+    return path
+
+
 def doctor(pai_dir: Path) -> dict[str, object]:
     router = pai_dir / "AGENTS.md"
     if not router.is_file():
@@ -238,8 +291,9 @@ def doctor(pai_dir: Path) -> dict[str, object]:
     if MARKER not in router_text:
         raise RunnerError("PAI_DIR/AGENTS.md is missing PAI_CODEX_PEER_BETA_ADAPTER")
 
-    manifest = _load_json(_provider_manifest_path(pai_dir, "codex"), "codex provider manifest")
-    _validate_codex_manifest(manifest)
+    provider_doctor = provider_lifecycle_doctor(pai_dir, "codex")
+    if not provider_doctor.get("doctor_passed"):
+        raise RunnerError("codex provider lifecycle doctor failed")
     for path, label in (
         (pai_dir / "bin" / "pai-runtime", "pai-runtime"),
         (pai_dir / "runtime-schemas" / "provider-manifest.schema.json", "provider manifest schema"),
@@ -264,6 +318,69 @@ def doctor(pai_dir: Path) -> dict[str, object]:
         "runtime_status": "peer-beta",
         "provider_type": "codex-cli",
         "adapter_identity_marker_observed": True,
+        "provider_registry_used": True,
+    }
+
+
+def provider_lifecycle_list(pai_dir: Path) -> dict[str, object]:
+    providers = discover_runtime_providers(pai_dir)
+    return {
+        "ok": True,
+        "pai_dir": str(pai_dir),
+        "providers": [summarize_provider_manifest(provider) for provider in providers],
+        "provider_count": len(providers),
+        "provider_registry_used": True,
+    }
+
+
+def provider_lifecycle_status(pai_dir: Path, runtime_name: str) -> dict[str, object]:
+    provider = get_provider_by_name(pai_dir, runtime_name)
+    return {
+        "ok": True,
+        "pai_dir": str(pai_dir),
+        "runtime": runtime_name,
+        "provider": summarize_provider_manifest(provider),
+        "provider_registry_used": True,
+    }
+
+
+def provider_lifecycle_validate(pai_dir: Path, runtime_name: str) -> dict[str, object]:
+    validation = validate_provider_by_name(pai_dir, runtime_name)
+    if not validation.get("valid"):
+        raise RunnerError(
+            f"provider manifest validation failed for {runtime_name}: "
+            + "; ".join(str(error) for error in validation.get("validation_errors", []))
+        )
+    return {
+        "ok": True,
+        "pai_dir": str(pai_dir),
+        "runtime": runtime_name,
+        "manifest_path": validation["manifest_path"],
+        "provider": validation["provider"],
+        "valid": True,
+        "validation_errors": [],
+        "provider_registry_used": True,
+    }
+
+
+def provider_lifecycle_doctor(pai_dir: Path, runtime_name: str) -> dict[str, object]:
+    doctor_result = doctor_provider_by_name(pai_dir, runtime_name)
+    if not doctor_result.get("doctor_passed"):
+        raise RunnerError(
+            f"provider lifecycle doctor failed for {runtime_name}: "
+            + "; ".join(str(error) for error in doctor_result.get("validation_errors", []))
+        )
+    return {
+        "ok": True,
+        "pai_dir": str(pai_dir),
+        "runtime": runtime_name,
+        "manifest_path": doctor_result["manifest_path"],
+        "provider": doctor_result["provider"],
+        "driver_path": doctor_result["driver_path"],
+        "valid": True,
+        "doctor_passed": True,
+        "validation_errors": [],
+        "provider_registry_used": True,
     }
 
 
@@ -279,6 +396,8 @@ def run_runtime(
     if runtime != "codex":
         raise RunnerError(f"unknown runtime provider: {runtime}")
     task_path = _safe_task_card(pai_dir, task_card)
+    card = _load_task_card(task_path)
+    required_capabilities = _enforce_runtime_capabilities(pai_dir, "codex", card)
     safe_run_dir = _safe_run_dir(pai_dir, run_dir)
     command = [
         str(pai_dir / "bin" / "pai-runtime"),
@@ -299,6 +418,7 @@ def run_runtime(
             "pai_runtime_command": command,
             "provider_command": provider_command,
             "run_dir": str(safe_run_dir),
+            "required_capabilities": required_capabilities,
         }
     safe_run_dir.mkdir(parents=True, exist_ok=True)
     provider_result = run_codex_provider(pai_dir, task_path, safe_run_dir)
@@ -306,6 +426,7 @@ def run_runtime(
     state = _load_json(state_path, "run-state.json") if state_path.exists() else {}
     state["pai_runtime_command"] = command
     state["provider_command"] = provider_result.get("provider_command", provider_command)
+    state["required_capabilities"] = required_capabilities
     state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     provider_result["pai_runtime_command"] = command
     provider_result["provider_command"] = state["provider_command"]
@@ -424,6 +545,10 @@ def _load_repo_task_card(path: Path) -> dict[str, object]:
     if card.get("runtime") != "codex":
         raise RunnerError("repo task card runtime must be codex")
     return card
+
+
+def _repo_task_capabilities(profile: dict[str, object]) -> tuple[str, ...]:
+    return PATCH_PROPOSAL_REPO_TASK_CAPABILITIES if profile["uses_patch_proposal"] else MATERIALIZED_REPO_TASK_CAPABILITIES
 
 
 def _approved_repository_write_set(card: dict[str, object]) -> set[str]:
@@ -635,6 +760,7 @@ def run_repo_runtime(
     task_path = _safe_repo_task_card(pai_dir, task_card)
     card = _load_repo_task_card(task_path)
     profile = _repo_task_profile(card)
+    required_capabilities = _enforce_runtime_capabilities(pai_dir, "codex", card, _repo_task_capabilities(profile))
     safe_repo_root = _safe_repo_root(repo_root)
     safe_run_dir = _safe_repo_run_dir(pai_dir, run_dir)
     approved_repository_write_set = _approved_repository_write_set(card)
@@ -669,6 +795,7 @@ def run_repo_runtime(
             "repo_root": str(safe_repo_root),
             "run_dir": str(safe_run_dir),
             "approved_repository_write_set": sorted(approved_repository_write_set),
+            "required_capabilities": required_capabilities,
         }
 
     safe_run_dir.mkdir(parents=True, exist_ok=True)
@@ -705,6 +832,7 @@ def run_repo_runtime(
         "pai_runtime_command": command,
         "provider_command": provider_result.get("provider_command", provider_command),
         "approved_repository_write_set": sorted(approved_repository_write_set),
+        "required_capabilities": required_capabilities,
         "repository_target_files": sorted(targets),
         "repository_files_modified": sorted(modified),
         "patch_proposal_path": str(safe_run_dir / S15F_PATCH_NAME) if profile["uses_patch_proposal"] else "",
@@ -831,12 +959,86 @@ def audit_repo_runtime_run(
     }
 
 
+def audit_provider_lifecycle_run(
+    pai_dir: Path,
+    marker: str | Path,
+    repo_root: str | Path,
+    output: str | Path,
+    runtime: str = "codex",
+) -> dict[str, object]:
+    marker_path = _safe_marker(marker)
+    safe_repo_root = _safe_repo_root(repo_root)
+    output_path = _safe_provider_lifecycle_audit_output(pai_dir, output)
+    result = run_provider_lifecycle_audit(
+        pai_dir=pai_dir,
+        marker=marker_path,
+        repo_root=safe_repo_root,
+        runtime_name=runtime,
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not result.get("validation_passed"):
+        raise RunnerError(f"PAI provider lifecycle audit failed; wrote {output_path}")
+    return {
+        "ok": True,
+        "output": str(output_path),
+        "event_attribution_passed": result.get("event_attribution_passed"),
+        "validation_passed": result.get("validation_passed"),
+    }
+
+
+def audit_capability_policy_run(
+    pai_dir: Path,
+    marker: str | Path,
+    repo_root: str | Path,
+    output: str | Path,
+    runtime: str = "codex",
+) -> dict[str, object]:
+    marker_path = _safe_marker(marker)
+    safe_repo_root = _safe_repo_root(repo_root)
+    output_path = _safe_capability_policy_audit_output(pai_dir, output)
+    result = run_capability_policy_audit(
+        pai_dir=pai_dir,
+        marker=marker_path,
+        repo_root=safe_repo_root,
+        runtime_name=runtime,
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not result.get("validation_passed"):
+        raise RunnerError(f"PAI capability policy audit failed; wrote {output_path}")
+    return {
+        "ok": True,
+        "output": str(output_path),
+        "event_attribution_passed": result.get("event_attribution_passed"),
+        "validation_passed": result.get("validation_passed"),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="PAI-owned runtime runner.")
     subcommands = parser.add_subparsers(dest="command", required=True)
 
     doctor_parser = subcommands.add_parser("doctor")
     doctor_parser.add_argument("--pai-dir", required=True)
+
+    providers_parser = subcommands.add_parser("providers")
+    providers_subcommands = providers_parser.add_subparsers(dest="providers_command", required=True)
+
+    providers_list_parser = providers_subcommands.add_parser("list")
+    providers_list_parser.add_argument("--pai-dir", required=True)
+
+    providers_status_parser = providers_subcommands.add_parser("status")
+    providers_status_parser.add_argument("runtime")
+    providers_status_parser.add_argument("--pai-dir", required=True)
+
+    providers_doctor_parser = providers_subcommands.add_parser("doctor")
+    providers_doctor_parser.add_argument("runtime")
+    providers_doctor_parser.add_argument("--pai-dir", required=True)
+
+    providers_validate_parser = providers_subcommands.add_parser("validate")
+    providers_validate_parser.add_argument("runtime")
+    providers_validate_parser.add_argument("--pai-dir", required=True)
 
     run_parser = subcommands.add_parser("run")
     run_parser.add_argument("--pai-dir", required=True)
@@ -867,6 +1069,20 @@ def build_parser() -> argparse.ArgumentParser:
     repo_audit_parser.add_argument("--run-dir", required=True)
     repo_audit_parser.add_argument("--output", required=True)
     repo_audit_parser.add_argument("--runtime-attempt-number", type=int, default=1)
+
+    provider_lifecycle_audit_parser = subcommands.add_parser("audit-provider-lifecycle")
+    provider_lifecycle_audit_parser.add_argument("--pai-dir", required=True)
+    provider_lifecycle_audit_parser.add_argument("--marker", required=True)
+    provider_lifecycle_audit_parser.add_argument("--repo-root", required=True)
+    provider_lifecycle_audit_parser.add_argument("--output", required=True)
+    provider_lifecycle_audit_parser.add_argument("--runtime", default="codex")
+
+    capability_audit_parser = subcommands.add_parser("audit-capabilities")
+    capability_audit_parser.add_argument("--pai-dir", required=True)
+    capability_audit_parser.add_argument("--marker", required=True)
+    capability_audit_parser.add_argument("--repo-root", required=True)
+    capability_audit_parser.add_argument("--output", required=True)
+    capability_audit_parser.add_argument("--runtime", default="codex")
     return parser
 
 
@@ -876,6 +1092,17 @@ def main(argv: list[str] | None = None) -> int:
         pai_dir = _resolve_pai_dir(args.pai_dir)
         if args.command == "doctor":
             result = doctor(pai_dir)
+        elif args.command == "providers":
+            if args.providers_command == "list":
+                result = provider_lifecycle_list(pai_dir)
+            elif args.providers_command == "status":
+                result = provider_lifecycle_status(pai_dir, args.runtime)
+            elif args.providers_command == "doctor":
+                result = provider_lifecycle_doctor(pai_dir, args.runtime)
+            elif args.providers_command == "validate":
+                result = provider_lifecycle_validate(pai_dir, args.runtime)
+            else:
+                raise RunnerError(f"unknown providers command: {args.providers_command}")
         elif args.command == "run":
             result = run_runtime(pai_dir, args.runtime, args.task_card, args.run_dir, args.dry_run)
         elif args.command == "run-repo":
@@ -898,9 +1125,25 @@ def main(argv: list[str] | None = None) -> int:
                 args.output,
                 args.runtime_attempt_number,
             )
+        elif args.command == "audit-provider-lifecycle":
+            result = audit_provider_lifecycle_run(
+                pai_dir,
+                args.marker,
+                args.repo_root,
+                args.output,
+                args.runtime,
+            )
+        elif args.command == "audit-capabilities":
+            result = audit_capability_policy_run(
+                pai_dir,
+                args.marker,
+                args.repo_root,
+                args.output,
+                args.runtime,
+            )
         else:
             raise RunnerError(f"unknown command: {args.command}")
-    except (RunnerError, OSError) as exc:
+    except (CapabilityPolicyError, ProviderRegistryError, RunnerError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2, sort_keys=True))

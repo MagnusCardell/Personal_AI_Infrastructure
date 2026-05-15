@@ -1,4 +1,13 @@
 {
+  "capabilities": [
+    "repo.read",
+    "repo.write.proposal",
+    "repo.write.apply",
+    "pai.context.read.metadata",
+    "memory.write.disabled",
+    "isa.write.disabled",
+    "pulse.no-probe"
+  ],
   "driver_path": "~/.claude/PAI/adapters/codex/bin/pai-codex",
   "instruction_surface": "AGENTS.md plus PAI_SYSTEM_PROMPT.md policy",
   "isa_write_policy": "disabled",
