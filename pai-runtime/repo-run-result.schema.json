@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "S15E PAI Runtime Repository Run Result",
+  "title": "PAI Runtime Repository Run Result",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -30,17 +30,39 @@
     "evidence_classification",
     "known_limits",
     "provider_registry_file_content",
-    "provider_registry_test_file_content"
+    "provider_registry_test_file_content",
+    "patch_proposal",
+    "patch_proposal_produced",
+    "patch_proposal_validated",
+    "patch_proposal_applied_by_pai"
   ],
   "properties": {
-    "milestone_name": { "type": "string", "const": "V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK" },
-    "run_id": { "type": "string", "const": "s15e-provider-registry" },
+    "milestone_name": {
+      "type": "string",
+      "enum": [
+        "V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK",
+        "V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "enum": [
+        "s15e-provider-registry",
+        "s15f-patch-proposal"
+      ]
+    },
     "runtime": { "type": "string", "const": "codex" },
     "runtime_status": { "type": "string", "const": "peer-beta" },
     "provider_type": { "type": "string", "const": "codex-cli" },
     "pai_dir": { "type": "string" },
     "repo_root": { "type": "string" },
-    "task_id": { "type": "string", "const": "s15e-provider-registry-repo-task" },
+    "task_id": {
+      "type": "string",
+      "enum": [
+        "s15e-provider-registry-repo-task",
+        "s15f-patch-proposal-repo-task"
+      ]
+    },
     "task_kind": { "type": "string", "const": "bounded-real-repository-code-change" },
     "adapter_identity_marker": { "type": "string", "const": "PAI_CODEX_PEER_BETA_ADAPTER" },
     "adapter_status": { "type": "string", "const": "peer-beta" },
@@ -59,6 +81,43 @@
     "evidence_classification": { "type": "array", "items": { "type": "string" } },
     "known_limits": { "type": "array", "items": { "type": "string" } },
     "provider_registry_file_content": { "type": "string" },
-    "provider_registry_test_file_content": { "type": "string" }
+    "provider_registry_test_file_content": { "type": "string" },
+    "patch_proposal": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "proposal_kind",
+        "unified_diff",
+        "changes"
+      ],
+      "properties": {
+        "proposal_id": { "type": "string" },
+        "proposal_kind": { "type": "string", "enum": ["full-file-replacement"] },
+        "unified_diff": { "type": "string" },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "mode",
+              "content",
+              "unified_diff"
+            ],
+            "properties": {
+              "path": { "type": "string" },
+              "mode": { "type": "string", "enum": ["replace-file"] },
+              "content": { "type": "string" },
+              "unified_diff": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "patch_proposal_produced": { "type": "boolean" },
+    "patch_proposal_validated": { "type": "boolean" },
+    "patch_proposal_applied_by_pai": { "type": "boolean" }
   }
 }

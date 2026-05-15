@@ -11,6 +11,12 @@ from pathlib import Path
 
 from tools.pai_runtime_runner.audit import audit_repo_run as run_repo_audit
 from tools.pai_runtime_runner.audit import audit_run as run_audit
+from tools.pai_runtime_runner.patch_proposal import (
+    PatchProposalError,
+    load_patch_proposal,
+    materialize_patch_proposal,
+    validate_patch_proposal,
+)
 from tools.pai_runtime_runner.providers.codex import (
     build_provider_command,
     build_repo_provider_command,
@@ -38,22 +44,37 @@ S15E_TARGET_FILES = {
     "tools/pai_runtime_runner/provider_registry.py",
     "tests/test_pai_runtime_provider_registry.py",
 }
+S15F_MILESTONE = "V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER"
+S15F_RUN_ID = "s15f-patch-proposal"
+S15F_TASK_ID = "s15f-patch-proposal-repo-task"
+S15F_RUN_RELATIVE = Path("runs") / "s15f" / "patch-proposal"
+S15F_TASK_RELATIVE = Path("runtime-tasks") / "s15f-patch-proposal-repo-task.json"
+S15F_PATCH_NAME = "patch-proposal.json"
+S15F_TARGET_FILES = {
+    "tools/pai_runtime_runner/patch_proposal.py",
+    "tests/test_pai_runtime_patch_proposal.py",
+}
 APPROVED_REPOSITORY_WRITE_SET = {
     "pai-runtime/README.md",
     "pai-runtime/repo-task.schema.json",
     "pai-runtime/repo-run-result.schema.json",
     "pai-runtime/repo-run-validation.schema.json",
+    "pai-runtime/patch-proposal.schema.json",
+    "pai-runtime/tasks/s15f-patch-proposal-repo-task.json",
     "pai-runtime/tasks/s15e-provider-registry-repo-task.json",
     "tools/pai_runtime_runner/__main__.py",
     "tools/pai_runtime_runner/runner.py",
     "tools/pai_runtime_runner/audit.py",
     "tools/pai_runtime_runner/install.py",
     "tools/pai_runtime_runner/provider_registry.py",
+    "tools/pai_runtime_runner/patch_proposal.py",
     "tools/pai_runtime_runner/providers/codex.py",
     "tests/test_pai_runtime_runner_codex.py",
     "tests/test_pai_runtime_runner_repo_task.py",
     "tests/test_pai_runtime_provider_registry.py",
+    "tests/test_pai_runtime_patch_proposal.py",
     "docs/architecture/V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK.md",
+    "docs/architecture/V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER.md",
 }
 REPO_RUN_RESULT_FIELDS = {
     "milestone_name",
@@ -83,6 +104,10 @@ REPO_RUN_RESULT_FIELDS = {
     "known_limits",
     "provider_registry_file_content",
     "provider_registry_test_file_content",
+    "patch_proposal",
+    "patch_proposal_produced",
+    "patch_proposal_validated",
+    "patch_proposal_applied_by_pai",
 }
 
 
@@ -223,8 +248,10 @@ def doctor(pai_dir: Path) -> dict[str, object]:
         (pai_dir / "runtime-schemas" / "repo-task.schema.json", "repo task schema"),
         (pai_dir / "runtime-schemas" / "repo-run-result.schema.json", "repo run result schema"),
         (pai_dir / "runtime-schemas" / "repo-run-validation.schema.json", "repo run validation schema"),
+        (pai_dir / "runtime-schemas" / "patch-proposal.schema.json", "patch proposal schema"),
         (pai_dir / TASK_RELATIVE, "S15D task card"),
         (pai_dir / S15E_TASK_RELATIVE, "S15E repo task card"),
+        (pai_dir / S15F_TASK_RELATIVE, "S15F patch proposal repo task card"),
         (pai_dir / "runtime-task-fixtures" / "s15d_bugfix" / "src" / "pai_priority.py", "S15D task fixture"),
         (pai_dir / "adapters" / "codex" / "bin" / "pai-codex", "Codex provider driver"),
     ):
@@ -293,9 +320,12 @@ def _safe_repo_task_card(pai_dir: Path, task_card: str | Path) -> Path:
     if any(part == ".." for part in path.parts):
         raise RunnerError("--task-card must not contain path traversal")
     resolved = path.resolve(strict=True)
-    expected = (pai_dir / S15E_TASK_RELATIVE).resolve(strict=True)
-    if resolved != expected:
-        raise RunnerError("--task-card must be the installed S15E repo task card")
+    expected = {
+        (pai_dir / S15E_TASK_RELATIVE).resolve(strict=True),
+        (pai_dir / S15F_TASK_RELATIVE).resolve(strict=True),
+    }
+    if resolved not in expected:
+        raise RunnerError("--task-card must be an installed PAI repo task card")
     return resolved
 
 
@@ -306,9 +336,12 @@ def _safe_repo_run_dir(pai_dir: Path, run_dir: str | Path) -> Path:
     if any(part == ".." for part in path.parts):
         raise RunnerError("--run-dir must not contain path traversal")
     resolved = path.resolve(strict=False)
-    expected = (pai_dir / S15E_RUN_RELATIVE).resolve(strict=False)
-    if resolved != expected:
-        raise RunnerError("PAI runtime repo run directory must be runs/s15e/provider-registry")
+    expected = {
+        (pai_dir / S15E_RUN_RELATIVE).resolve(strict=False),
+        (pai_dir / S15F_RUN_RELATIVE).resolve(strict=False),
+    }
+    if resolved not in expected:
+        raise RunnerError("PAI runtime repo run directory must be an approved repo run directory")
     if path.exists() and not path.is_dir():
         raise RunnerError("--run-dir target is not a directory")
     if path.is_symlink():
@@ -324,7 +357,7 @@ def _safe_repo_audit_output(run_dir: Path, output: str | Path) -> Path:
         raise RunnerError("--output must not contain path traversal")
     resolved = path.resolve(strict=False)
     if not _is_within(run_dir.resolve(strict=False), resolved):
-        raise RunnerError("--output must stay under runs/s15e/provider-registry")
+        raise RunnerError("--output must stay under the PAI repo run directory")
     if resolved.name != S15E_VALIDATION_NAME:
         raise RunnerError("--output must be named repo-run-validation.json")
     if path.exists() and not path.is_file():
@@ -361,52 +394,75 @@ def _safe_repo_root(repo_root: str | Path) -> Path:
     return resolved
 
 
+def _repo_task_profile(card: dict[str, object]) -> dict[str, object]:
+    if card.get("milestone_name") == S15F_MILESTONE and card.get("task_id") == S15F_TASK_ID:
+        return {
+            "label": "S15F",
+            "milestone_name": S15F_MILESTONE,
+            "run_id": S15F_RUN_ID,
+            "task_id": S15F_TASK_ID,
+            "required_targets": S15F_TARGET_FILES,
+            "uses_patch_proposal": True,
+        }
+    if card.get("milestone_name") == S15E_MILESTONE and card.get("task_id") == S15E_TASK_ID:
+        return {
+            "label": "S15E",
+            "milestone_name": S15E_MILESTONE,
+            "run_id": S15E_RUN_ID,
+            "task_id": S15E_TASK_ID,
+            "required_targets": S15E_TARGET_FILES,
+            "uses_patch_proposal": False,
+        }
+    raise RunnerError("repo task card has unexpected milestone_name or task_id")
+
+
 def _load_repo_task_card(path: Path) -> dict[str, object]:
-    card = _load_json(path, "S15E repo task card")
-    if card.get("milestone_name") != S15E_MILESTONE:
-        raise RunnerError("S15E repo task card has unexpected milestone_name")
-    if card.get("task_id") != S15E_TASK_ID:
-        raise RunnerError("S15E repo task card has unexpected task_id")
+    card = _load_json(path, "repo task card")
+    _repo_task_profile(card)
     if card.get("task_kind") != "bounded-real-repository-code-change":
-        raise RunnerError("S15E repo task card has unexpected task_kind")
+        raise RunnerError("repo task card has unexpected task_kind")
     if card.get("runtime") != "codex":
-        raise RunnerError("S15E repo task card runtime must be codex")
+        raise RunnerError("repo task card runtime must be codex")
     return card
 
 
 def _approved_repository_write_set(card: dict[str, object]) -> set[str]:
     raw = card.get("approved_repository_write_set")
     if not isinstance(raw, list) or not raw or not all(isinstance(item, str) for item in raw):
-        raise RunnerError("S15E repo task card approved_repository_write_set is invalid")
+        raise RunnerError("repo task card approved_repository_write_set is invalid")
     approved = set(raw)
     for item in approved:
         path = Path(item)
         if path.is_absolute() or any(part == ".." for part in path.parts):
-            raise RunnerError(f"S15E approved repository path is unsafe: {item}")
+            raise RunnerError(f"approved repository path is unsafe: {item}")
     unexpected = approved - APPROVED_REPOSITORY_WRITE_SET
     if unexpected:
-        raise RunnerError(f"S15E task card includes unapproved repository paths: {sorted(unexpected)}")
-    if not S15E_TARGET_FILES.issubset(approved):
-        raise RunnerError("S15E task card does not include required provider registry target files")
+        raise RunnerError(f"repo task card includes unapproved repository paths: {sorted(unexpected)}")
+    profile = _repo_task_profile(card)
+    required_targets = profile["required_targets"]
+    if not isinstance(required_targets, set) or not required_targets.issubset(approved):
+        raise RunnerError(f"{profile['label']} task card does not include required target files")
     return approved
 
 
 def _repository_target_files(card: dict[str, object], approved: set[str]) -> set[str]:
     raw = card.get("repository_target_files")
     if not isinstance(raw, list) or not raw or not all(isinstance(item, str) for item in raw):
-        raise RunnerError("S15E repo task card repository_target_files is invalid")
+        raise RunnerError("repo task card repository_target_files is invalid")
     targets = set(raw)
-    if not S15E_TARGET_FILES.issubset(targets):
-        raise RunnerError("S15E repo task card does not target provider registry implementation and tests")
+    profile = _repo_task_profile(card)
+    required_targets = profile["required_targets"]
+    if not isinstance(required_targets, set) or not required_targets.issubset(targets):
+        raise RunnerError(f"{profile['label']} repo task card does not target required files")
     if not targets.issubset(approved):
-        raise RunnerError("S15E repo task card targets paths outside approved write set")
+        raise RunnerError("repo task card targets paths outside approved write set")
     return targets
 
 
 def _repo_test_command(card: dict[str, object]) -> list[str]:
     raw = card.get("test_command")
     if not isinstance(raw, list) or not raw or not all(isinstance(item, str) for item in raw):
-        raise RunnerError("S15E repo task card test_command is invalid")
+        raise RunnerError("repo task card test_command is invalid")
     return list(raw)
 
 
@@ -462,6 +518,17 @@ def _apply_materialized_repo_changes(repo_root: Path, result: dict[str, object])
         target.write_text(content, encoding="utf-8")
 
 
+def _write_provider_patch_proposal(result: dict[str, object], proposal_path: Path) -> dict[str, object]:
+    raw = result.get("patch_proposal")
+    if isinstance(raw, dict):
+        proposal_path.parent.mkdir(parents=True, exist_ok=True)
+        proposal_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return raw
+    if proposal_path.is_file():
+        return load_patch_proposal(proposal_path)
+    raise RunnerError("S15F Codex repo provider did not produce patch_proposal")
+
+
 def _run_repo_tests(repo_root: Path, command: list[str]) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -486,18 +553,22 @@ def _normalize_repo_run_result(
     modified: list[str],
     test_command: list[str],
     tests_passed: bool,
+    patch_proposal_produced: bool = False,
+    patch_proposal_validated: bool = False,
+    patch_proposal_applied_by_pai: bool = False,
 ) -> dict[str, object]:
+    profile = _repo_task_profile(card)
     normalized = {key: result[key] for key in REPO_RUN_RESULT_FIELDS if key in result}
     normalized.update(
         {
-            "milestone_name": S15E_MILESTONE,
-            "run_id": S15E_RUN_ID,
+            "milestone_name": profile["milestone_name"],
+            "run_id": profile["run_id"],
             "runtime": "codex",
             "runtime_status": "peer-beta",
             "provider_type": "codex-cli",
             "pai_dir": str(pai_dir),
             "repo_root": str(repo_root),
-            "task_id": S15E_TASK_ID,
+            "task_id": profile["task_id"],
             "task_kind": "bounded-real-repository-code-change",
             "adapter_identity_marker": MARKER,
             "adapter_status": "peer-beta",
@@ -514,25 +585,39 @@ def _normalize_repo_run_result(
             "runtime_surface_created": False,
             "result_summary": str(
                 result.get("result_summary")
-                or "Implemented and validated the PAI runtime provider registry through a bounded real repository task."
+                or (
+                    "Implemented and validated the PAI-owned patch proposal pipeline through a bounded real repository task."
+                    if profile["uses_patch_proposal"]
+                    else "Implemented and validated the PAI runtime provider registry through a bounded real repository task."
+                )
             ),
             "evidence_classification": result.get("evidence_classification")
             if isinstance(result.get("evidence_classification"), list)
             else [
                 "PAI-owned real repository task evidence",
-                "runtime provider registry evidence",
+                "patch proposal apply pipeline evidence"
+                if profile["uses_patch_proposal"]
+                else "runtime provider registry evidence",
                 "not replacement readiness",
             ],
             "known_limits": result.get("known_limits")
             if isinstance(result.get("known_limits"), list)
             else [
-                "S15E is a bounded real repository task, not Codex replacement readiness.",
+                f"{profile['label']} is a bounded real repository task, not Codex replacement readiness.",
                 "Memory, ISA, and Pulse writes remain disabled for runtime=codex.",
             ],
         }
     )
+    if profile["uses_patch_proposal"]:
+        normalized.update(
+            {
+                "patch_proposal_produced": patch_proposal_produced,
+                "patch_proposal_validated": patch_proposal_validated,
+                "patch_proposal_applied_by_pai": patch_proposal_applied_by_pai,
+            }
+        )
     if card.get("task_id") != normalized["task_id"]:
-        raise RunnerError("S15E normalized result task_id mismatch")
+        raise RunnerError(f"{profile['label']} normalized result task_id mismatch")
     return normalized
 
 
@@ -549,6 +634,7 @@ def run_repo_runtime(
         raise RunnerError(f"unknown runtime provider: {runtime}")
     task_path = _safe_repo_task_card(pai_dir, task_card)
     card = _load_repo_task_card(task_path)
+    profile = _repo_task_profile(card)
     safe_repo_root = _safe_repo_root(repo_root)
     safe_run_dir = _safe_repo_run_dir(pai_dir, run_dir)
     approved_repository_write_set = _approved_repository_write_set(card)
@@ -588,7 +674,30 @@ def run_repo_runtime(
     safe_run_dir.mkdir(parents=True, exist_ok=True)
     before = _snapshot_repository_files(safe_repo_root, approved_repository_write_set)
     provider_result = run_codex_repo_provider(pai_dir, card, safe_repo_root, safe_run_dir)
-    _apply_materialized_repo_changes(safe_repo_root, provider_result)
+    patch_proposal_produced = False
+    patch_proposal_validated = False
+    patch_proposal_applied_by_pai = False
+    patch_proposal_validation_errors: list[str] = []
+    patch_proposal_applied_paths: list[str] = []
+    if profile["uses_patch_proposal"]:
+        proposal_path = safe_run_dir / S15F_PATCH_NAME
+        proposal = _write_provider_patch_proposal(provider_result, proposal_path)
+        patch_proposal_produced = True
+        patch_proposal_validation_errors = validate_patch_proposal(proposal, approved_repository_write_set)
+        if patch_proposal_validation_errors:
+            raise RunnerError("S15F patch proposal validation failed: " + "; ".join(patch_proposal_validation_errors))
+        patch_proposal_validated = True
+        try:
+            patch_proposal_applied_paths = materialize_patch_proposal(
+                proposal,
+                safe_repo_root,
+                approved_repository_write_set,
+            )
+        except PatchProposalError as exc:
+            raise RunnerError(f"S15F patch proposal apply failed: {exc}") from exc
+        patch_proposal_applied_by_pai = True
+    else:
+        _apply_materialized_repo_changes(safe_repo_root, provider_result)
     modified = _write_repository_diff(before, safe_repo_root, safe_run_dir / S15E_DIFF_NAME)
     tests = _run_repo_tests(safe_repo_root, test_command)
     tests_passed = tests.returncode == 0
@@ -598,6 +707,15 @@ def run_repo_runtime(
         "approved_repository_write_set": sorted(approved_repository_write_set),
         "repository_target_files": sorted(targets),
         "repository_files_modified": sorted(modified),
+        "patch_proposal_path": str(safe_run_dir / S15F_PATCH_NAME) if profile["uses_patch_proposal"] else "",
+        "patch_proposal_produced": patch_proposal_produced,
+        "patch_proposal_validated": patch_proposal_validated,
+        "patch_proposal_validation_errors": patch_proposal_validation_errors,
+        "patch_proposal_applied_by_pai": patch_proposal_applied_by_pai,
+        "patch_proposal_applied_paths": sorted(patch_proposal_applied_paths),
+        "patch_proposal_tests_returncode": tests.returncode if profile["uses_patch_proposal"] else None,
+        "patch_proposal_tests_stdout": tests.stdout if profile["uses_patch_proposal"] else "",
+        "patch_proposal_tests_stderr": tests.stderr if profile["uses_patch_proposal"] else "",
         "provider_registry_tests_returncode": tests.returncode,
         "provider_registry_tests_stdout": tests.stdout,
         "provider_registry_tests_stderr": tests.stderr,
@@ -616,15 +734,19 @@ def run_repo_runtime(
         modified=modified,
         test_command=test_command,
         tests_passed=tests_passed,
+        patch_proposal_produced=patch_proposal_produced,
+        patch_proposal_validated=patch_proposal_validated,
+        patch_proposal_applied_by_pai=patch_proposal_applied_by_pai,
     )
     result_path.write_text(json.dumps(normalized, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     if not tests_passed:
-        raise RunnerError("S15E provider registry tests did not pass after Codex repo task")
+        raise RunnerError(f"{profile['label']} repository tests did not pass after Codex repo task")
     if not modified:
-        raise RunnerError("S15E repo task did not produce a repository diff")
-    if not S15E_TARGET_FILES.issubset(set(modified)):
-        raise RunnerError("S15E repo task did not modify both provider registry target files")
+        raise RunnerError(f"{profile['label']} repo task did not produce a repository diff")
+    required_targets = profile["required_targets"]
+    if not isinstance(required_targets, set) or not required_targets.issubset(set(modified)):
+        raise RunnerError(f"{profile['label']} repo task did not modify required target files")
     return {
         "ok": True,
         "repo_root": str(safe_repo_root),
@@ -632,8 +754,13 @@ def run_repo_runtime(
         "result": str(result_path),
         "events_output": str(safe_run_dir / S15E_EVENTS_NAME),
         "diff": str(safe_run_dir / S15E_DIFF_NAME),
+        "patch_proposal": str(safe_run_dir / S15F_PATCH_NAME) if profile["uses_patch_proposal"] else "",
+        "patch_proposal_produced": patch_proposal_produced,
+        "patch_proposal_validated": patch_proposal_validated,
+        "patch_proposal_applied_by_pai": patch_proposal_applied_by_pai,
         "repository_files_modified": sorted(modified),
-        "provider_registry_tests_passed": tests_passed,
+        "provider_registry_tests_passed": tests_passed if not profile["uses_patch_proposal"] else False,
+        "patch_proposal_tests_passed": tests_passed if profile["uses_patch_proposal"] else False,
     }
 
 
@@ -695,7 +822,7 @@ def audit_repo_runtime_run(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if not result.get("validation_passed"):
-        raise RunnerError(f"S15E PAI runtime repo audit failed; wrote {output_path}")
+        raise RunnerError(f"PAI runtime repo audit failed; wrote {output_path}")
     return {
         "ok": True,
         "output": str(output_path),

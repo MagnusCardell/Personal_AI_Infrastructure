@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from tools.pai_runtime_runner.patch_proposal import load_patch_proposal, validate_patch_proposal
+
 
 MILESTONE = "V5-S15D-PAI-RUNTIME-RUNNER-CODEX"
 RUN_ID = "s15d-codex-synthetic-bugfix"
@@ -19,6 +21,11 @@ S15E_RUN_ID = "s15e-provider-registry"
 S15E_TASK_ID = "s15e-provider-registry-repo-task"
 S15E_RUN_RELATIVE = Path("runs") / "s15e" / "provider-registry"
 S15E_STATE_NAME = "repo-run-state.json"
+S15F_MILESTONE = "V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER"
+S15F_RUN_ID = "s15f-patch-proposal"
+S15F_TASK_ID = "s15f-patch-proposal-repo-task"
+S15F_RUN_RELATIVE = Path("runs") / "s15f" / "patch-proposal"
+S15F_PATCH_NAME = "patch-proposal.json"
 
 APPROVED_INSTALL_RELATIVES = {
     Path("bin") / "pai-runtime",
@@ -47,27 +54,56 @@ APPROVED_S15E_INSTALL_RELATIVES = {
     Path("runtimes") / "codex" / "provider-manifest.json",
 }
 
+APPROVED_S15F_INSTALL_RELATIVES = {
+    Path("bin") / "pai-runtime",
+    Path("runtime-state.json"),
+    Path("runtime-schemas") / "repo-task.schema.json",
+    Path("runtime-schemas") / "repo-run-result.schema.json",
+    Path("runtime-schemas") / "repo-run-validation.schema.json",
+    Path("runtime-schemas") / "patch-proposal.schema.json",
+    Path("runtime-tasks") / "s15f-patch-proposal-repo-task.json",
+    Path("runtimes") / "codex" / "README.md",
+    Path("runtimes") / "codex" / "provider-manifest.json",
+}
+
 APPROVED_REPOSITORY_WRITE_SET = {
     "pai-runtime/README.md",
     "pai-runtime/repo-task.schema.json",
     "pai-runtime/repo-run-result.schema.json",
     "pai-runtime/repo-run-validation.schema.json",
+    "pai-runtime/patch-proposal.schema.json",
     "pai-runtime/tasks/s15e-provider-registry-repo-task.json",
+    "pai-runtime/tasks/s15f-patch-proposal-repo-task.json",
     "tools/pai_runtime_runner/__main__.py",
     "tools/pai_runtime_runner/runner.py",
     "tools/pai_runtime_runner/audit.py",
     "tools/pai_runtime_runner/install.py",
     "tools/pai_runtime_runner/provider_registry.py",
+    "tools/pai_runtime_runner/patch_proposal.py",
     "tools/pai_runtime_runner/providers/codex.py",
     "tests/test_pai_runtime_runner_codex.py",
     "tests/test_pai_runtime_runner_repo_task.py",
     "tests/test_pai_runtime_provider_registry.py",
+    "tests/test_pai_runtime_patch_proposal.py",
     "docs/architecture/V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK.md",
+    "docs/architecture/V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER.md",
+}
+S15E_APPROVED_REPOSITORY_WRITE_SET = APPROVED_REPOSITORY_WRITE_SET - {
+    "pai-runtime/patch-proposal.schema.json",
+    "pai-runtime/tasks/s15f-patch-proposal-repo-task.json",
+    "tools/pai_runtime_runner/patch_proposal.py",
+    "tests/test_pai_runtime_patch_proposal.py",
+    "docs/architecture/V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER.md",
 }
 
 S15E_REQUIRED_REPOSITORY_MODIFICATIONS = {
     "tools/pai_runtime_runner/provider_registry.py",
     "tests/test_pai_runtime_provider_registry.py",
+}
+
+S15F_REQUIRED_REPOSITORY_MODIFICATIONS = {
+    "tools/pai_runtime_runner/patch_proposal.py",
+    "tests/test_pai_runtime_patch_proposal.py",
 }
 
 CLASSIFICATIONS = (
@@ -386,6 +422,30 @@ def _load_repo_run_state(run_dir: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _repo_result_profile(result: dict[str, Any]) -> dict[str, Any]:
+    if result.get("milestone_name") == S15F_MILESTONE and result.get("task_id") == S15F_TASK_ID:
+        return {
+            "label": "S15F",
+            "milestone_name": S15F_MILESTONE,
+            "run_id": S15F_RUN_ID,
+            "task_id": S15F_TASK_ID,
+            "required_repository_modifications": S15F_REQUIRED_REPOSITORY_MODIFICATIONS,
+            "approved_repository_write_set": APPROVED_REPOSITORY_WRITE_SET,
+            "approved_install_relatives": APPROVED_S15F_INSTALL_RELATIVES,
+            "uses_patch_proposal": True,
+        }
+    return {
+        "label": "S15E",
+        "milestone_name": S15E_MILESTONE,
+        "run_id": S15E_RUN_ID,
+        "task_id": S15E_TASK_ID,
+        "required_repository_modifications": S15E_REQUIRED_REPOSITORY_MODIFICATIONS,
+        "approved_repository_write_set": S15E_APPROVED_REPOSITORY_WRITE_SET,
+        "approved_install_relatives": APPROVED_S15E_INSTALL_RELATIVES,
+        "uses_patch_proposal": False,
+    }
+
+
 def _scan_filesystem(pai_dir: Path, marker: Path) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
     approved_task: list[str] = []
     approved_run: list[str] = []
@@ -578,13 +638,14 @@ def audit_run(
 
 def _validate_repo_result(result: dict[str, Any], repo_root: Path) -> list[str]:
     errors: list[str] = []
+    profile = _repo_result_profile(result)
     expected = {
-        "milestone_name": S15E_MILESTONE,
-        "run_id": S15E_RUN_ID,
+        "milestone_name": profile["milestone_name"],
+        "run_id": profile["run_id"],
         "runtime": "codex",
         "runtime_status": "peer-beta",
         "provider_type": "codex-cli",
-        "task_id": S15E_TASK_ID,
+        "task_id": profile["task_id"],
         "task_kind": "bounded-real-repository-code-change",
         "adapter_identity_marker": MARKER_VALUE,
         "adapter_status": "peer-beta",
@@ -598,6 +659,14 @@ def _validate_repo_result(result: dict[str, Any], repo_root: Path) -> list[str]:
         "localhost_31337_called": False,
         "runtime_surface_created": False,
     }
+    if profile["uses_patch_proposal"]:
+        expected.update(
+            {
+                "patch_proposal_produced": True,
+                "patch_proposal_validated": True,
+                "patch_proposal_applied_by_pai": True,
+            }
+        )
     for key, value in expected.items():
         if result.get(key) != value:
             errors.append(f"repo-run-result mismatch for {key}")
@@ -616,11 +685,14 @@ def _validate_repo_result(result: dict[str, Any], repo_root: Path) -> list[str]:
         if path.is_absolute() or any(part == ".." for part in path.parts):
             errors.append(f"repo-run-result repository_files_modified escapes repo: {item}")
             continue
-        if item not in APPROVED_REPOSITORY_WRITE_SET:
+        approved = profile["approved_repository_write_set"]
+        approved_set = approved if isinstance(approved, set) else APPROVED_REPOSITORY_WRITE_SET
+        if item not in approved_set:
             errors.append(f"repo-run-result repository_files_modified includes unapproved path: {item}")
         modified_set.add(item)
-    if not S15E_REQUIRED_REPOSITORY_MODIFICATIONS.issubset(modified_set):
-        errors.append("repo-run-result missing required provider registry modified files")
+    required = profile["required_repository_modifications"]
+    if not isinstance(required, set) or not required.issubset(modified_set):
+        errors.append(f"repo-run-result missing required {profile['label']} modified files")
     return errors
 
 
@@ -638,7 +710,7 @@ def _diff_repository_paths(diff_text: str) -> set[str]:
     return paths
 
 
-def _diff_limited_to_approved_repository_write_set(diff_text: str) -> bool:
+def _diff_limited_to_approved_repository_write_set(diff_text: str, approved_repository_write_set: set[str]) -> bool:
     paths = _diff_repository_paths(diff_text)
     if not paths:
         return False
@@ -646,12 +718,18 @@ def _diff_limited_to_approved_repository_write_set(diff_text: str) -> bool:
         path = Path(item)
         if path.is_absolute() or any(part == ".." for part in path.parts):
             return False
-        if item not in APPROVED_REPOSITORY_WRITE_SET:
+        if item not in approved_repository_write_set:
             return False
     return True
 
 
-def _classify_repo_event_path(pai_dir: Path, repo_root: Path, run_dir: Path, raw: str) -> tuple[str, str]:
+def _classify_repo_event_path(
+    pai_dir: Path,
+    repo_root: Path,
+    run_dir: Path,
+    raw: str,
+    approved_repository_write_set: set[str],
+) -> tuple[str, str]:
     text = raw.strip()
     if text.startswith("file://"):
         text = text[7:]
@@ -675,7 +753,7 @@ def _classify_repo_event_path(pai_dir: Path, repo_root: Path, run_dir: Path, raw
             relative_repo = None
         if relative_repo is not None:
             relative_text = str(relative_repo)
-            if relative_text in APPROVED_REPOSITORY_WRITE_SET:
+            if relative_text in approved_repository_write_set:
                 return "approved_repository_write", relative_text
             return "forbidden_repository_write", relative_text
         relative_pai = _relative_to_pai(pai_dir, resolved)
@@ -687,7 +765,11 @@ def _classify_repo_event_path(pai_dir: Path, repo_root: Path, run_dir: Path, raw
     return "unknown_unclassified_write", raw
 
 
-def _scan_repo_filesystem(repo_root: Path, marker: Path) -> tuple[list[str], list[str]]:
+def _scan_repo_filesystem(
+    repo_root: Path,
+    marker: Path,
+    approved_repository_write_set: set[str],
+) -> tuple[list[str], list[str]]:
     approved: list[str] = []
     forbidden: list[str] = []
     marker_mtime = marker.stat().st_mtime
@@ -702,17 +784,18 @@ def _scan_repo_filesystem(repo_root: Path, marker: Path) -> tuple[list[str], lis
         except OSError:
             continue
         relative = str(path.resolve(strict=False).relative_to(repo_root))
-        if relative in APPROVED_REPOSITORY_WRITE_SET:
+        if relative in approved_repository_write_set:
             approved.append(relative)
         else:
             forbidden.append(relative)
     return approved, forbidden
 
 
-def _scan_pai_filesystem_s15e(
+def _scan_pai_filesystem_repo(
     pai_dir: Path,
     marker: Path,
     run_dir: Path,
+    approved_install_relatives: set[Path],
 ) -> tuple[list[str], list[str], list[str], list[str]]:
     approved_run: list[str] = []
     ambient: list[str] = []
@@ -733,7 +816,7 @@ def _scan_pai_filesystem_s15e(
         display = str(path)
         if _is_within(run_dir, resolved):
             approved_run.append(display)
-        elif relative_path in APPROVED_S15E_INSTALL_RELATIVES:
+        elif relative_path in approved_install_relatives:
             approved_run.append(display)
         elif _is_forbidden_semantic_path(relative_path):
             forbidden.append(display)
@@ -761,6 +844,12 @@ def audit_repo_run(
     run_dir = run_dir.resolve(strict=True)
 
     result = _load_json(result_path, "repo-run-result.json")
+    profile = _repo_result_profile(result)
+    raw_approved = profile["approved_repository_write_set"]
+    approved_repository_write_set = set(raw_approved) if isinstance(raw_approved, set) else set(APPROVED_REPOSITORY_WRITE_SET)
+    approved_install_relatives = profile["approved_install_relatives"]
+    if not isinstance(approved_install_relatives, set):
+        approved_install_relatives = APPROVED_S15E_INSTALL_RELATIVES
     run_state = _load_repo_run_state(run_dir)
     result_errors = _validate_repo_result(result, repo_root)
 
@@ -776,7 +865,10 @@ def audit_repo_run(
     for event in event_items:
         if _looks_like_file_change(event):
             paths = _extract_paths(event)
-            classifications = [_classify_repo_event_path(pai_dir, repo_root, run_dir, raw) for raw in paths]
+            classifications = [
+                _classify_repo_event_path(pai_dir, repo_root, run_dir, raw, approved_repository_write_set)
+                for raw in paths
+            ]
             approved = bool(classifications) and all(
                 classification in {"approved_repository_write", "approved_pai_run_writes"}
                 for classification, _ in classifications
@@ -813,8 +905,17 @@ def audit_repo_run(
             if _command_has_forbidden_semantic_write(command):
                 forbidden_event_writes.append(command)
 
-    approved_repository_writes, forbidden_repository_writes = _scan_repo_filesystem(repo_root, marker)
-    approved_pai_run_writes, ambient, forbidden_fs, unknown_fs = _scan_pai_filesystem_s15e(pai_dir, marker, run_dir)
+    approved_repository_writes, forbidden_repository_writes = _scan_repo_filesystem(
+        repo_root,
+        marker,
+        approved_repository_write_set,
+    )
+    approved_pai_run_writes, ambient, forbidden_fs, unknown_fs = _scan_pai_filesystem_repo(
+        pai_dir,
+        marker,
+        run_dir,
+        approved_install_relatives,
+    )
 
     repo_root_agents_created = (repo_root / "AGENTS.md").exists()
     repo_dotcodex_created = (repo_root / ".codex").exists()
@@ -830,10 +931,27 @@ def audit_repo_run(
 
     diff_text = diff_path.read_text(encoding="utf-8", errors="replace") if diff_path.is_file() else ""
     diff_present = bool(diff_text.strip())
-    diff_limited = diff_present and _diff_limited_to_approved_repository_write_set(diff_text)
+    diff_limited = diff_present and _diff_limited_to_approved_repository_write_set(
+        diff_text,
+        approved_repository_write_set,
+    )
     event_logs_present = events_path.is_file()
     provider_registry_tests_passed = run_state.get("provider_registry_tests_returncode") == 0
+    patch_proposal_tests_passed = run_state.get("patch_proposal_tests_returncode") == 0
     repository_files_modified = result.get("repository_files_modified") if isinstance(result.get("repository_files_modified"), list) else []
+    patch_proposal_path = run_dir / S15F_PATCH_NAME
+    patch_proposal_present = patch_proposal_path.is_file()
+    patch_proposal_errors: list[str] = []
+    if patch_proposal_present:
+        try:
+            patch_proposal = load_patch_proposal(patch_proposal_path)
+            patch_proposal_errors = validate_patch_proposal(patch_proposal, approved_repository_write_set)
+        except Exception as exc:  # noqa: BLE001 - audit reports validation failures instead of raising.
+            patch_proposal_errors = [str(exc)]
+    elif profile["uses_patch_proposal"]:
+        patch_proposal_errors = ["patch-proposal.json is missing"]
+    patch_proposal_valid = patch_proposal_present and not patch_proposal_errors
+    patch_proposal_limited = patch_proposal_valid
 
     memory_write_by_codex = any("memory" in item.lower() for item in forbidden_event_writes + forbidden_fs)
     isa_write_by_codex = any("/isa" in item.lower() or "isa/" in item.lower() for item in forbidden_event_writes + forbidden_fs)
@@ -844,7 +962,7 @@ def audit_repo_run(
         if _looks_like_command_execution(event)
     )
 
-    forbidden_semantic_writes = forbidden_fs + forbidden_event_writes + result_errors
+    forbidden_semantic_writes = forbidden_fs + forbidden_event_writes + result_errors + patch_proposal_errors
     forbidden_repository = sorted(set(forbidden_repository_writes + forbidden_repo_event_writes))
     unknown_unclassified = sorted(set(unknown_fs + unknown_event_writes))
     event_attribution_passed = not (
@@ -855,12 +973,14 @@ def audit_repo_run(
         or pulse_probe_by_codex
         or localhost_called_by_codex
     )
+    task_tests_passed = patch_proposal_tests_passed if profile["uses_patch_proposal"] else provider_registry_tests_passed
     validation_passed = bool(
         diff_present
         and diff_limited
         and event_logs_present
         and event_attribution_passed
-        and provider_registry_tests_passed
+        and task_tests_passed
+        and (not profile["uses_patch_proposal"] or (patch_proposal_present and patch_proposal_valid and patch_proposal_limited))
         and not forbidden_repository
         and not forbidden_semantic_writes
         and not unknown_unclassified
@@ -870,15 +990,18 @@ def audit_repo_run(
     )
 
     return {
-        "milestone_name": S15E_MILESTONE,
-        "run_id": S15E_RUN_ID,
+        "milestone_name": profile["milestone_name"],
+        "run_id": profile["run_id"],
         "runtime": "codex",
         "runtime_attempt_number": runtime_attempt_number,
         "pai_runtime_command": run_state.get("pai_runtime_command", []),
         "provider_command": run_state.get("provider_command", []),
         "repo_root": str(repo_root),
-        "approved_repository_write_set": sorted(APPROVED_REPOSITORY_WRITE_SET),
+        "approved_repository_write_set": sorted(approved_repository_write_set),
         "repository_files_modified": repository_files_modified,
+        "patch_proposal_present": patch_proposal_present,
+        "patch_proposal_valid": patch_proposal_valid,
+        "patch_proposal_limited_to_approved_repository_write_set": patch_proposal_limited,
         "diff_present": diff_present,
         "diff_limited_to_approved_repository_write_set": diff_limited,
         "event_logs_present": event_logs_present,
@@ -892,6 +1015,7 @@ def audit_repo_run(
         "forbidden_semantic_writes": sorted(forbidden_semantic_writes),
         "unknown_unclassified_writes": unknown_unclassified,
         "provider_registry_tests_passed": provider_registry_tests_passed,
+        "patch_proposal_tests_passed": patch_proposal_tests_passed,
         "memory_write_performed_by_codex": memory_write_by_codex,
         "isa_write_performed_by_codex": isa_write_by_codex,
         "pulse_probe_performed_by_codex": pulse_probe_by_codex,
@@ -904,7 +1028,7 @@ def audit_repo_run(
             "Codex JSONL event attribution is a runtime-provider signal, not replacement readiness.",
             "Filesystem mtime scanning is a secondary detector for repository and PAI write boundaries.",
             "Ambient PAI state/cache/log churn is not adapter evidence.",
-            "S15E covers one bounded real repository task only.",
+            f"{profile['label']} covers one bounded real repository task only.",
         ],
         "runtime_warnings": event_warnings,
     }

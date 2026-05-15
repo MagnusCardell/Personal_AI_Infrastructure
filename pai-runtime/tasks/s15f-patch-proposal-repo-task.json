@@ -1,0 +1,41 @@
+{
+  "milestone_name": "V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER",
+  "run_id": "s15f-patch-proposal",
+  "runtime": "codex",
+  "task_id": "s15f-patch-proposal-repo-task",
+  "task_kind": "bounded-real-repository-code-change",
+  "task_summary": "Implement PAI-owned patch proposal validation and application for bounded repository tasks.",
+  "approved_repository_write_set": [
+    "pai-runtime/README.md",
+    "pai-runtime/repo-task.schema.json",
+    "pai-runtime/repo-run-result.schema.json",
+    "pai-runtime/repo-run-validation.schema.json",
+    "pai-runtime/patch-proposal.schema.json",
+    "pai-runtime/tasks/s15f-patch-proposal-repo-task.json",
+    "tools/pai_runtime_runner/__main__.py",
+    "tools/pai_runtime_runner/runner.py",
+    "tools/pai_runtime_runner/audit.py",
+    "tools/pai_runtime_runner/install.py",
+    "tools/pai_runtime_runner/provider_registry.py",
+    "tools/pai_runtime_runner/patch_proposal.py",
+    "tools/pai_runtime_runner/providers/codex.py",
+    "tests/test_pai_runtime_runner_repo_task.py",
+    "tests/test_pai_runtime_provider_registry.py",
+    "tests/test_pai_runtime_patch_proposal.py",
+    "docs/architecture/V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER.md"
+  ],
+  "repository_target_files": [
+    "tools/pai_runtime_runner/patch_proposal.py",
+    "tests/test_pai_runtime_patch_proposal.py"
+  ],
+  "test_command": [
+    "python3",
+    "-m",
+    "unittest",
+    "tests.test_pai_runtime_patch_proposal",
+    "tests.test_pai_runtime_runner_repo_task",
+    "tests.test_pai_runtime_provider_registry"
+  ],
+  "required_marker": "PAI_CODEX_PEER_BETA_ADAPTER",
+  "patch_proposal_required": true
+}

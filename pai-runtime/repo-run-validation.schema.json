@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "S15E PAI Runtime Repository Run Validation",
+  "title": "PAI Runtime Repository Run Validation",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -13,6 +13,9 @@
     "repo_root",
     "approved_repository_write_set",
     "repository_files_modified",
+    "patch_proposal_present",
+    "patch_proposal_valid",
+    "patch_proposal_limited_to_approved_repository_write_set",
     "diff_present",
     "diff_limited_to_approved_repository_write_set",
     "event_logs_present",
@@ -26,6 +29,7 @@
     "forbidden_semantic_writes",
     "unknown_unclassified_writes",
     "provider_registry_tests_passed",
+    "patch_proposal_tests_passed",
     "memory_write_performed_by_codex",
     "isa_write_performed_by_codex",
     "pulse_probe_performed_by_codex",
@@ -37,8 +41,20 @@
     "known_limits"
   ],
   "properties": {
-    "milestone_name": { "type": "string", "const": "V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK" },
-    "run_id": { "type": "string", "const": "s15e-provider-registry" },
+    "milestone_name": {
+      "type": "string",
+      "enum": [
+        "V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK",
+        "V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "enum": [
+        "s15e-provider-registry",
+        "s15f-patch-proposal"
+      ]
+    },
     "runtime": { "type": "string", "const": "codex" },
     "runtime_attempt_number": { "type": "integer" },
     "pai_runtime_command": { "type": "array", "items": { "type": "string" } },
@@ -46,6 +62,9 @@
     "repo_root": { "type": "string" },
     "approved_repository_write_set": { "type": "array", "items": { "type": "string" } },
     "repository_files_modified": { "type": "array", "items": { "type": "string" } },
+    "patch_proposal_present": { "type": "boolean" },
+    "patch_proposal_valid": { "type": "boolean" },
+    "patch_proposal_limited_to_approved_repository_write_set": { "type": "boolean" },
     "diff_present": { "type": "boolean" },
     "diff_limited_to_approved_repository_write_set": { "type": "boolean" },
     "event_logs_present": { "type": "boolean" },
@@ -59,6 +78,7 @@
     "forbidden_semantic_writes": { "type": "array" },
     "unknown_unclassified_writes": { "type": "array" },
     "provider_registry_tests_passed": { "type": "boolean" },
+    "patch_proposal_tests_passed": { "type": "boolean" },
     "memory_write_performed_by_codex": { "type": "boolean" },
     "isa_write_performed_by_codex": { "type": "boolean" },
     "pulse_probe_performed_by_codex": { "type": "boolean" },

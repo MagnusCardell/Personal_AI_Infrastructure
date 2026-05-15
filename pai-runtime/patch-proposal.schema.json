@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "S15F PAI Patch Proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposal_id", "proposal_kind", "changes"],
+  "properties": {
+    "proposal_id": { "type": "string" },
+    "proposal_kind": { "type": "string", "const": "full-file-replacement" },
+    "unified_diff": { "type": "string" },
+    "metadata": { "type": "object", "additionalProperties": true },
+    "changes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "mode", "content"],
+        "properties": {
+          "path": { "type": "string" },
+          "mode": { "type": "string", "const": "replace-file" },
+          "content": { "type": "string" },
+          "unified_diff": { "type": "string" }
+        }
+      }
+    }
+  }
+}

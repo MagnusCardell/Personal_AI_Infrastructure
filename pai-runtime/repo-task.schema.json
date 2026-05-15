@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "S15E PAI Runtime Repository Task",
+  "title": "PAI Runtime Repository Task",
   "type": "object",
   "additionalProperties": true,
   "required": [
@@ -14,13 +14,44 @@
     "test_command"
   ],
   "properties": {
-    "milestone_name": { "type": "string", "const": "V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK" },
-    "task_id": { "type": "string", "const": "s15e-provider-registry-repo-task" },
+    "milestone_name": {
+      "type": "string",
+      "enum": [
+        "V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK",
+        "V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER"
+      ]
+    },
+    "task_id": {
+      "type": "string",
+      "enum": [
+        "s15e-provider-registry-repo-task",
+        "s15f-patch-proposal-repo-task"
+      ]
+    },
     "task_kind": { "type": "string", "const": "bounded-real-repository-code-change" },
     "runtime": { "type": "string", "const": "codex" },
-    "run_id": { "type": "string", "const": "s15e-provider-registry" },
+    "run_id": {
+      "type": "string",
+      "enum": [
+        "s15e-provider-registry",
+        "s15f-patch-proposal"
+      ]
+    },
     "approved_repository_write_set": { "type": "array", "items": { "type": "string" } },
     "repository_target_files": { "type": "array", "items": { "type": "string" } },
-    "test_command": { "type": "array", "items": { "type": "string" } }
-  }
+    "test_command": { "type": "array", "items": { "type": "string" } },
+    "patch_proposal_required": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "task_id": { "const": "s15f-patch-proposal-repo-task" } } },
+      "then": {
+        "properties": {
+          "milestone_name": { "const": "V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER" },
+          "run_id": { "const": "s15f-patch-proposal" },
+          "patch_proposal_required": { "const": true }
+        }
+      }
+    }
+  ]
 }
