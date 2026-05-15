@@ -9,16 +9,33 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from jsonschema import Draft202012Validator
+except Exception:  # noqa: BLE001 - runner reports unavailable schema validation.
+    Draft202012Validator = None  # type: ignore[assignment]
+
 from tools.pai_runtime_runner.audit import audit_capability_policy as run_capability_policy_audit
+from tools.pai_runtime_runner.audit import audit_pai_context_run as run_pai_context_audit
 from tools.pai_runtime_runner.audit import audit_repo_run as run_repo_audit
 from tools.pai_runtime_runner.audit import audit_provider_lifecycle as run_provider_lifecycle_audit
 from tools.pai_runtime_runner.audit import audit_run as run_audit
 from tools.pai_runtime_runner.capabilities import (
     CapabilityPolicyError,
     MATERIALIZED_REPO_TASK_CAPABILITIES,
+    PAI_CONTEXT_TASK_CAPABILITIES,
     PATCH_PROPOSAL_REPO_TASK_CAPABILITIES,
     enforce_capability_policy,
     task_required_capabilities,
+)
+from tools.pai_runtime_runner.pai_context import (
+    PaiContextError,
+    S15I_MILESTONE,
+    S15I_RUN_ID,
+    S15I_TASK_ID,
+    S15I_TASK_KIND,
+    collect_pai_context_metadata,
+    normalize_context_report,
+    validate_context_capsule,
 )
 from tools.pai_runtime_runner.patch_proposal import (
     PatchProposalError,
@@ -38,6 +55,7 @@ from tools.pai_runtime_runner.providers.codex import (
     build_provider_command,
     build_repo_provider_command,
     run_codex_provider,
+    run_codex_pai_context_provider,
     run_codex_repo_provider,
 )
 
@@ -67,6 +85,14 @@ S15F_TASK_ID = "s15f-patch-proposal-repo-task"
 S15F_RUN_RELATIVE = Path("runs") / "s15f" / "patch-proposal"
 S15F_TASK_RELATIVE = Path("runtime-tasks") / "s15f-patch-proposal-repo-task.json"
 S15F_PATCH_NAME = "patch-proposal.json"
+S15I_RUN_RELATIVE = Path("runs") / "s15i" / "read-only-pai-context"
+S15I_TASK_RELATIVE = Path("runtime-tasks") / "s15i-readonly-pai-context-task.json"
+S15I_CAPSULE_NAME = "pai-context-capsule.json"
+S15I_REPORT_NAME = "pai-context-report.json"
+S15I_EVENTS_NAME = "pai-context-events.jsonl"
+S15I_STATE_NAME = "pai-context-state.json"
+S15I_VALIDATION_NAME = "pai-context-validation.json"
+S15I_REQUIRED_CAPABILITY = "pai.context.read.metadata"
 S15F_TARGET_FILES = {
     "tools/pai_runtime_runner/patch_proposal.py",
     "tests/test_pai_runtime_patch_proposal.py",
@@ -77,7 +103,12 @@ APPROVED_REPOSITORY_WRITE_SET = {
     "pai-runtime/repo-run-result.schema.json",
     "pai-runtime/repo-run-validation.schema.json",
     "pai-runtime/patch-proposal.schema.json",
+    "pai-runtime/pai-context-task.schema.json",
+    "pai-runtime/pai-context-capsule.schema.json",
+    "pai-runtime/pai-context-report.schema.json",
+    "pai-runtime/pai-context-validation.schema.json",
     "pai-runtime/tasks/s15f-patch-proposal-repo-task.json",
+    "pai-runtime/tasks/s15i-readonly-pai-context-task.json",
     "pai-runtime/tasks/s15e-provider-registry-repo-task.json",
     "tools/pai_runtime_runner/__main__.py",
     "tools/pai_runtime_runner/runner.py",
@@ -85,13 +116,17 @@ APPROVED_REPOSITORY_WRITE_SET = {
     "tools/pai_runtime_runner/install.py",
     "tools/pai_runtime_runner/provider_registry.py",
     "tools/pai_runtime_runner/patch_proposal.py",
+    "tools/pai_runtime_runner/pai_context.py",
+    "tools/pai_runtime_runner/capabilities.py",
     "tools/pai_runtime_runner/providers/codex.py",
     "tests/test_pai_runtime_runner_codex.py",
     "tests/test_pai_runtime_runner_repo_task.py",
     "tests/test_pai_runtime_provider_registry.py",
     "tests/test_pai_runtime_patch_proposal.py",
+    "tests/test_pai_runtime_readonly_pai_context.py",
     "docs/architecture/V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK.md",
     "docs/architecture/V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER.md",
+    "docs/architecture/V5-S15I-PAI-RUNTIME-READONLY-PAI-CONTEXT-TASK.md",
 }
 REPO_RUN_RESULT_FIELDS = {
     "milestone_name",
@@ -162,6 +197,28 @@ def _load_json(path: Path, label: str) -> dict[str, object]:
     if not isinstance(data, dict):
         raise RunnerError(f"{label} must be a JSON object")
     return data
+
+
+def _validate_json_schema(instance: dict[str, object], schema_path: Path, label: str) -> list[str]:
+    if Draft202012Validator is None:
+        return [f"{label} schema validation unavailable: jsonschema is not installed"]
+    if not schema_path.is_file():
+        return [f"{label} schema is missing: {schema_path}"]
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"{label} schema is not valid JSON: {exc}"]
+    if not isinstance(schema, dict):
+        return [f"{label} schema must be a JSON object"]
+    try:
+        Draft202012Validator.check_schema(schema)
+        errors = sorted(Draft202012Validator(schema).iter_errors(instance), key=lambda error: list(error.path))
+    except Exception as exc:  # noqa: BLE001 - runner reports schema failures instead of raising raw exceptions.
+        return [f"{label} schema validation failed: {exc}"]
+    return [
+        f"{label} schema mismatch at {'/'.join(str(part) for part in error.path) or '<root>'}: {error.message}"
+        for error in errors
+    ]
 
 
 def _load_task_card(path: Path) -> dict[str, object]:
@@ -283,6 +340,79 @@ def _safe_capability_policy_audit_output(pai_dir: Path, output: str | Path) -> P
     return path
 
 
+def _safe_pai_context_task_card(pai_dir: Path, task_card: str | Path) -> Path:
+    path = Path(task_card)
+    if str(task_card) == "":
+        raise RunnerError("--task-card must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--task-card must not contain path traversal")
+    resolved = path.resolve(strict=True)
+    expected = (pai_dir / S15I_TASK_RELATIVE).resolve(strict=True)
+    if resolved != expected:
+        raise RunnerError("--task-card must be the installed S15I PAI context task card")
+    return resolved
+
+
+def _safe_pai_context_run_dir(pai_dir: Path, run_dir: str | Path) -> Path:
+    path = Path(run_dir)
+    if str(run_dir) == "":
+        raise RunnerError("--run-dir must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--run-dir must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    expected = (pai_dir / S15I_RUN_RELATIVE).resolve(strict=False)
+    if resolved != expected:
+        raise RunnerError("PAI runtime PAI context run directory must be runs/s15i/read-only-pai-context")
+    if path.exists() and not path.is_dir():
+        raise RunnerError("--run-dir target is not a directory")
+    if path.is_symlink():
+        raise RunnerError("--run-dir target is a symlink")
+    return path
+
+
+def _safe_pai_context_audit_output(run_dir: Path, output: str | Path) -> Path:
+    path = Path(output)
+    if str(output) == "":
+        raise RunnerError("--output must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--output must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    if not _is_within(run_dir.resolve(strict=False), resolved):
+        raise RunnerError("--output must stay under runs/s15i/read-only-pai-context")
+    if resolved.name != S15I_VALIDATION_NAME:
+        raise RunnerError("--output must be named pai-context-validation.json")
+    if path.exists() and not path.is_file():
+        raise RunnerError("--output target is not a file")
+    if path.is_symlink():
+        raise RunnerError("--output target is a symlink")
+    return path
+
+
+def _load_pai_context_task_card(path: Path) -> dict[str, object]:
+    card = _load_json(path, "PAI context task card")
+    expected = {
+        "milestone_name": S15I_MILESTONE,
+        "run_id": S15I_RUN_ID,
+        "runtime": "codex",
+        "task_id": S15I_TASK_ID,
+        "task_kind": S15I_TASK_KIND,
+    }
+    for key, value in expected.items():
+        if card.get(key) != value:
+            raise RunnerError(f"PAI context task card mismatch for {key}")
+    return card
+
+
+def _validate_pai_context_task_card_schema(pai_dir: Path, card: dict[str, object]) -> None:
+    schema_errors = _validate_json_schema(
+        card,
+        pai_dir / "runtime-schemas" / "pai-context-task.schema.json",
+        "pai-context-task.json",
+    )
+    if schema_errors:
+        raise RunnerError("PAI context task card schema validation failed: " + "; ".join(schema_errors))
+
+
 def doctor(pai_dir: Path) -> dict[str, object]:
     router = pai_dir / "AGENTS.md"
     if not router.is_file():
@@ -303,9 +433,14 @@ def doctor(pai_dir: Path) -> dict[str, object]:
         (pai_dir / "runtime-schemas" / "repo-run-result.schema.json", "repo run result schema"),
         (pai_dir / "runtime-schemas" / "repo-run-validation.schema.json", "repo run validation schema"),
         (pai_dir / "runtime-schemas" / "patch-proposal.schema.json", "patch proposal schema"),
+        (pai_dir / "runtime-schemas" / "pai-context-task.schema.json", "PAI context task schema"),
+        (pai_dir / "runtime-schemas" / "pai-context-capsule.schema.json", "PAI context capsule schema"),
+        (pai_dir / "runtime-schemas" / "pai-context-report.schema.json", "PAI context report schema"),
+        (pai_dir / "runtime-schemas" / "pai-context-validation.schema.json", "PAI context validation schema"),
         (pai_dir / TASK_RELATIVE, "S15D task card"),
         (pai_dir / S15E_TASK_RELATIVE, "S15E repo task card"),
         (pai_dir / S15F_TASK_RELATIVE, "S15F patch proposal repo task card"),
+        (pai_dir / S15I_TASK_RELATIVE, "S15I PAI context task card"),
         (pai_dir / "runtime-task-fixtures" / "s15d_bugfix" / "src" / "pai_priority.py", "S15D task fixture"),
         (pai_dir / "adapters" / "codex" / "bin" / "pai-codex", "Codex provider driver"),
     ):
@@ -892,6 +1027,98 @@ def run_repo_runtime(
     }
 
 
+def run_pai_context_runtime(
+    pai_dir: Path,
+    runtime: str,
+    task_card: str | Path,
+    run_dir: str | Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    doctor(pai_dir)
+    if runtime != "codex":
+        raise RunnerError(f"unknown runtime provider: {runtime}")
+    task_path = _safe_pai_context_task_card(pai_dir, task_card)
+    card = _load_pai_context_task_card(task_path)
+    _validate_pai_context_task_card_schema(pai_dir, card)
+    required_capabilities = _enforce_runtime_capabilities(
+        pai_dir,
+        "codex",
+        card,
+        PAI_CONTEXT_TASK_CAPABILITIES,
+    )
+    safe_run_dir = _safe_pai_context_run_dir(pai_dir, run_dir)
+    command = [
+        str(pai_dir / "bin" / "pai-runtime"),
+        "run-pai-context",
+        "--pai-dir",
+        str(pai_dir),
+        "--runtime",
+        "codex",
+        "--task-card",
+        str(task_path),
+        "--run-dir",
+        str(safe_run_dir),
+    ]
+    capsule = collect_pai_context_metadata(pai_dir)
+    capsule_errors = validate_context_capsule(capsule)
+    if capsule_errors:
+        raise RunnerError("PAI context capsule validation failed: " + "; ".join(capsule_errors))
+    capsule_schema_errors = _validate_json_schema(
+        capsule,
+        pai_dir / "runtime-schemas" / "pai-context-capsule.schema.json",
+        "pai-context-capsule.json",
+    )
+    if capsule_schema_errors:
+        raise RunnerError("PAI context capsule schema validation failed: " + "; ".join(capsule_schema_errors))
+    dry_provider_result = run_codex_pai_context_provider(pai_dir, card, capsule, safe_run_dir, dry_run=True)
+    if dry_run:
+        return {
+            "dry_run": True,
+            "pai_runtime_command": command,
+            "provider_command": dry_provider_result["provider_command"],
+            "run_dir": str(safe_run_dir),
+            "required_capabilities": required_capabilities,
+            "context_capsule_metadata_only": True,
+        }
+
+    safe_run_dir.mkdir(parents=True, exist_ok=True)
+    capsule_path = safe_run_dir / S15I_CAPSULE_NAME
+    capsule_path.write_text(json.dumps(capsule, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    schema_source = pai_dir / "runtime-schemas" / "pai-context-report.schema.json"
+    schema_target = safe_run_dir / "pai-context-report.schema.json"
+    schema_target.write_text(schema_source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    provider_result = run_codex_pai_context_provider(pai_dir, card, capsule, safe_run_dir)
+    report = normalize_context_report(provider_result, capsule)
+    report_schema_errors = _validate_json_schema(report, schema_target, "pai-context-report.json")
+    if report_schema_errors:
+        raise RunnerError("PAI context report schema validation failed: " + "; ".join(report_schema_errors))
+    report_path = safe_run_dir / S15I_REPORT_NAME
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    state = {
+        "pai_runtime_command": command,
+        "provider_command": provider_result.get("provider_command", dry_provider_result["provider_command"]),
+        "required_capabilities": required_capabilities,
+        "context_capsule_path": str(capsule_path),
+        "context_report_path": str(report_path),
+        "context_events_path": str(safe_run_dir / S15I_EVENTS_NAME),
+        "context_capsule_metadata_only": True,
+        "context_report_normalized_by_pai": True,
+    }
+    (safe_run_dir / S15I_STATE_NAME).write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return {
+        "ok": True,
+        "run_dir": str(safe_run_dir),
+        "context_capsule": str(capsule_path),
+        "context_report": str(report_path),
+        "events_output": str(safe_run_dir / S15I_EVENTS_NAME),
+        "required_capabilities": required_capabilities,
+        "context_capsule_metadata_only": True,
+    }
+
+
 def audit_runtime_run(
     pai_dir: Path,
     marker: str | Path,
@@ -951,6 +1178,50 @@ def audit_repo_runtime_run(
     output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if not result.get("validation_passed"):
         raise RunnerError(f"PAI runtime repo audit failed; wrote {output_path}")
+    return {
+        "ok": True,
+        "output": str(output_path),
+        "event_attribution_passed": result.get("event_attribution_passed"),
+        "validation_passed": result.get("validation_passed"),
+    }
+
+
+def audit_pai_context_runtime_run(
+    pai_dir: Path,
+    marker: str | Path,
+    run_dir: str | Path,
+    output: str | Path,
+    runtime_attempt_number: int,
+) -> dict[str, object]:
+    doctor(pai_dir)
+    marker_path = _safe_marker(marker)
+    safe_run_dir = _safe_pai_context_run_dir(pai_dir, run_dir)
+    output_path = _safe_pai_context_audit_output(safe_run_dir, output)
+    result = run_pai_context_audit(
+        pai_dir=pai_dir,
+        marker=marker_path,
+        run_dir=safe_run_dir,
+        capsule_path=safe_run_dir / S15I_CAPSULE_NAME,
+        report_path=safe_run_dir / S15I_REPORT_NAME,
+        events_path=safe_run_dir / S15I_EVENTS_NAME,
+        runtime_attempt_number=runtime_attempt_number,
+        repo_root=Path.cwd(),
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not result.get("validation_passed"):
+        raise RunnerError(f"PAI context runtime audit failed; wrote {output_path}")
+    validation_schema_errors = _validate_json_schema(
+        result,
+        pai_dir / "runtime-schemas" / "pai-context-validation.schema.json",
+        "pai-context-validation.json",
+    )
+    if validation_schema_errors:
+        raise RunnerError(
+            "PAI context validation artifact schema validation failed: "
+            + "; ".join(validation_schema_errors)
+            + f"; wrote {output_path}"
+        )
     return {
         "ok": True,
         "output": str(output_path),
@@ -1055,6 +1326,13 @@ def build_parser() -> argparse.ArgumentParser:
     repo_parser.add_argument("--run-dir", required=True)
     repo_parser.add_argument("--dry-run", action="store_true")
 
+    context_parser = subcommands.add_parser("run-pai-context")
+    context_parser.add_argument("--pai-dir", required=True)
+    context_parser.add_argument("--runtime", required=True)
+    context_parser.add_argument("--task-card", required=True)
+    context_parser.add_argument("--run-dir", required=True)
+    context_parser.add_argument("--dry-run", action="store_true")
+
     audit_parser = subcommands.add_parser("audit-run")
     audit_parser.add_argument("--pai-dir", required=True)
     audit_parser.add_argument("--marker", required=True)
@@ -1069,6 +1347,13 @@ def build_parser() -> argparse.ArgumentParser:
     repo_audit_parser.add_argument("--run-dir", required=True)
     repo_audit_parser.add_argument("--output", required=True)
     repo_audit_parser.add_argument("--runtime-attempt-number", type=int, default=1)
+
+    context_audit_parser = subcommands.add_parser("audit-pai-context")
+    context_audit_parser.add_argument("--pai-dir", required=True)
+    context_audit_parser.add_argument("--marker", required=True)
+    context_audit_parser.add_argument("--run-dir", required=True)
+    context_audit_parser.add_argument("--output", required=True)
+    context_audit_parser.add_argument("--runtime-attempt-number", type=int, default=1)
 
     provider_lifecycle_audit_parser = subcommands.add_parser("audit-provider-lifecycle")
     provider_lifecycle_audit_parser.add_argument("--pai-dir", required=True)
@@ -1114,6 +1399,14 @@ def main(argv: list[str] | None = None) -> int:
                 args.run_dir,
                 args.dry_run,
             )
+        elif args.command == "run-pai-context":
+            result = run_pai_context_runtime(
+                pai_dir,
+                args.runtime,
+                args.task_card,
+                args.run_dir,
+                args.dry_run,
+            )
         elif args.command == "audit-run":
             result = audit_runtime_run(pai_dir, args.marker, args.run_dir, args.output, args.runtime_attempt_number)
         elif args.command == "audit-repo-run":
@@ -1121,6 +1414,14 @@ def main(argv: list[str] | None = None) -> int:
                 pai_dir,
                 args.marker,
                 args.repo_root,
+                args.run_dir,
+                args.output,
+                args.runtime_attempt_number,
+            )
+        elif args.command == "audit-pai-context":
+            result = audit_pai_context_runtime_run(
+                pai_dir,
+                args.marker,
                 args.run_dir,
                 args.output,
                 args.runtime_attempt_number,
@@ -1143,7 +1444,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             raise RunnerError(f"unknown command: {args.command}")
-    except (CapabilityPolicyError, ProviderRegistryError, RunnerError, OSError) as exc:
+    except (CapabilityPolicyError, PaiContextError, ProviderRegistryError, RunnerError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2, sort_keys=True))

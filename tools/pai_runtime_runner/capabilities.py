@@ -27,6 +27,10 @@ MATERIALIZED_REPO_TASK_CAPABILITIES: tuple[str, ...] = (
     "repo.write.apply",
 )
 
+PAI_CONTEXT_TASK_CAPABILITIES: tuple[str, ...] = (
+    "pai.context.read.metadata",
+)
+
 FORBIDDEN_TASK_CAPABILITIES: dict[str, str] = {
     "memory.write": "runtime provider declares memory.write.disabled",
     "isa.write": "runtime provider declares isa.write.disabled",

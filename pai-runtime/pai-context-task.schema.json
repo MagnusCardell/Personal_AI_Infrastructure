@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI Read-Only Context Task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "runtime",
+    "task_id",
+    "task_kind",
+    "task_summary",
+    "context_source",
+    "metadata_only",
+    "codex_direct_live_pai_traversal_allowed",
+    "approved_output_artifacts",
+    "forbidden_read_surfaces",
+    "required_capabilities",
+    "required_marker"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S15I-PAI-RUNTIME-READONLY-PAI-CONTEXT-TASK" },
+    "run_id": { "type": "string", "const": "s15i-read-only-pai-context" },
+    "runtime": { "type": "string", "const": "codex" },
+    "task_id": { "type": "string", "const": "s15i-readonly-pai-context-task" },
+    "task_kind": { "type": "string", "const": "readonly-pai-metadata-context" },
+    "task_summary": { "$ref": "#/$defs/redactedString" },
+    "context_source": { "type": "string", "const": "pai-created-sanitized-context-capsule" },
+    "metadata_only": { "type": "boolean", "const": true },
+    "codex_direct_live_pai_traversal_allowed": { "type": "boolean", "const": false },
+    "approved_output_artifacts": {
+      "type": "array",
+      "const": [
+        "pai-context-capsule.json",
+        "pai-context-report.json",
+        "pai-context-events.jsonl",
+        "pai-context-validation.json"
+      ]
+    },
+    "forbidden_read_surfaces": {
+      "type": "array",
+      "const": [
+        "PAI Memory bodies",
+        "ISA bodies",
+        "Pulse event payloads",
+        "Claude project memory",
+        "Codex memory",
+        "arbitrary home files"
+      ]
+    },
+    "required_capabilities": {
+      "type": "array",
+      "const": ["pai.context.read.metadata"]
+    },
+    "required_marker": { "type": "string", "const": "PAI_CODEX_PEER_BETA_ADAPTER" }
+  },
+  "$defs": {
+    "redactedString": {
+      "type": "string",
+      "allOf": [
+        { "not": { "pattern": "/[Hh][Oo][Mm][Ee]/" } },
+        { "not": { "pattern": "/[Uu][Ss][Ee][Rr][Ss]/" } },
+        { "not": { "pattern": "\\\\[Uu][Ss][Ee][Rr][Ss]\\\\" } },
+        { "not": { "pattern": "[Cc][Ll][Aa][Uu][Dd][Ee]\\.md [Cc][Oo][Nn][Tt][Ee][Nn][Tt][Ss]" } },
+        { "not": { "pattern": "[Aa][Uu][Tt][Hh]\\.json" } },
+        { "not": { "pattern": "~/\\.[Cc][Oo][Dd][Ee][Xx]" } },
+        { "not": { "pattern": "~/\\.[Cc][Ll][Aa][Uu][Dd][Ee]/[Pp][Rr][Oo][Jj][Ee][Cc][Tt][Ss]" } },
+        { "not": { "pattern": "~/\\.[Cc][Ll][Aa][Uu][Dd][Ee]/[Cc][Ll][Aa][Uu][Dd][Ee]\\.md" } },
+        { "not": { "pattern": "~/\\.[Cc][Ll][Aa][Uu][Dd][Ee]/[Ss][Ee][Tt][Tt][Ii][Nn][Gg][Ss]" } },
+        { "not": { "pattern": "[Ll][Oo][Cc][Aa][Ll][Hh][Oo][Ss][Tt]:31337" } },
+        { "not": { "pattern": "127\\.0\\.0\\.1:31337" } }
+      ]
+    }
+  }
+}

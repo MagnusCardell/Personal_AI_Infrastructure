@@ -1,0 +1,29 @@
+{
+  "milestone_name": "V5-S15I-PAI-RUNTIME-READONLY-PAI-CONTEXT-TASK",
+  "run_id": "s15i-read-only-pai-context",
+  "runtime": "codex",
+  "task_id": "s15i-readonly-pai-context-task",
+  "task_kind": "readonly-pai-metadata-context",
+  "task_summary": "Review a PAI-created sanitized read-only metadata context capsule without direct live PAI traversal.",
+  "context_source": "pai-created-sanitized-context-capsule",
+  "metadata_only": true,
+  "codex_direct_live_pai_traversal_allowed": false,
+  "approved_output_artifacts": [
+    "pai-context-capsule.json",
+    "pai-context-report.json",
+    "pai-context-events.jsonl",
+    "pai-context-validation.json"
+  ],
+  "forbidden_read_surfaces": [
+    "PAI Memory bodies",
+    "ISA bodies",
+    "Pulse event payloads",
+    "Claude project memory",
+    "Codex memory",
+    "arbitrary home files"
+  ],
+  "required_capabilities": [
+    "pai.context.read.metadata"
+  ],
+  "required_marker": "PAI_CODEX_PEER_BETA_ADAPTER"
+}

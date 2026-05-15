@@ -5,6 +5,13 @@ import shutil
 import stat
 from pathlib import Path
 
+from tools.pai_runtime_runner.capabilities import CODEX_PROVIDER_CAPABILITIES, CapabilityPolicyError, provider_capabilities
+
+try:
+    from jsonschema import Draft202012Validator
+except Exception:  # noqa: BLE001 - install reports unavailable schema validation.
+    Draft202012Validator = None  # type: ignore[assignment]
+
 
 class RuntimeInstallError(ValueError):
     pass
@@ -22,9 +29,14 @@ INSTALL_TEXT_TARGETS = {
     REPO_ROOT / "pai-runtime" / "repo-run-result.schema.json": Path("runtime-schemas") / "repo-run-result.schema.json",
     REPO_ROOT / "pai-runtime" / "repo-run-validation.schema.json": Path("runtime-schemas") / "repo-run-validation.schema.json",
     REPO_ROOT / "pai-runtime" / "patch-proposal.schema.json": Path("runtime-schemas") / "patch-proposal.schema.json",
+    REPO_ROOT / "pai-runtime" / "pai-context-task.schema.json": Path("runtime-schemas") / "pai-context-task.schema.json",
+    REPO_ROOT / "pai-runtime" / "pai-context-capsule.schema.json": Path("runtime-schemas") / "pai-context-capsule.schema.json",
+    REPO_ROOT / "pai-runtime" / "pai-context-report.schema.json": Path("runtime-schemas") / "pai-context-report.schema.json",
+    REPO_ROOT / "pai-runtime" / "pai-context-validation.schema.json": Path("runtime-schemas") / "pai-context-validation.schema.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15d-codex-synthetic-bugfix.json": Path("runtime-tasks") / "s15d-codex-synthetic-bugfix.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15e-provider-registry-repo-task.json": Path("runtime-tasks") / "s15e-provider-registry-repo-task.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15f-patch-proposal-repo-task.json": Path("runtime-tasks") / "s15f-patch-proposal-repo-task.json",
+    REPO_ROOT / "pai-runtime" / "tasks" / "s15i-readonly-pai-context-task.json": Path("runtime-tasks") / "s15i-readonly-pai-context-task.json",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "README.md": Path("runtime-task-fixtures") / "s15d_bugfix" / "README.md",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "src" / "pai_priority.py": Path("runtime-task-fixtures") / "s15d_bugfix" / "src" / "pai_priority.py",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "tests" / "test_pai_priority.py": Path("runtime-task-fixtures") / "s15d_bugfix" / "tests" / "test_pai_priority.py",
@@ -51,11 +63,28 @@ APPROVED_LIVE_RELATIVES = tuple(INSTALL_TEXT_TARGETS.values()) + (
     Path("runs") / "s15f" / "patch-proposal" / "patch-proposal.json",
     Path("runs") / "s15f" / "patch-proposal" / "repo-run-validation.json",
     Path("runs") / "s15f" / "patch-proposal" / "repo-run-state.json",
+    Path("runs") / "s15i" / "read-only-pai-context" / "pai-context-capsule.json",
+    Path("runs") / "s15i" / "read-only-pai-context" / "pai-context-report.schema.json",
+    Path("runs") / "s15i" / "read-only-pai-context" / "pai-context-report.json",
+    Path("runs") / "s15i" / "read-only-pai-context" / "pai-context-events.jsonl",
+    Path("runs") / "s15i" / "read-only-pai-context" / "pai-context-state.json",
+    Path("runs") / "s15i" / "read-only-pai-context" / "pai-context-validation.json",
 )
 
 RUN_DIR_RELATIVE = Path("runs") / "s15d" / "codex-synthetic-bugfix"
 S15E_RUN_DIR_RELATIVE = Path("runs") / "s15e" / "provider-registry"
 S15F_RUN_DIR_RELATIVE = Path("runs") / "s15f" / "patch-proposal"
+S15I_RUN_DIR_RELATIVE = Path("runs") / "s15i" / "read-only-pai-context"
+S15I_MUTABLE_INSTALL_RELATIVES = {
+    Path("bin") / "pai-runtime",
+    Path("runtime-state.json"),
+    Path("runtime-schemas") / "pai-context-task.schema.json",
+    Path("runtime-schemas") / "pai-context-capsule.schema.json",
+    Path("runtime-schemas") / "pai-context-report.schema.json",
+    Path("runtime-schemas") / "pai-context-validation.schema.json",
+    Path("runtime-tasks") / "s15i-readonly-pai-context-task.json",
+    Path("runtimes") / "codex" / "provider-manifest.json",
+}
 
 
 def _is_within(root: Path, candidate: Path) -> bool:
@@ -116,6 +145,10 @@ def _mark_executable(path: Path) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
+def _is_live_pai_dir(path: Path) -> bool:
+    return path.resolve(strict=False) == (Path.home() / ".claude" / "PAI").resolve(strict=False)
+
+
 def _wrapper_text() -> str:
     return (
         "#!/usr/bin/env python3\n"
@@ -130,19 +163,57 @@ def _wrapper_text() -> str:
 def _runtime_state() -> str:
     payload = {
         "installed": True,
-        "milestone_name": "V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER",
+        "milestone_name": "V5-S15I-PAI-RUNTIME-READONLY-PAI-CONTEXT-TASK",
         "ownership_model": "PAI owns the run; Codex is runtime provider codex.",
         "runtime_provider": "codex",
         "runtime_status": "peer-beta",
         "upstream_adapter": "claude",
         "supports_repo_tasks": True,
         "supports_patch_proposals": True,
+        "supports_pai_context_metadata": True,
     }
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
 def _load_provider_manifest() -> dict[str, object]:
     return json.loads((REPO_ROOT / "runtimes" / "codex" / "provider-manifest.json").read_text(encoding="utf-8"))
+
+
+def _validate_schema_file(path: Path, label: str) -> None:
+    if Draft202012Validator is None:
+        raise RuntimeInstallError(f"{label} schema validation unavailable: jsonschema is not installed")
+    try:
+        schema = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeInstallError(f"{label} schema is not valid JSON") from exc
+    if not isinstance(schema, dict):
+        raise RuntimeInstallError(f"{label} schema must be a JSON object")
+    try:
+        Draft202012Validator.check_schema(schema)
+    except Exception as exc:  # noqa: BLE001 - normalize schema failures as install errors.
+        raise RuntimeInstallError(f"{label} schema failed Draft 2020-12 validation: {exc}") from exc
+
+
+def _load_json_object_file(path: Path, label: str) -> dict[str, object]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeInstallError(f"{label} is not valid JSON") from exc
+    if not isinstance(data, dict):
+        raise RuntimeInstallError(f"{label} must be a JSON object")
+    return data
+
+
+def _validate_json_instance(instance_path: Path, schema_path: Path, label: str) -> None:
+    if Draft202012Validator is None:
+        raise RuntimeInstallError(f"{label} validation unavailable: jsonschema is not installed")
+    instance = _load_json_object_file(instance_path, label)
+    schema = _load_json_object_file(schema_path, f"{schema_path.name} schema")
+    try:
+        Draft202012Validator.check_schema(schema)
+        Draft202012Validator(schema).validate(instance)
+    except Exception as exc:  # noqa: BLE001 - normalize schema failures as install errors.
+        raise RuntimeInstallError(f"{label} failed schema validation: {exc}") from exc
 
 
 def validate_staged_payload() -> None:
@@ -163,9 +234,30 @@ def validate_staged_payload() -> None:
     for key, value in expected.items():
         if manifest.get(key) != value:
             raise RuntimeInstallError(f"provider manifest mismatch for {key}")
+    try:
+        capabilities = provider_capabilities(manifest)
+    except CapabilityPolicyError as exc:
+        raise RuntimeInstallError(f"provider manifest capabilities are invalid: {exc}") from exc
+    expected_capabilities = set(CODEX_PROVIDER_CAPABILITIES)
+    if capabilities != expected_capabilities:
+        raise RuntimeInstallError("provider manifest capabilities do not match the approved Codex provider set")
+    if "pai.context.read.metadata" not in capabilities:
+        raise RuntimeInstallError("provider manifest is missing pai.context.read.metadata")
     for source in INSTALL_TEXT_TARGETS:
         if not source.is_file():
             raise RuntimeInstallError(f"missing staged runtime file: {source}")
+    for source in (
+        REPO_ROOT / "pai-runtime" / "pai-context-task.schema.json",
+        REPO_ROOT / "pai-runtime" / "pai-context-capsule.schema.json",
+        REPO_ROOT / "pai-runtime" / "pai-context-report.schema.json",
+        REPO_ROOT / "pai-runtime" / "pai-context-validation.schema.json",
+    ):
+        _validate_schema_file(source, source.name)
+    _validate_json_instance(
+        REPO_ROOT / "pai-runtime" / "tasks" / "s15i-readonly-pai-context-task.json",
+        REPO_ROOT / "pai-runtime" / "pai-context-task.schema.json",
+        "s15i-readonly-pai-context-task.json",
+    )
     runner = (REPO_ROOT / "tools" / "pai_runtime_runner" / "runner.py").read_text(encoding="utf-8")
     audit = (REPO_ROOT / "tools" / "pai_runtime_runner" / "audit.py").read_text(encoding="utf-8")
     provider_registry = (REPO_ROOT / "tools" / "pai_runtime_runner" / "provider_registry.py").read_text(encoding="utf-8")
@@ -178,6 +270,13 @@ def validate_staged_payload() -> None:
         raise RuntimeInstallError("patch proposal module is missing S15F validation tokens")
     if "patch_proposal_applied_by_pai" not in runner + audit:
         raise RuntimeInstallError("runner/audit is missing S15F patch proposal apply tokens")
+    pai_context = (REPO_ROOT / "tools" / "pai_runtime_runner" / "pai_context.py").read_text(encoding="utf-8")
+    if "collect_pai_context_metadata" not in pai_context or "metadata_only" not in pai_context:
+        raise RuntimeInstallError("PAI context collector is missing metadata-only collection tokens")
+    if "run-pai-context" not in runner or "audit-pai-context" not in runner + audit:
+        raise RuntimeInstallError("runner/audit is missing S15I PAI context command tokens")
+    if "pai.context.read.metadata" not in runner + audit + pai_context:
+        raise RuntimeInstallError("S15I context pipeline is missing pai.context.read.metadata tokens")
     for token in (
         "discover_runtime_providers",
         "load_provider_manifest",
@@ -193,6 +292,7 @@ def install_runtime(pai_dir: str | Path | None, backup_root: str | Path | None) 
     _resolve_backup_root(backup_root)
     validate_staged_payload()
     changed: list[Path] = []
+    live_pai_dir = _is_live_pai_dir(resolved_pai_dir)
 
     wrapper = _safe_live_path(resolved_pai_dir, Path("bin") / "pai-runtime")
     if _write_text_if_changed(wrapper, _wrapper_text()):
@@ -201,6 +301,10 @@ def install_runtime(pai_dir: str | Path | None, backup_root: str | Path | None) 
 
     for source, relative in INSTALL_TEXT_TARGETS.items():
         target = _safe_live_path(resolved_pai_dir, relative)
+        if live_pai_dir and relative not in S15I_MUTABLE_INSTALL_RELATIVES:
+            if not target.is_file():
+                raise RuntimeInstallError(f"required pre-S15I live runtime file is missing: {target}")
+            continue
         if _write_text_if_changed(target, source.read_text(encoding="utf-8")):
             changed.append(target)
         if target.name == "pai-codex":
@@ -268,7 +372,7 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
     resolved_backup_root = _resolve_backup_root(backup_root)
     backup_pai = _backup_pai_dir(resolved_backup_root)
     changed: list[Path] = []
-    for run_relative in (RUN_DIR_RELATIVE, S15E_RUN_DIR_RELATIVE, S15F_RUN_DIR_RELATIVE):
+    for run_relative in (RUN_DIR_RELATIVE, S15E_RUN_DIR_RELATIVE, S15F_RUN_DIR_RELATIVE, S15I_RUN_DIR_RELATIVE):
         changed.extend(_rollback_run_dir(resolved_pai_dir, backup_pai, run_relative))
     for relative in APPROVED_LIVE_RELATIVES:
         if relative == RUN_DIR_RELATIVE or _is_within(RUN_DIR_RELATIVE, relative):
@@ -277,6 +381,8 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
             continue
         if relative == S15F_RUN_DIR_RELATIVE or _is_within(S15F_RUN_DIR_RELATIVE, relative):
             continue
+        if relative == S15I_RUN_DIR_RELATIVE or _is_within(S15I_RUN_DIR_RELATIVE, relative):
+            continue
         if _restore_or_remove(resolved_pai_dir, backup_pai, relative):
             changed.append(resolved_pai_dir / relative)
     _remove_empty_dirs(
@@ -284,6 +390,8 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
             resolved_pai_dir / RUN_DIR_RELATIVE,
             resolved_pai_dir / S15E_RUN_DIR_RELATIVE,
             resolved_pai_dir / S15F_RUN_DIR_RELATIVE,
+            resolved_pai_dir / S15I_RUN_DIR_RELATIVE,
+            resolved_pai_dir / "runs" / "s15i",
             resolved_pai_dir / "runs" / "s15f",
             resolved_pai_dir / "runs" / "s15e",
             resolved_pai_dir / "runs" / "s15d",

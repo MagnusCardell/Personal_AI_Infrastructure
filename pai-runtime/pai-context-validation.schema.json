@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI Read-Only Context Validation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "runtime",
+    "runtime_attempt_number",
+    "pai_runtime_command",
+    "provider_command",
+    "context_capsule_present",
+    "context_capsule_schema_valid",
+    "context_capsule_metadata_only",
+    "context_report_present",
+    "context_report_schema_valid",
+    "event_logs_present",
+    "event_attribution_passed",
+    "codex_file_change_events",
+    "codex_command_execution_events",
+    "approved_pai_run_writes",
+    "ambient_pai_state_churn",
+    "forbidden_semantic_writes",
+    "unknown_unclassified_writes",
+    "memory_body_read_by_codex",
+    "isa_body_read_by_codex",
+    "pulse_event_payload_read_by_codex",
+    "claude_project_memory_read_by_codex",
+    "codex_memory_read_by_codex",
+    "memory_write_performed_by_codex",
+    "isa_write_performed_by_codex",
+    "pulse_probe_performed_by_codex",
+    "localhost_31337_called_by_codex",
+    "repo_root_agents_created",
+    "repo_dotcodex_created",
+    "codex_adapter_files_installed_under_home_codex",
+    "validation_passed",
+    "known_limits"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S15I-PAI-RUNTIME-READONLY-PAI-CONTEXT-TASK" },
+    "run_id": { "type": "string", "const": "s15i-read-only-pai-context" },
+    "runtime": { "type": "string", "const": "codex" },
+    "runtime_attempt_number": { "type": "integer", "minimum": 1 },
+    "pai_runtime_command": {
+      "type": "array",
+      "minItems": 10,
+      "items": { "$ref": "#/$defs/redactedString" },
+      "allOf": [
+        { "contains": { "const": "~/.claude/PAI/bin/pai-runtime" } },
+        { "contains": { "const": "run-pai-context" } },
+        { "contains": { "const": "--pai-dir" } },
+        { "contains": { "const": "~/.claude/PAI" } },
+        { "contains": { "const": "--runtime" } },
+        { "contains": { "const": "codex" } },
+        { "contains": { "const": "--task-card" } },
+        { "contains": { "const": "~/.claude/PAI/runtime-tasks/s15i-readonly-pai-context-task.json" } },
+        { "contains": { "const": "--run-dir" } },
+        { "contains": { "const": "~/.claude/PAI/runs/s15i/read-only-pai-context" } }
+      ]
+    },
+    "provider_command": {
+      "type": "array",
+      "minItems": 10,
+      "items": { "$ref": "#/$defs/redactedString" },
+      "allOf": [
+        { "contains": { "const": "codex" } },
+        { "contains": { "const": "exec" } },
+        { "contains": { "const": "--skip-git-repo-check" } },
+        { "contains": { "const": "--ephemeral" } },
+        { "contains": { "const": "--json" } },
+        { "contains": { "const": "--sandbox" } },
+        { "contains": { "const": "read-only" } },
+        { "contains": { "const": "--cd" } },
+        { "contains": { "const": "--add-dir" } },
+        { "contains": { "const": "--output-schema" } },
+        { "contains": { "const": "-o" } },
+        { "contains": { "const": "~/.claude/PAI/runs/s15i/read-only-pai-context" } },
+        { "contains": { "const": "~/.claude/PAI/runs/s15i/read-only-pai-context/pai-context-report.schema.json" } },
+        { "contains": { "const": "~/.claude/PAI/runs/s15i/read-only-pai-context/pai-context-report.json" } },
+        { "contains": { "const": "[sanitized-pai-context-prompt]" } }
+      ]
+    },
+    "context_capsule_present": { "type": "boolean", "const": true },
+    "context_capsule_schema_valid": { "type": "boolean", "const": true },
+    "context_capsule_metadata_only": { "type": "boolean", "const": true },
+    "context_report_present": { "type": "boolean", "const": true },
+    "context_report_schema_valid": { "type": "boolean", "const": true },
+    "event_logs_present": { "type": "boolean", "const": true },
+    "event_attribution_passed": { "type": "boolean", "const": true },
+    "codex_file_change_events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fileChangeEvent" }
+    },
+    "codex_command_execution_events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/commandExecutionEvent" }
+    },
+    "approved_pai_run_writes": { "type": "array", "items": { "$ref": "#/$defs/redactedString" } },
+    "ambient_pai_state_churn": { "type": "array", "items": { "$ref": "#/$defs/redactedString" } },
+    "forbidden_semantic_writes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/redactedString" },
+      "maxItems": 0
+    },
+    "unknown_unclassified_writes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/redactedString" },
+      "maxItems": 0
+    },
+    "memory_body_read_by_codex": { "type": "boolean", "const": false },
+    "isa_body_read_by_codex": { "type": "boolean", "const": false },
+    "pulse_event_payload_read_by_codex": { "type": "boolean", "const": false },
+    "claude_project_memory_read_by_codex": { "type": "boolean", "const": false },
+    "codex_memory_read_by_codex": { "type": "boolean", "const": false },
+    "memory_write_performed_by_codex": { "type": "boolean", "const": false },
+    "isa_write_performed_by_codex": { "type": "boolean", "const": false },
+    "pulse_probe_performed_by_codex": { "type": "boolean", "const": false },
+    "localhost_31337_called_by_codex": { "type": "boolean", "const": false },
+    "repo_root_agents_created": { "type": "boolean", "const": false },
+    "repo_dotcodex_created": { "type": "boolean", "const": false },
+    "codex_adapter_files_installed_under_home_codex": { "type": "boolean", "const": false },
+    "validation_passed": { "type": "boolean", "const": true },
+    "known_limits": { "type": "array", "items": { "$ref": "#/$defs/redactedString" } },
+    "runtime_warnings": {
+      "type": "array",
+      "maxItems": 0,
+      "items": { "$ref": "#/$defs/runtimeWarning" }
+    }
+  },
+  "$defs": {
+    "redactedString": {
+      "type": "string",
+      "allOf": [
+        { "not": { "pattern": "/[Hh][Oo][Mm][Ee]/" } },
+        { "not": { "pattern": "/[Uu][Ss][Ee][Rr][Ss]/" } },
+        { "not": { "pattern": "\\\\[Uu][Ss][Ee][Rr][Ss]\\\\" } },
+        { "not": { "pattern": "[Cc][Ll][Aa][Uu][Dd][Ee]\\.md [Cc][Oo][Nn][Tt][Ee][Nn][Tt][Ss]" } },
+        { "not": { "pattern": "[Aa][Uu][Tt][Hh]\\.json" } },
+        { "not": { "pattern": "~/\\.[Cc][Oo][Dd][Ee][Xx]" } },
+        { "not": { "pattern": "~/\\.[Cc][Ll][Aa][Uu][Dd][Ee]/[Pp][Rr][Oo][Jj][Ee][Cc][Tt][Ss]" } },
+        { "not": { "pattern": "~/\\.[Cc][Ll][Aa][Uu][Dd][Ee]/[Cc][Ll][Aa][Uu][Dd][Ee]\\.md" } },
+        { "not": { "pattern": "~/\\.[Cc][Ll][Aa][Uu][Dd][Ee]/[Ss][Ee][Tt][Tt][Ii][Nn][Gg][Ss]" } },
+        { "not": { "pattern": "[Ll][Oo][Cc][Aa][Ll][Hh][Oo][Ss][Tt]:31337" } },
+        { "not": { "pattern": "127\\.0\\.0\\.1:31337" } }
+      ]
+    },
+    "fileChangeEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "approved", "event_type", "paths"],
+      "properties": {
+        "classification": { "$ref": "#/$defs/redactedString" },
+        "approved": { "type": "boolean", "const": true },
+        "event_type": { "$ref": "#/$defs/redactedString" },
+        "paths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/redactedString" }
+        }
+      }
+    },
+    "commandExecutionEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "event_type", "command"],
+      "properties": {
+        "classification": { "$ref": "#/$defs/redactedString" },
+        "event_type": { "$ref": "#/$defs/redactedString" },
+        "command": { "$ref": "#/$defs/redactedString" }
+      }
+    },
+    "runtimeWarning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "path"],
+      "anyOf": [
+        { "required": ["reason"] },
+        { "required": ["line"] }
+      ],
+      "properties": {
+        "classification": { "$ref": "#/$defs/redactedString" },
+        "path": { "$ref": "#/$defs/redactedString" },
+        "reason": { "$ref": "#/$defs/redactedString" },
+        "line": { "type": "integer" }
+      }
+    }
+  }
+}

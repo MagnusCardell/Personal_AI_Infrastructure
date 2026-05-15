@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI Read-Only Context Capsule",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "task_id",
+    "task_kind",
+    "pai_dir_label",
+    "metadata_only",
+    "redacted_paths",
+    "runtime_providers",
+    "runtime_provider_names",
+    "runtime_provider_count",
+    "runtime_state",
+    "top_level_pai_structure",
+    "run_artifact_index",
+    "runtime_schema_names",
+    "runtime_task_names",
+    "memory_categories",
+    "isa",
+    "pulse",
+    "forbidden_body_reads",
+    "collection_policy"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S15I-PAI-RUNTIME-READONLY-PAI-CONTEXT-TASK" },
+    "run_id": { "type": "string", "const": "s15i-read-only-pai-context" },
+    "task_id": { "type": "string", "const": "s15i-readonly-pai-context-task" },
+    "task_kind": { "type": "string", "const": "readonly-pai-metadata-context" },
+    "pai_dir_label": { "type": "string", "const": "~/.claude/PAI" },
+    "metadata_only": { "type": "boolean", "const": true },
+    "redacted_paths": { "type": "boolean", "const": true },
+    "runtime_providers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/runtimeProvider" },
+      "contains": {
+        "type": "object",
+        "properties": {
+          "runtime_name": { "const": "codex" },
+          "capabilities": {
+            "type": "array",
+            "contains": { "const": "pai.context.read.metadata" }
+          }
+        },
+        "required": ["runtime_name", "capabilities"]
+      }
+    },
+    "runtime_provider_names": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/redactedString" },
+      "contains": { "const": "codex" }
+    },
+    "runtime_provider_count": { "type": "integer", "minimum": 1 },
+    "runtime_state": { "$ref": "#/$defs/runtimeState" },
+    "top_level_pai_structure": { "$ref": "#/$defs/topLevelPaiStructure" },
+    "run_artifact_index": { "type": "array", "items": { "$ref": "#/$defs/runArtifactIndexEntry" } },
+    "runtime_schema_names": { "type": "array", "items": { "$ref": "#/$defs/redactedString" } },
+    "runtime_task_names": { "type": "array", "items": { "$ref": "#/$defs/redactedString" } },
+    "memory_categories": { "type": "array", "items": { "$ref": "#/$defs/memoryCategory" } },
+    "isa": { "$ref": "#/$defs/presenceOnlyDirectory" },
+    "pulse": { "$ref": "#/$defs/presenceOnlyDirectory" },
+    "forbidden_body_reads": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memory_body_read",
+        "isa_body_read",
+        "pulse_event_payload_read",
+        "claude_project_memory_read",
+        "codex_memory_read"
+      ],
+      "properties": {
+        "memory_body_read": { "type": "boolean", "const": false },
+        "isa_body_read": { "type": "boolean", "const": false },
+        "pulse_event_payload_read": { "type": "boolean", "const": false },
+        "claude_project_memory_read": { "type": "boolean", "const": false },
+        "codex_memory_read": { "type": "boolean", "const": false }
+      }
+    },
+    "collection_policy": { "type": "array", "items": { "$ref": "#/$defs/redactedString" } }
+  },
+  "$defs": {
+    "redactedString": {
+      "type": "string",
+      "allOf": [
+        { "not": { "pattern": "/[Hh][Oo][Mm][Ee]/" } },
+        { "not": { "pattern": "/[Uu][Ss][Ee][Rr][Ss]/" } },
+        { "not": { "pattern": "\\\\[Uu][Ss][Ee][Rr][Ss]\\\\" } },
+        { "not": { "pattern": "[Cc][Ll][Aa][Uu][Dd][Ee]\\.md [Cc][Oo][Nn][Tt][Ee][Nn][Tt][Ss]" } },
+        { "not": { "pattern": "[Aa][Uu][Tt][Hh]\\.json" } },
+        { "not": { "pattern": "~/\\.[Cc][Oo][Dd][Ee][Xx]" } },
+        { "not": { "pattern": "~/\\.[Cc][Ll][Aa][Uu][Dd][Ee]/[Pp][Rr][Oo][Jj][Ee][Cc][Tt][Ss]" } },
+        { "not": { "pattern": "~/\\.[Cc][Ll][Aa][Uu][Dd][Ee]/[Cc][Ll][Aa][Uu][Dd][Ee]\\.md" } },
+        { "not": { "pattern": "~/\\.[Cc][Ll][Aa][Uu][Dd][Ee]/[Ss][Ee][Tt][Tt][Ii][Nn][Gg][Ss]" } },
+        { "not": { "pattern": "[Ll][Oo][Cc][Aa][Ll][Hh][Oo][Ss][Tt]:31337" } },
+        { "not": { "pattern": "127\\.0\\.0\\.1:31337" } }
+      ]
+    },
+    "runtimeProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_name",
+        "runtime_status",
+        "provider_type",
+        "upstream_adapter",
+        "memory_write_policy",
+        "isa_write_policy",
+        "pulse_policy",
+        "replacement_status",
+        "capabilities"
+      ],
+      "properties": {
+        "runtime_name": { "$ref": "#/$defs/redactedString" },
+        "runtime_status": { "$ref": "#/$defs/redactedString" },
+        "provider_type": { "$ref": "#/$defs/redactedString" },
+        "upstream_adapter": { "$ref": "#/$defs/redactedString" },
+        "memory_write_policy": { "$ref": "#/$defs/redactedString" },
+        "isa_write_policy": { "$ref": "#/$defs/redactedString" },
+        "pulse_policy": { "$ref": "#/$defs/redactedString" },
+        "replacement_status": { "$ref": "#/$defs/redactedString" },
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/redactedString" }
+        }
+      }
+    },
+    "runtimeState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary_keys", "scalar_value_types"],
+      "properties": {
+        "summary_keys": { "type": "array", "items": { "$ref": "#/$defs/redactedString" } },
+        "scalar_value_types": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/redactedString" },
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["str", "int", "float", "bool", "NoneType"]
+          }
+        }
+      }
+    },
+    "topLevelPaiStructure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directories", "files"],
+      "properties": {
+        "directories": { "type": "array", "items": { "$ref": "#/$defs/redactedString" } },
+        "files": { "type": "array", "items": { "$ref": "#/$defs/redactedString" } }
+      }
+    },
+    "runArtifactIndexEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "artifact_names", "artifact_count"],
+      "properties": {
+        "run_id": { "$ref": "#/$defs/redactedString" },
+        "artifact_names": { "type": "array", "items": { "$ref": "#/$defs/redactedString" } },
+        "artifact_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "memoryCategory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "present", "file_count", "file_count_scope", "body_read"],
+      "properties": {
+        "category": { "type": "string", "enum": ["WORK", "LEARNING", "KNOWLEDGE"] },
+        "present": { "type": "boolean" },
+        "file_count": { "type": "integer", "minimum": 0 },
+        "file_count_scope": { "type": "string", "const": "direct-files-only" },
+        "body_read": { "type": "boolean", "const": false }
+      }
+    },
+    "presenceOnlyDirectory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "file_count", "file_count_scope", "body_read"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "file_count": { "type": "null" },
+        "file_count_scope": { "type": "string", "const": "not-collected" },
+        "body_read": { "type": "boolean", "const": false }
+      }
+    }
+  }
+}
