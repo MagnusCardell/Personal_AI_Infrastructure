@@ -69,3 +69,18 @@ or ISA. The paired `audit-state-proposal` command validates that all proposal
 entries have `apply_status=proposed_only`, that no Memory, ISA, or Pulse files
 were modified, and that Codex remains a peer-beta runtime provider rather than a
 replacement-grade adapter.
+
+S16B adds non-committing review policy for S16A state proposals through:
+
+```bash
+pai-runtime review-state-proposal --runtime codex
+```
+
+PAI reads the accepted S16A proposal artifact, creates a sanitized
+metadata-only review context capsule, invokes `runtime=codex` for review
+assistance, and produces PAI-owned decision artifacts under the S16B run
+directory. Decisions may be `approved_for_future_commit_candidate`, `rejected`,
+`deferred`, or `needs_revision`, but every decision remains
+`commit_status=not_committed`. The paired `audit-state-proposal-review` command
+validates that no commit authority was granted, no commit occurred, and no
+Memory, ISA, or Pulse files were modified.

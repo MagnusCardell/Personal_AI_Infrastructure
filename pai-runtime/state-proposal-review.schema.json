@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI State Proposal Review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "runtime",
+    "runtime_status",
+    "provider_type",
+    "task_id",
+    "task_kind",
+    "adapter_identity_marker",
+    "upstream_adapter",
+    "agents_router_observed",
+    "source_proposal_run_id",
+    "source_proposal_used",
+    "context_capsule_used",
+    "context_capsule_metadata_only",
+    "memory_proposal_reviews",
+    "isa_proposal_reviews",
+    "commit_authority_requested",
+    "commit_authority_granted",
+    "commit_performed",
+    "memory_write_performed",
+    "isa_write_performed",
+    "pulse_probe_performed",
+    "localhost_31337_called",
+    "evidence_classification",
+    "known_limits"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S16B-PAI-STATE-PROPOSAL-REVIEW-POLICY" },
+    "run_id": { "type": "string", "const": "s16b-proposal-review" },
+    "runtime": { "type": "string", "const": "codex" },
+    "runtime_status": { "type": "string", "const": "peer-beta" },
+    "provider_type": { "type": "string", "const": "codex-cli" },
+    "task_id": { "type": "string", "const": "s16b-state-proposal-review-task" },
+    "task_kind": { "type": "string", "const": "proposal-review-without-commit" },
+    "adapter_identity_marker": { "type": "string", "const": "PAI_CODEX_PEER_BETA_ADAPTER" },
+    "upstream_adapter": { "type": "string", "const": "claude" },
+    "agents_router_observed": { "type": "boolean", "const": true },
+    "source_proposal_run_id": { "type": "string", "const": "s16a-state-proposal" },
+    "source_proposal_used": { "type": "boolean", "const": true },
+    "context_capsule_used": { "type": "boolean", "const": true },
+    "context_capsule_metadata_only": { "type": "boolean", "const": true },
+    "memory_proposal_reviews": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/review_item" }
+    },
+    "isa_proposal_reviews": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/review_item" }
+    },
+    "commit_authority_requested": { "type": "boolean", "const": false },
+    "commit_authority_granted": { "type": "boolean", "const": false },
+    "commit_performed": { "type": "boolean", "const": false },
+    "memory_write_performed": { "type": "boolean", "const": false },
+    "isa_write_performed": { "type": "boolean", "const": false },
+    "pulse_probe_performed": { "type": "boolean", "const": false },
+    "localhost_31337_called": { "type": "boolean", "const": false },
+    "evidence_classification": { "type": "array", "items": { "type": "string" } },
+    "known_limits": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "review_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "title",
+        "review_summary",
+        "rationale",
+        "recommended_decision",
+        "commit_status"
+      ],
+      "properties": {
+        "proposal_id": { "type": "string" },
+        "title": { "type": "string" },
+        "review_summary": { "type": "string" },
+        "rationale": { "type": "string" },
+        "recommended_decision": {
+          "type": "string",
+          "enum": [
+            "approved_for_future_commit_candidate",
+            "rejected",
+            "deferred",
+            "needs_revision"
+          ]
+        },
+        "commit_status": { "type": "string", "const": "not_committed" }
+      }
+    }
+  }
+}

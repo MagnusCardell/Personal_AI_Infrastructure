@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI State Proposal Review Task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "runtime",
+    "task_id",
+    "task_kind",
+    "required_capabilities",
+    "review_only",
+    "allowed_decisions",
+    "commit_authority_granted",
+    "commit_performed",
+    "memory_writes_allowed",
+    "isa_writes_allowed",
+    "pulse_probe_allowed",
+    "codex_direct_live_pai_traversal_allowed",
+    "task_summary"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S16B-PAI-STATE-PROPOSAL-REVIEW-POLICY" },
+    "run_id": { "type": "string", "const": "s16b-proposal-review" },
+    "runtime": { "type": "string", "const": "codex" },
+    "task_id": { "type": "string", "const": "s16b-state-proposal-review-task" },
+    "task_kind": { "type": "string", "const": "proposal-review-without-commit" },
+    "required_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "pai.context.read.metadata",
+          "memory.proposal.review",
+          "isa.proposal.review"
+        ]
+      }
+    },
+    "review_only": { "type": "boolean", "const": true },
+    "allowed_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "approved_for_future_commit_candidate",
+          "rejected",
+          "deferred",
+          "needs_revision"
+        ]
+      }
+    },
+    "commit_authority_granted": { "type": "boolean", "const": false },
+    "commit_performed": { "type": "boolean", "const": false },
+    "memory_writes_allowed": { "type": "boolean", "const": false },
+    "isa_writes_allowed": { "type": "boolean", "const": false },
+    "pulse_probe_allowed": { "type": "boolean", "const": false },
+    "codex_direct_live_pai_traversal_allowed": { "type": "boolean", "const": false },
+    "task_summary": { "type": "string" }
+  }
+}

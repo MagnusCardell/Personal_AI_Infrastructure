@@ -24,6 +24,7 @@ from tools.pai_runtime_runner.capabilities import (
     MATERIALIZED_REPO_TASK_CAPABILITIES,
     PAI_CONTEXT_TASK_CAPABILITIES,
     PATCH_PROPOSAL_REPO_TASK_CAPABILITIES,
+    STATE_PROPOSAL_REVIEW_TASK_CAPABILITIES,
     STATE_PROPOSAL_TASK_CAPABILITIES,
     enforce_capability_policy,
     task_required_capabilities,
@@ -63,6 +64,30 @@ from tools.pai_runtime_runner.state_proposal import (
     validate_state_context_capsule,
     validate_state_proposal,
 )
+from tools.pai_runtime_runner.state_proposal_review import (
+    REVIEW_CONTEXT_CAPSULE_NAME,
+    S16B_MILESTONE,
+    S16B_RUN_ID,
+    S16B_RUN_RELATIVE,
+    S16B_SOURCE_PROPOSAL_RELATIVE,
+    S16B_TASK_ID,
+    S16B_TASK_KIND,
+    S16B_TASK_RELATIVE,
+    STATE_PROPOSAL_DECISIONS_NAME,
+    STATE_PROPOSAL_DECISIONS_SCHEMA_NAME,
+    STATE_PROPOSAL_REVIEW_EVENTS_NAME,
+    STATE_PROPOSAL_REVIEW_NAME,
+    STATE_PROPOSAL_REVIEW_SCHEMA_NAME,
+    STATE_PROPOSAL_REVIEW_STATE_NAME,
+    STATE_PROPOSAL_REVIEW_VALIDATION_NAME,
+    StateProposalReviewError,
+    audit_state_proposal_review_run as run_state_proposal_review_audit,
+    collect_review_context_metadata,
+    load_source_state_proposal,
+    normalize_state_proposal_decisions,
+    normalize_state_proposal_review,
+    validate_review_context_capsule,
+)
 from tools.pai_runtime_runner.patch_proposal import (
     PatchProposalError,
     load_patch_proposal,
@@ -80,6 +105,7 @@ from tools.pai_runtime_runner.provider_registry import (
 from tools.pai_runtime_runner.providers.codex import (
     build_provider_command,
     build_repo_provider_command,
+    run_codex_state_proposal_review_provider,
     run_codex_state_proposal_provider,
     run_codex_provider,
     run_codex_pai_context_provider,
@@ -448,6 +474,51 @@ def _safe_state_proposal_run_dir(pai_dir: Path, run_dir: str | Path) -> Path:
     return path
 
 
+def _safe_state_proposal_review_task_card(pai_dir: Path, task_card: str | Path) -> Path:
+    path = Path(task_card)
+    if str(task_card) == "":
+        raise RunnerError("--task-card must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--task-card must not contain path traversal")
+    resolved = path.resolve(strict=True)
+    expected = (pai_dir / S16B_TASK_RELATIVE).resolve(strict=True)
+    if resolved != expected:
+        raise RunnerError("--task-card must be the installed S16B state proposal review task card")
+    return resolved
+
+
+def _safe_state_proposal_review_source(pai_dir: Path, source_proposal: str | Path) -> Path:
+    path = Path(source_proposal)
+    if str(source_proposal) == "":
+        raise RunnerError("--source-proposal must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--source-proposal must not contain path traversal")
+    resolved = path.resolve(strict=True)
+    expected = (pai_dir / S16B_SOURCE_PROPOSAL_RELATIVE).resolve(strict=True)
+    if resolved != expected:
+        raise RunnerError("--source-proposal must be the accepted S16A state proposal artifact")
+    if resolved.is_symlink():
+        raise RunnerError("--source-proposal target is a symlink")
+    return resolved
+
+
+def _safe_state_proposal_review_run_dir(pai_dir: Path, run_dir: str | Path) -> Path:
+    path = Path(run_dir)
+    if str(run_dir) == "":
+        raise RunnerError("--run-dir must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--run-dir must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    expected = (pai_dir / S16B_RUN_RELATIVE).resolve(strict=False)
+    if resolved != expected:
+        raise RunnerError("S16B proposal review run directory must be runs/s16b/proposal-review")
+    if path.exists() and not path.is_dir():
+        raise RunnerError("--run-dir target is not a directory")
+    if path.is_symlink():
+        raise RunnerError("--run-dir target is a symlink")
+    return path
+
+
 def _safe_pai_context_audit_output(run_dir: Path, output: str | Path) -> Path:
     path = Path(output)
     if str(output) == "":
@@ -477,6 +548,24 @@ def _safe_state_proposal_audit_output(run_dir: Path, output: str | Path) -> Path
         raise RunnerError("--output must stay under runs/s16a/state-proposal")
     if resolved.name != STATE_PROPOSAL_VALIDATION_NAME:
         raise RunnerError("--output must be named state-proposal-validation.json")
+    if path.exists() and not path.is_file():
+        raise RunnerError("--output target is not a file")
+    if path.is_symlink():
+        raise RunnerError("--output target is a symlink")
+    return path
+
+
+def _safe_state_proposal_review_audit_output(run_dir: Path, output: str | Path) -> Path:
+    path = Path(output)
+    if str(output) == "":
+        raise RunnerError("--output must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--output must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    if not _is_within(run_dir.resolve(strict=False), resolved):
+        raise RunnerError("--output must stay under runs/s16b/proposal-review")
+    if resolved.name != STATE_PROPOSAL_REVIEW_VALIDATION_NAME:
+        raise RunnerError("--output must be named state-proposal-review-validation.json")
     if path.exists() and not path.is_file():
         raise RunnerError("--output target is not a file")
     if path.is_symlink():
@@ -539,6 +628,38 @@ def _validate_state_proposal_task_card_schema(pai_dir: Path, card: dict[str, obj
         raise RunnerError("state proposal task card schema validation failed: " + "; ".join(schema_errors))
 
 
+def _load_state_proposal_review_task_card(path: Path) -> dict[str, object]:
+    card = _load_json(path, "state proposal review task card")
+    expected = {
+        "milestone_name": S16B_MILESTONE,
+        "run_id": S16B_RUN_ID,
+        "runtime": "codex",
+        "task_id": S16B_TASK_ID,
+        "task_kind": S16B_TASK_KIND,
+        "review_only": True,
+        "commit_authority_granted": False,
+        "commit_performed": False,
+        "memory_writes_allowed": False,
+        "isa_writes_allowed": False,
+        "pulse_probe_allowed": False,
+        "codex_direct_live_pai_traversal_allowed": False,
+    }
+    for key, value in expected.items():
+        if card.get(key) != value:
+            raise RunnerError(f"state proposal review task card mismatch for {key}")
+    return card
+
+
+def _validate_state_proposal_review_task_card_schema(pai_dir: Path, card: dict[str, object]) -> None:
+    schema_errors = _validate_json_schema(
+        card,
+        pai_dir / "runtime-schemas" / "state-proposal-review-task.schema.json",
+        "state-proposal-review-task.json",
+    )
+    if schema_errors:
+        raise RunnerError("state proposal review task card schema validation failed: " + "; ".join(schema_errors))
+
+
 def doctor(pai_dir: Path) -> dict[str, object]:
     router = pai_dir / "AGENTS.md"
     if not router.is_file():
@@ -570,11 +691,16 @@ def doctor(pai_dir: Path) -> dict[str, object]:
         (pai_dir / "runtime-schemas" / "state-context-capsule.schema.json", "S16A state context capsule schema"),
         (pai_dir / "runtime-schemas" / "state-proposal.schema.json", "S16A state proposal schema"),
         (pai_dir / "runtime-schemas" / "state-proposal-validation.schema.json", "S16A state proposal validation schema"),
+        (pai_dir / "runtime-schemas" / "state-proposal-review-task.schema.json", "S16B state proposal review task schema"),
+        (pai_dir / "runtime-schemas" / "state-proposal-review.schema.json", "S16B state proposal review schema"),
+        (pai_dir / "runtime-schemas" / "state-proposal-decisions.schema.json", "S16B state proposal decisions schema"),
+        (pai_dir / "runtime-schemas" / "state-proposal-review-validation.schema.json", "S16B state proposal review validation schema"),
         (pai_dir / TASK_RELATIVE, "S15D task card"),
         (pai_dir / S15E_TASK_RELATIVE, "S15E repo task card"),
         (pai_dir / S15F_TASK_RELATIVE, "S15F patch proposal repo task card"),
         (pai_dir / S15I_TASK_RELATIVE, "S15I PAI context task card"),
         (pai_dir / S16A_TASK_RELATIVE, "S16A state proposal task card"),
+        (pai_dir / S16B_TASK_RELATIVE, "S16B state proposal review task card"),
         (pai_dir / "runtime-task-fixtures" / "s15d_bugfix" / "src" / "pai_priority.py", "S15D task fixture"),
         (pai_dir / "adapters" / "codex" / "bin" / "pai-codex", "Codex provider driver"),
     ):
@@ -1350,6 +1476,134 @@ def propose_state_runtime(
     }
 
 
+def review_state_proposal_runtime(
+    pai_dir: Path,
+    runtime: str,
+    task_card: str | Path,
+    source_proposal: str | Path,
+    run_dir: str | Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    doctor(pai_dir)
+    if runtime != "codex":
+        raise RunnerError(f"unknown runtime provider: {runtime}")
+    task_path = _safe_state_proposal_review_task_card(pai_dir, task_card)
+    source_path = _safe_state_proposal_review_source(pai_dir, source_proposal)
+    card = _load_state_proposal_review_task_card(task_path)
+    _validate_state_proposal_review_task_card_schema(pai_dir, card)
+    required_capabilities = _enforce_runtime_capabilities(
+        pai_dir,
+        "codex",
+        card,
+        STATE_PROPOSAL_REVIEW_TASK_CAPABILITIES,
+    )
+    safe_run_dir = _safe_state_proposal_review_run_dir(pai_dir, run_dir)
+    command = [
+        str(pai_dir / "bin" / "pai-runtime"),
+        "review-state-proposal",
+        "--pai-dir",
+        str(pai_dir),
+        "--runtime",
+        "codex",
+        "--task-card",
+        str(task_path),
+        "--source-proposal",
+        str(source_path),
+        "--run-dir",
+        str(safe_run_dir),
+    ]
+    source = load_source_state_proposal(source_path)
+    source_schema_errors = _validate_json_schema(
+        source,
+        pai_dir / "runtime-schemas" / "state-proposal.schema.json",
+        STATE_PROPOSAL_NAME,
+    )
+    if source_schema_errors:
+        raise RunnerError("source S16A proposal schema validation failed: " + "; ".join(source_schema_errors))
+
+    capsule = collect_review_context_metadata(pai_dir, source)
+    capsule_errors = validate_review_context_capsule(capsule)
+    if capsule_errors:
+        raise RunnerError("review context capsule validation failed: " + "; ".join(capsule_errors))
+    dry_provider_result = run_codex_state_proposal_review_provider(
+        pai_dir,
+        card,
+        capsule,
+        source,
+        safe_run_dir,
+        dry_run=True,
+    )
+    if dry_run:
+        return {
+            "dry_run": True,
+            "pai_runtime_command": command,
+            "provider_command": dry_provider_result["provider_command"],
+            "run_dir": str(safe_run_dir),
+            "required_capabilities": required_capabilities,
+            "review_context_capsule_metadata_only": True,
+            "source_proposal": str(source_path),
+        }
+
+    safe_run_dir.mkdir(parents=True, exist_ok=True)
+    capsule_path = safe_run_dir / REVIEW_CONTEXT_CAPSULE_NAME
+    capsule_path.write_text(json.dumps(capsule, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    review_schema_source = pai_dir / "runtime-schemas" / "state-proposal-review.schema.json"
+    review_schema_target = safe_run_dir / STATE_PROPOSAL_REVIEW_SCHEMA_NAME
+    review_schema_target.write_text(review_schema_source.read_text(encoding="utf-8"), encoding="utf-8")
+    decisions_schema_source = pai_dir / "runtime-schemas" / "state-proposal-decisions.schema.json"
+    decisions_schema_target = safe_run_dir / STATE_PROPOSAL_DECISIONS_SCHEMA_NAME
+    decisions_schema_target.write_text(decisions_schema_source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    provider_result = run_codex_state_proposal_review_provider(pai_dir, card, capsule, source, safe_run_dir)
+    review = normalize_state_proposal_review(provider_result, source, capsule)
+    review_schema_errors = _validate_json_schema(review, review_schema_target, STATE_PROPOSAL_REVIEW_NAME)
+    if review_schema_errors:
+        raise RunnerError("state proposal review schema validation failed: " + "; ".join(review_schema_errors))
+    review_path = safe_run_dir / STATE_PROPOSAL_REVIEW_NAME
+    review_path.write_text(json.dumps(review, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    decisions = normalize_state_proposal_decisions(review)
+    decisions_schema_errors = _validate_json_schema(decisions, decisions_schema_target, STATE_PROPOSAL_DECISIONS_NAME)
+    if decisions_schema_errors:
+        raise RunnerError("state proposal decisions schema validation failed: " + "; ".join(decisions_schema_errors))
+    decisions_path = safe_run_dir / STATE_PROPOSAL_DECISIONS_NAME
+    decisions_path.write_text(json.dumps(decisions, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    state = {
+        "pai_runtime_command": command,
+        "provider_command": provider_result.get("provider_command", dry_provider_result["provider_command"]),
+        "required_capabilities": required_capabilities,
+        "source_proposal_path": str(source_path),
+        "review_context_capsule_path": str(capsule_path),
+        "state_proposal_review_path": str(review_path),
+        "state_proposal_decisions_path": str(decisions_path),
+        "state_proposal_review_events_path": str(safe_run_dir / STATE_PROPOSAL_REVIEW_EVENTS_NAME),
+        "review_context_capsule_metadata_only": True,
+        "state_proposal_review_normalized_by_pai": True,
+        "state_proposal_decisions_authority": "pai-policy",
+        "commit_authority_granted": False,
+        "commit_performed": False,
+    }
+    (safe_run_dir / STATE_PROPOSAL_REVIEW_STATE_NAME).write_text(
+        json.dumps(state, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "ok": True,
+        "run_dir": str(safe_run_dir),
+        "source_proposal": str(source_path),
+        "review_context_capsule": str(capsule_path),
+        "state_proposal_review": str(review_path),
+        "state_proposal_decisions": str(decisions_path),
+        "events_output": str(safe_run_dir / STATE_PROPOSAL_REVIEW_EVENTS_NAME),
+        "required_capabilities": required_capabilities,
+        "review_context_capsule_metadata_only": True,
+        "commit_authority_granted": False,
+        "commit_performed": False,
+    }
+
+
 def beta_readiness_runtime(
     pai_dir: Path,
     runtime: str,
@@ -1527,6 +1781,58 @@ def audit_state_proposal_runtime_run(
     }
 
 
+def audit_state_proposal_review_runtime_run(
+    pai_dir: Path,
+    marker: str | Path,
+    run_dir: str | Path,
+    output: str | Path,
+    runtime_attempt_number: int,
+) -> dict[str, object]:
+    doctor(pai_dir)
+    marker_path = _safe_marker(marker)
+    safe_run_dir = _safe_state_proposal_review_run_dir(pai_dir, run_dir)
+    output_path = _safe_state_proposal_review_audit_output(safe_run_dir, output)
+    state = _load_json(safe_run_dir / STATE_PROPOSAL_REVIEW_STATE_NAME, "state proposal review state")
+    source_value = state.get("source_proposal_path")
+    source_path = _safe_state_proposal_review_source(
+        pai_dir,
+        source_value if isinstance(source_value, str) else pai_dir / S16B_SOURCE_PROPOSAL_RELATIVE,
+    )
+    result = run_state_proposal_review_audit(
+        pai_dir=pai_dir,
+        marker=marker_path,
+        run_dir=safe_run_dir,
+        source_proposal_path=source_path,
+        capsule_path=safe_run_dir / REVIEW_CONTEXT_CAPSULE_NAME,
+        review_path=safe_run_dir / STATE_PROPOSAL_REVIEW_NAME,
+        decisions_path=safe_run_dir / STATE_PROPOSAL_DECISIONS_NAME,
+        events_path=safe_run_dir / STATE_PROPOSAL_REVIEW_EVENTS_NAME,
+        runtime_attempt_number=runtime_attempt_number,
+        repo_root=Path.cwd(),
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not result.get("validation_passed"):
+        raise RunnerError(f"state proposal review runtime audit failed; wrote {output_path}")
+    validation_schema_errors = _validate_json_schema(
+        result,
+        pai_dir / "runtime-schemas" / "state-proposal-review-validation.schema.json",
+        STATE_PROPOSAL_REVIEW_VALIDATION_NAME,
+    )
+    if validation_schema_errors:
+        raise RunnerError(
+            "state proposal review validation artifact schema validation failed: "
+            + "; ".join(validation_schema_errors)
+            + f"; wrote {output_path}"
+        )
+    return {
+        "ok": True,
+        "output": str(output_path),
+        "event_attribution_passed": result.get("event_attribution_passed"),
+        "validation_passed": result.get("validation_passed"),
+    }
+
+
 def audit_provider_lifecycle_run(
     pai_dir: Path,
     marker: str | Path,
@@ -1637,6 +1943,14 @@ def build_parser() -> argparse.ArgumentParser:
     state_parser.add_argument("--run-dir", required=True)
     state_parser.add_argument("--dry-run", action="store_true")
 
+    review_parser = subcommands.add_parser("review-state-proposal")
+    review_parser.add_argument("--pai-dir", required=True)
+    review_parser.add_argument("--runtime", required=True)
+    review_parser.add_argument("--task-card", required=True)
+    review_parser.add_argument("--source-proposal", required=True)
+    review_parser.add_argument("--run-dir", required=True)
+    review_parser.add_argument("--dry-run", action="store_true")
+
     beta_readiness_parser = subcommands.add_parser("beta-readiness")
     beta_readiness_parser.add_argument("--pai-dir", required=True)
     beta_readiness_parser.add_argument("--runtime", required=True)
@@ -1671,6 +1985,13 @@ def build_parser() -> argparse.ArgumentParser:
     state_audit_parser.add_argument("--run-dir", required=True)
     state_audit_parser.add_argument("--output", required=True)
     state_audit_parser.add_argument("--runtime-attempt-number", type=int, default=1)
+
+    review_audit_parser = subcommands.add_parser("audit-state-proposal-review")
+    review_audit_parser.add_argument("--pai-dir", required=True)
+    review_audit_parser.add_argument("--marker", required=True)
+    review_audit_parser.add_argument("--run-dir", required=True)
+    review_audit_parser.add_argument("--output", required=True)
+    review_audit_parser.add_argument("--runtime-attempt-number", type=int, default=1)
 
     provider_lifecycle_audit_parser = subcommands.add_parser("audit-provider-lifecycle")
     provider_lifecycle_audit_parser.add_argument("--pai-dir", required=True)
@@ -1732,6 +2053,15 @@ def main(argv: list[str] | None = None) -> int:
                 args.run_dir,
                 args.dry_run,
             )
+        elif args.command == "review-state-proposal":
+            result = review_state_proposal_runtime(
+                pai_dir,
+                args.runtime,
+                args.task_card,
+                args.source_proposal,
+                args.run_dir,
+                args.dry_run,
+            )
         elif args.command == "beta-readiness":
             result = beta_readiness_runtime(
                 pai_dir,
@@ -1766,6 +2096,14 @@ def main(argv: list[str] | None = None) -> int:
                 args.output,
                 args.runtime_attempt_number,
             )
+        elif args.command == "audit-state-proposal-review":
+            result = audit_state_proposal_review_runtime_run(
+                pai_dir,
+                args.marker,
+                args.run_dir,
+                args.output,
+                args.runtime_attempt_number,
+            )
         elif args.command == "audit-provider-lifecycle":
             result = audit_provider_lifecycle_run(
                 pai_dir,
@@ -1791,6 +2129,7 @@ def main(argv: list[str] | None = None) -> int:
         ProviderRegistryError,
         RunnerError,
         StateProposalError,
+        StateProposalReviewError,
         OSError,
     ) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

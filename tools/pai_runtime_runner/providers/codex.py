@@ -27,6 +27,11 @@ S16A_STATE_PROPOSAL_TASK_ID = "s16a-state-proposal-task"
 S16A_STATE_PROPOSAL_MILESTONE = "V5-S16A-PAI-STATE-PROPOSAL-RUNTIME-CODEX"
 STATE_PROPOSAL_NAME = "state-proposal.json"
 STATE_PROPOSAL_EVENTS_NAME = "state-proposal-events.jsonl"
+S16B_STATE_PROPOSAL_REVIEW_RUN_ID = "s16b-proposal-review"
+S16B_STATE_PROPOSAL_REVIEW_TASK_ID = "s16b-state-proposal-review-task"
+S16B_STATE_PROPOSAL_REVIEW_MILESTONE = "V5-S16B-PAI-STATE-PROPOSAL-REVIEW-POLICY"
+STATE_PROPOSAL_REVIEW_NAME = "state-proposal-review.json"
+STATE_PROPOSAL_REVIEW_EVENTS_NAME = "state-proposal-review-events.jsonl"
 MARKER = "PAI_CODEX_PEER_BETA_ADAPTER"
 
 
@@ -507,4 +512,131 @@ def run_codex_state_proposal_provider(
     if not isinstance(payload, dict):
         raise CodexProviderError("Codex state proposal provider response must be a JSON object")
     payload["provider_command"] = redact_state_proposal_provider_command(command)
+    return payload
+
+
+def _proposal_review_prompt(
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    source_proposal: dict[str, object],
+) -> str:
+    capsule_json = json.dumps(capsule, indent=2, sort_keys=True)
+    source_json = json.dumps(source_proposal, indent=2, sort_keys=True)
+    return (
+        "You are Codex running as runtime provider codex under the PAI-owned runtime runner. "
+        "PAI owns live PAI state access, policy, validation, final review decisions, application, and run artifacts. "
+        "You must reason only over the sanitized PAI review context capsule and the accepted S16A proposal artifact "
+        "included below. Do not browse, list, cat, grep, inspect, or otherwise traverse live PAI state, PAI Memory, "
+        "ISA, Pulse, Claude product directories, Codex product directories, Claude project memory, Codex memory, "
+        "product memory, or arbitrary home files. "
+        "Do not write Memory files, ISA files, Pulse files, repo root AGENTS.md, repo .codex, or ~/.codex files. "
+        "Do not call localhost:31337 and do not probe Pulse. "
+        "Return only JSON matching the provided schema. "
+        f"Use milestone_name {S16B_STATE_PROPOSAL_REVIEW_MILESTONE!r}, run_id {S16B_STATE_PROPOSAL_REVIEW_RUN_ID!r}, "
+        "runtime 'codex', runtime_status 'peer-beta', provider_type 'codex-cli', task_id "
+        f"{S16B_STATE_PROPOSAL_REVIEW_TASK_ID!r}, task_kind 'proposal-review-without-commit', "
+        f"adapter_identity_marker {MARKER!r}, upstream_adapter 'claude', agents_router_observed true, "
+        "source_proposal_run_id 's16a-state-proposal', source_proposal_used true, context_capsule_used true, "
+        "context_capsule_metadata_only true, commit_authority_requested false, commit_authority_granted false, "
+        "commit_performed false, memory_write_performed false, isa_write_performed false, "
+        "pulse_probe_performed false, and localhost_31337_called false. "
+        "Review each Memory proposal with proposal_id memory-0, memory-1, and so on in source order. "
+        "Review each ISA proposal with proposal_id isa-0, isa-1, and so on in source order. "
+        "Each review item must include proposal_id, title, review_summary, rationale, recommended_decision, "
+        "and commit_status exactly not_committed. "
+        "recommended_decision must be one of approved_for_future_commit_candidate, rejected, deferred, or needs_revision. "
+        "Do not grant commit authority and do not imply that any proposal was applied. "
+        "Do not include raw Memory, ISA, Pulse, backup, credential, absolute personal path, or product memory contents. "
+        f"Task card: {json.dumps(task_card, sort_keys=True)}\n"
+        f"Sanitized PAI review context capsule JSON:\n{capsule_json}\n"
+        f"Accepted S16A source proposal artifact JSON supplied by PAI:\n{source_json}\n"
+    )
+
+
+def build_state_proposal_review_provider_command(
+    pai_dir: Path,
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    source_proposal: dict[str, object],
+    run_dir: Path,
+    review_path: Path,
+) -> list[str]:
+    schema_path = run_dir / "state-proposal-review.schema.json"
+    prompt = _proposal_review_prompt(task_card, capsule, source_proposal)
+    return [
+        "codex",
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--skip-git-repo-check",
+        "--ephemeral",
+        "--json",
+        "--sandbox",
+        "read-only",
+        "--cd",
+        str(run_dir),
+        "--add-dir",
+        str(run_dir),
+        "--output-schema",
+        str(schema_path),
+        "-o",
+        str(review_path),
+        prompt,
+    ]
+
+
+def redact_state_proposal_review_provider_command(command: list[str]) -> list[str]:
+    redacted = list(command)
+    if redacted:
+        redacted[-1] = "[sanitized-state-proposal-review-prompt]"
+    return redacted
+
+
+def run_codex_state_proposal_review_provider(
+    pai_dir: Path,
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    source_proposal: dict[str, object],
+    run_dir: Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    review_path = run_dir / STATE_PROPOSAL_REVIEW_NAME
+    events_path = run_dir / STATE_PROPOSAL_REVIEW_EVENTS_NAME
+    command = build_state_proposal_review_provider_command(
+        pai_dir,
+        task_card,
+        capsule,
+        source_proposal,
+        run_dir,
+        review_path,
+    )
+    if dry_run:
+        return {
+            "dry_run": True,
+            "provider_command": redact_state_proposal_review_provider_command(command),
+            "run_dir": str(run_dir),
+            "review": str(review_path),
+            "events_output": str(events_path),
+        }
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with events_path.open("w", encoding="utf-8") as events_file:
+        completed = subprocess.run(
+            command,
+            cwd=run_dir,
+            stdin=subprocess.DEVNULL,
+            stdout=events_file,
+            stderr=subprocess.PIPE,
+            text=True,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+    if completed.returncode != 0:
+        raise CodexProviderError(f"Codex state proposal review provider failed: {completed.stderr.strip()}")
+    try:
+        payload = json.loads(review_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CodexProviderError("Codex state proposal review provider did not write valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise CodexProviderError("Codex state proposal review provider response must be a JSON object")
+    payload["provider_command"] = redact_state_proposal_review_provider_command(command)
     return payload

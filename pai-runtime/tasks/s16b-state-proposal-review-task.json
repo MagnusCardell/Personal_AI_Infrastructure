@@ -1,0 +1,26 @@
+{
+  "allowed_decisions": [
+    "approved_for_future_commit_candidate",
+    "rejected",
+    "deferred",
+    "needs_revision"
+  ],
+  "codex_direct_live_pai_traversal_allowed": false,
+  "commit_authority_granted": false,
+  "commit_performed": false,
+  "isa_writes_allowed": false,
+  "memory_writes_allowed": false,
+  "milestone_name": "V5-S16B-PAI-STATE-PROPOSAL-REVIEW-POLICY",
+  "pulse_probe_allowed": false,
+  "required_capabilities": [
+    "pai.context.read.metadata",
+    "memory.proposal.review",
+    "isa.proposal.review"
+  ],
+  "review_only": true,
+  "run_id": "s16b-proposal-review",
+  "runtime": "codex",
+  "task_id": "s16b-state-proposal-review-task",
+  "task_kind": "proposal-review-without-commit",
+  "task_summary": "Review the accepted S16A proposal-only Memory/ISA state proposal artifact and recommend non-committing decisions. Do not read or write Memory bodies, ISA bodies, Pulse event payloads, product memory, or arbitrary home files. Do not grant commit authority and do not apply proposals."
+}
