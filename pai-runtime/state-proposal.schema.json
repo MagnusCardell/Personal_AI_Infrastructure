@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI State Proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "runtime",
+    "runtime_status",
+    "provider_type",
+    "pai_dir_label",
+    "task_id",
+    "task_kind",
+    "adapter_identity_marker",
+    "upstream_adapter",
+    "agents_router_observed",
+    "context_capsule_used",
+    "context_capsule_metadata_only",
+    "memory_proposals",
+    "isa_proposals",
+    "proposal_only",
+    "memory_write_performed",
+    "isa_write_performed",
+    "pulse_probe_performed",
+    "localhost_31337_called",
+    "evidence_classification",
+    "known_limits"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "enum": ["V5-S16A-PAI-STATE-PROPOSAL-RUNTIME-CODEX"] },
+    "run_id": { "type": "string", "enum": ["s16a-state-proposal"] },
+    "runtime": { "type": "string", "enum": ["codex"] },
+    "runtime_status": { "type": "string", "enum": ["peer-beta"] },
+    "provider_type": { "type": "string", "enum": ["codex-cli"] },
+    "pai_dir_label": { "type": "string", "enum": ["~/.claude/PAI"] },
+    "task_id": { "type": "string", "enum": ["s16a-state-proposal-task"] },
+    "task_kind": { "type": "string", "enum": ["proposal-only-memory-isa-state-update"] },
+    "adapter_identity_marker": { "type": "string", "enum": ["PAI_CODEX_PEER_BETA_ADAPTER"] },
+    "upstream_adapter": { "type": "string", "enum": ["claude"] },
+    "agents_router_observed": { "type": "boolean", "enum": [true] },
+    "context_capsule_used": { "type": "boolean", "enum": [true] },
+    "context_capsule_metadata_only": { "type": "boolean", "enum": [true] },
+    "memory_proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category",
+          "title",
+          "rationale",
+          "source_context",
+          "proposed_body",
+          "confidence",
+          "apply_status"
+        ],
+        "properties": {
+          "category": { "type": "string", "enum": ["WORK", "LEARNING", "KNOWLEDGE"] },
+          "title": { "type": "string" },
+          "rationale": { "type": "string" },
+          "source_context": { "type": "string" },
+          "proposed_body": { "type": "string" },
+          "confidence": { "type": "number" },
+          "apply_status": { "type": "string", "enum": ["proposed_only"] }
+        }
+      }
+    },
+    "isa_proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "proposal_type",
+          "title",
+          "rationale",
+          "proposed_record",
+          "source_context",
+          "confidence",
+          "apply_status"
+        ],
+        "properties": {
+          "proposal_type": { "type": "string" },
+          "title": { "type": "string" },
+          "rationale": { "type": "string" },
+          "proposed_record": { "type": "string" },
+          "source_context": { "type": "string" },
+          "confidence": { "type": "number" },
+          "apply_status": { "type": "string", "enum": ["proposed_only"] }
+        }
+      }
+    },
+    "proposal_only": { "type": "boolean", "enum": [true] },
+    "memory_write_performed": { "type": "boolean", "enum": [false] },
+    "isa_write_performed": { "type": "boolean", "enum": [false] },
+    "pulse_probe_performed": { "type": "boolean", "enum": [false] },
+    "localhost_31337_called": { "type": "boolean", "enum": [false] },
+    "evidence_classification": { "type": "array", "items": { "type": "string" } },
+    "known_limits": { "type": "array", "items": { "type": "string" } }
+  }
+}

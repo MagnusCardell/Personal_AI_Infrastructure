@@ -1,0 +1,23 @@
+{
+  "allowed_memory_categories": [
+    "WORK",
+    "LEARNING",
+    "KNOWLEDGE"
+  ],
+  "codex_direct_live_pai_traversal_allowed": false,
+  "isa_writes_allowed": false,
+  "memory_writes_allowed": false,
+  "milestone_name": "V5-S16A-PAI-STATE-PROPOSAL-RUNTIME-CODEX",
+  "proposal_only": true,
+  "pulse_probe_allowed": false,
+  "required_capabilities": [
+    "pai.context.read.metadata",
+    "memory.write.proposal",
+    "isa.write.proposal"
+  ],
+  "run_id": "s16a-state-proposal",
+  "runtime": "codex",
+  "task_id": "s16a-state-proposal-task",
+  "task_kind": "proposal-only-memory-isa-state-update",
+  "task_summary": "Generate proposal-only Memory and ISA state updates from a sanitized PAI metadata capsule. Do not read or write Memory bodies, ISA bodies, Pulse event payloads, product memory, or arbitrary home files. Do not apply proposals."
+}

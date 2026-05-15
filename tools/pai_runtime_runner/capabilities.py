@@ -16,6 +16,12 @@ CODEX_PROVIDER_CAPABILITIES: tuple[str, ...] = (
     "pulse.no-probe",
 )
 
+CODEX_S16A_PROVIDER_CAPABILITIES: tuple[str, ...] = (
+    *CODEX_PROVIDER_CAPABILITIES,
+    "memory.write.proposal",
+    "isa.write.proposal",
+)
+
 PATCH_PROPOSAL_REPO_TASK_CAPABILITIES: tuple[str, ...] = (
     "repo.read",
     "repo.write.proposal",
@@ -31,10 +37,19 @@ PAI_CONTEXT_TASK_CAPABILITIES: tuple[str, ...] = (
     "pai.context.read.metadata",
 )
 
+STATE_PROPOSAL_TASK_CAPABILITIES: tuple[str, ...] = (
+    "pai.context.read.metadata",
+    "memory.write.proposal",
+    "isa.write.proposal",
+)
+
 FORBIDDEN_TASK_CAPABILITIES: dict[str, str] = {
     "memory.write": "runtime provider declares memory.write.disabled",
     "isa.write": "runtime provider declares isa.write.disabled",
+    "memory.write.commit": "S16A permits proposal-only Memory semantics, not Memory commits",
+    "isa.write.commit": "S16A permits proposal-only ISA semantics, not ISA commits",
     "pulse.probe": "runtime provider declares pulse.no-probe",
+    "pulse.emit": "S16A does not authorize Pulse event emission",
 }
 
 

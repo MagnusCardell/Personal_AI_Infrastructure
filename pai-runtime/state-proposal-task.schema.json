@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI State Proposal Task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "runtime",
+    "task_id",
+    "task_kind",
+    "required_capabilities",
+    "proposal_only",
+    "allowed_memory_categories",
+    "memory_writes_allowed",
+    "isa_writes_allowed",
+    "pulse_probe_allowed",
+    "codex_direct_live_pai_traversal_allowed",
+    "task_summary"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S16A-PAI-STATE-PROPOSAL-RUNTIME-CODEX" },
+    "run_id": { "type": "string", "const": "s16a-state-proposal" },
+    "runtime": { "type": "string", "const": "codex" },
+    "task_id": { "type": "string", "const": "s16a-state-proposal-task" },
+    "task_kind": { "type": "string", "const": "proposal-only-memory-isa-state-update" },
+    "required_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "pai.context.read.metadata",
+          "memory.write.proposal",
+          "isa.write.proposal"
+        ]
+      }
+    },
+    "proposal_only": { "type": "boolean", "const": true },
+    "allowed_memory_categories": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["WORK", "LEARNING", "KNOWLEDGE"] }
+    },
+    "memory_writes_allowed": { "type": "boolean", "const": false },
+    "isa_writes_allowed": { "type": "boolean", "const": false },
+    "pulse_probe_allowed": { "type": "boolean", "const": false },
+    "codex_direct_live_pai_traversal_allowed": { "type": "boolean", "const": false },
+    "task_summary": { "type": "string" }
+  }
+}

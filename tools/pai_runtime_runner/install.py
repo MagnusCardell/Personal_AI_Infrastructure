@@ -5,7 +5,7 @@ import shutil
 import stat
 from pathlib import Path
 
-from tools.pai_runtime_runner.capabilities import CODEX_PROVIDER_CAPABILITIES, CapabilityPolicyError, provider_capabilities
+from tools.pai_runtime_runner.capabilities import CODEX_S16A_PROVIDER_CAPABILITIES, CapabilityPolicyError, provider_capabilities
 
 try:
     from jsonschema import Draft202012Validator
@@ -36,10 +36,15 @@ INSTALL_TEXT_TARGETS = {
     REPO_ROOT / "pai-runtime" / "beta-readiness-result.schema.json": Path("runtime-schemas") / "beta-readiness-result.schema.json",
     REPO_ROOT / "pai-runtime" / "beta-readiness-validation.schema.json": Path("runtime-schemas") / "beta-readiness-validation.schema.json",
     REPO_ROOT / "pai-runtime" / "evidence-index.schema.json": Path("runtime-schemas") / "evidence-index.schema.json",
+    REPO_ROOT / "pai-runtime" / "state-proposal-task.schema.json": Path("runtime-schemas") / "state-proposal-task.schema.json",
+    REPO_ROOT / "pai-runtime" / "state-context-capsule.schema.json": Path("runtime-schemas") / "state-context-capsule.schema.json",
+    REPO_ROOT / "pai-runtime" / "state-proposal.schema.json": Path("runtime-schemas") / "state-proposal.schema.json",
+    REPO_ROOT / "pai-runtime" / "state-proposal-validation.schema.json": Path("runtime-schemas") / "state-proposal-validation.schema.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15d-codex-synthetic-bugfix.json": Path("runtime-tasks") / "s15d-codex-synthetic-bugfix.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15e-provider-registry-repo-task.json": Path("runtime-tasks") / "s15e-provider-registry-repo-task.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15f-patch-proposal-repo-task.json": Path("runtime-tasks") / "s15f-patch-proposal-repo-task.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15i-readonly-pai-context-task.json": Path("runtime-tasks") / "s15i-readonly-pai-context-task.json",
+    REPO_ROOT / "pai-runtime" / "tasks" / "s16a-state-proposal-task.json": Path("runtime-tasks") / "s16a-state-proposal-task.json",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "README.md": Path("runtime-task-fixtures") / "s15d_bugfix" / "README.md",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "src" / "pai_priority.py": Path("runtime-task-fixtures") / "s15d_bugfix" / "src" / "pai_priority.py",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "tests" / "test_pai_priority.py": Path("runtime-task-fixtures") / "s15d_bugfix" / "tests" / "test_pai_priority.py",
@@ -76,6 +81,12 @@ APPROVED_LIVE_RELATIVES = tuple(INSTALL_TEXT_TARGETS.values()) + (
     Path("runs") / "s15j" / "codex-beta-readiness" / "beta-readiness-events.jsonl",
     Path("runs") / "s15j" / "codex-beta-readiness" / "beta-readiness-validation.json",
     Path("runs") / "s15j" / "codex-beta-readiness" / "evidence-index.json",
+    Path("runs") / "s16a" / "state-proposal" / "state-context-capsule.json",
+    Path("runs") / "s16a" / "state-proposal" / "state-proposal.schema.json",
+    Path("runs") / "s16a" / "state-proposal" / "state-proposal.json",
+    Path("runs") / "s16a" / "state-proposal" / "state-proposal-events.jsonl",
+    Path("runs") / "s16a" / "state-proposal" / "state-proposal-state.json",
+    Path("runs") / "s16a" / "state-proposal" / "state-proposal-validation.json",
 )
 
 RUN_DIR_RELATIVE = Path("runs") / "s15d" / "codex-synthetic-bugfix"
@@ -83,6 +94,7 @@ S15E_RUN_DIR_RELATIVE = Path("runs") / "s15e" / "provider-registry"
 S15F_RUN_DIR_RELATIVE = Path("runs") / "s15f" / "patch-proposal"
 S15I_RUN_DIR_RELATIVE = Path("runs") / "s15i" / "read-only-pai-context"
 S15J_RUN_DIR_RELATIVE = Path("runs") / "s15j" / "codex-beta-readiness"
+S16A_RUN_DIR_RELATIVE = Path("runs") / "s16a" / "state-proposal"
 S15I_MUTABLE_INSTALL_RELATIVES = {
     Path("bin") / "pai-runtime",
     Path("runtime-state.json"),
@@ -93,7 +105,12 @@ S15I_MUTABLE_INSTALL_RELATIVES = {
     Path("runtime-schemas") / "beta-readiness-result.schema.json",
     Path("runtime-schemas") / "beta-readiness-validation.schema.json",
     Path("runtime-schemas") / "evidence-index.schema.json",
+    Path("runtime-schemas") / "state-proposal-task.schema.json",
+    Path("runtime-schemas") / "state-context-capsule.schema.json",
+    Path("runtime-schemas") / "state-proposal.schema.json",
+    Path("runtime-schemas") / "state-proposal-validation.schema.json",
     Path("runtime-tasks") / "s15i-readonly-pai-context-task.json",
+    Path("runtime-tasks") / "s16a-state-proposal-task.json",
     Path("runtimes") / "codex" / "provider-manifest.json",
 }
 
@@ -174,7 +191,7 @@ def _wrapper_text() -> str:
 def _runtime_state() -> str:
     payload = {
         "installed": True,
-        "milestone_name": "V5-S15J-PAI-RUNTIME-CODEX-BETA-READINESS-GATE",
+        "milestone_name": "V5-S16A-PAI-STATE-PROPOSAL-RUNTIME-CODEX",
         "ownership_model": "PAI owns the run; Codex is runtime provider codex.",
         "runtime_provider": "codex",
         "runtime_status": "peer-beta",
@@ -183,12 +200,27 @@ def _runtime_state() -> str:
         "supports_patch_proposals": True,
         "supports_pai_context_metadata": True,
         "supports_beta_readiness_gate": True,
+        "supports_state_proposals": True,
+        "state_proposal_apply_policy": "proposed_only",
     }
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
 def _load_provider_manifest() -> dict[str, object]:
     return json.loads((REPO_ROOT / "runtimes" / "codex" / "provider-manifest.json").read_text(encoding="utf-8"))
+
+
+def _provider_manifest_for_install() -> dict[str, object]:
+    manifest = dict(_load_provider_manifest())
+    capabilities = list(provider_capabilities(manifest))
+    ordered = [capability for capability in CODEX_S16A_PROVIDER_CAPABILITIES if capability in set(capabilities)]
+    missing = [capability for capability in CODEX_S16A_PROVIDER_CAPABILITIES if capability not in set(capabilities)]
+    manifest["capabilities"] = ordered + missing
+    return manifest
+
+
+def _provider_manifest_install_text() -> str:
+    return json.dumps(_provider_manifest_for_install(), indent=2, sort_keys=True) + "\n"
 
 
 def _validate_schema_file(path: Path, label: str) -> None:
@@ -229,7 +261,7 @@ def _validate_json_instance(instance_path: Path, schema_path: Path, label: str) 
 
 
 def validate_staged_payload() -> None:
-    manifest = _load_provider_manifest()
+    manifest = _provider_manifest_for_install()
     expected = {
         "runtime_name": "codex",
         "runtime_status": "peer-beta",
@@ -250,7 +282,7 @@ def validate_staged_payload() -> None:
         capabilities = provider_capabilities(manifest)
     except CapabilityPolicyError as exc:
         raise RuntimeInstallError(f"provider manifest capabilities are invalid: {exc}") from exc
-    expected_capabilities = set(CODEX_PROVIDER_CAPABILITIES)
+    expected_capabilities = set(CODEX_S16A_PROVIDER_CAPABILITIES)
     if capabilities != expected_capabilities:
         raise RuntimeInstallError("provider manifest capabilities do not match the approved Codex provider set")
     if "pai.context.read.metadata" not in capabilities:
@@ -266,12 +298,21 @@ def validate_staged_payload() -> None:
         REPO_ROOT / "pai-runtime" / "beta-readiness-result.schema.json",
         REPO_ROOT / "pai-runtime" / "beta-readiness-validation.schema.json",
         REPO_ROOT / "pai-runtime" / "evidence-index.schema.json",
+        REPO_ROOT / "pai-runtime" / "state-proposal-task.schema.json",
+        REPO_ROOT / "pai-runtime" / "state-context-capsule.schema.json",
+        REPO_ROOT / "pai-runtime" / "state-proposal.schema.json",
+        REPO_ROOT / "pai-runtime" / "state-proposal-validation.schema.json",
     ):
         _validate_schema_file(source, source.name)
     _validate_json_instance(
         REPO_ROOT / "pai-runtime" / "tasks" / "s15i-readonly-pai-context-task.json",
         REPO_ROOT / "pai-runtime" / "pai-context-task.schema.json",
         "s15i-readonly-pai-context-task.json",
+    )
+    _validate_json_instance(
+        REPO_ROOT / "pai-runtime" / "tasks" / "s16a-state-proposal-task.json",
+        REPO_ROOT / "pai-runtime" / "state-proposal-task.schema.json",
+        "s16a-state-proposal-task.json",
     )
     runner = (REPO_ROOT / "tools" / "pai_runtime_runner" / "runner.py").read_text(encoding="utf-8")
     audit = (REPO_ROOT / "tools" / "pai_runtime_runner" / "audit.py").read_text(encoding="utf-8")
@@ -292,6 +333,23 @@ def validate_staged_payload() -> None:
         raise RuntimeInstallError("runner/audit is missing S15I PAI context command tokens")
     if "pai.context.read.metadata" not in runner + audit + pai_context:
         raise RuntimeInstallError("S15I context pipeline is missing pai.context.read.metadata tokens")
+    state_proposal = (REPO_ROOT / "tools" / "pai_runtime_runner" / "state_proposal.py").read_text(encoding="utf-8")
+    provider = (REPO_ROOT / "tools" / "pai_runtime_runner" / "providers" / "codex.py").read_text(encoding="utf-8")
+    if "propose-state" not in runner or "audit-state-proposal" not in runner:
+        raise RuntimeInstallError("runner is missing S16A state proposal command tokens")
+    for token in (
+        "validate_state_proposal",
+        "all_memory_proposals_proposed_only",
+        "all_isa_proposals_proposed_only",
+        "memory_files_modified",
+        "isa_files_modified",
+        "state-context-capsule",
+    ):
+        if token not in state_proposal:
+            raise RuntimeInstallError(f"state proposal module is missing token: {token}")
+    for token in ("memory.write.proposal", "isa.write.proposal"):
+        if token not in runner + state_proposal + provider:
+            raise RuntimeInstallError(f"S16A state proposal pipeline is missing capability token: {token}")
     beta_readiness = (REPO_ROOT / "tools" / "pai_runtime_runner" / "beta_readiness.py").read_text(encoding="utf-8")
     if "beta-readiness" not in runner or "run_beta_readiness_gate" not in beta_readiness:
         raise RuntimeInstallError("runner is missing S15J beta-readiness command tokens")
@@ -341,7 +399,12 @@ def install_runtime(pai_dir: str | Path | None, backup_root: str | Path | None) 
             if not target.is_file():
                 raise RuntimeInstallError(f"required pre-S15I live runtime file is missing: {target}")
             continue
-        if _write_text_if_changed(target, source.read_text(encoding="utf-8")):
+        text = (
+            _provider_manifest_install_text()
+            if relative == Path("runtimes") / "codex" / "provider-manifest.json"
+            else source.read_text(encoding="utf-8")
+        )
+        if _write_text_if_changed(target, text):
             changed.append(target)
         if target.name == "pai-codex":
             _mark_executable(target)
@@ -414,6 +477,7 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
         S15F_RUN_DIR_RELATIVE,
         S15I_RUN_DIR_RELATIVE,
         S15J_RUN_DIR_RELATIVE,
+        S16A_RUN_DIR_RELATIVE,
     ):
         changed.extend(_rollback_run_dir(resolved_pai_dir, backup_pai, run_relative))
     for relative in APPROVED_LIVE_RELATIVES:
@@ -427,6 +491,8 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
             continue
         if relative == S15J_RUN_DIR_RELATIVE or _is_within(S15J_RUN_DIR_RELATIVE, relative):
             continue
+        if relative == S16A_RUN_DIR_RELATIVE or _is_within(S16A_RUN_DIR_RELATIVE, relative):
+            continue
         if _restore_or_remove(resolved_pai_dir, backup_pai, relative):
             changed.append(resolved_pai_dir / relative)
     _remove_empty_dirs(
@@ -436,6 +502,8 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
             resolved_pai_dir / S15F_RUN_DIR_RELATIVE,
             resolved_pai_dir / S15I_RUN_DIR_RELATIVE,
             resolved_pai_dir / S15J_RUN_DIR_RELATIVE,
+            resolved_pai_dir / S16A_RUN_DIR_RELATIVE,
+            resolved_pai_dir / "runs" / "s16a",
             resolved_pai_dir / "runs" / "s15j",
             resolved_pai_dir / "runs" / "s15i",
             resolved_pai_dir / "runs" / "s15f",

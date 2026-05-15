@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI State Context Capsule",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "task_id",
+    "task_kind",
+    "pai_dir_label",
+    "metadata_only",
+    "redacted_paths",
+    "runtime_providers",
+    "runtime_provider_names",
+    "runtime_provider_count",
+    "memory_categories",
+    "isa",
+    "pulse",
+    "forbidden_body_reads",
+    "proposal_policy"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S16A-PAI-STATE-PROPOSAL-RUNTIME-CODEX" },
+    "run_id": { "type": "string", "const": "s16a-state-proposal" },
+    "task_id": { "type": "string", "const": "s16a-state-proposal-task" },
+    "task_kind": { "type": "string", "const": "proposal-only-memory-isa-state-update" },
+    "pai_dir_label": { "type": "string", "const": "~/.claude/PAI" },
+    "metadata_only": { "type": "boolean", "const": true },
+    "redacted_paths": { "type": "boolean", "const": true },
+    "runtime_providers": { "type": "array" },
+    "runtime_provider_names": { "type": "array", "contains": { "const": "codex" } },
+    "runtime_provider_count": { "type": "integer", "minimum": 1 },
+    "memory_categories": { "type": "array" },
+    "isa": { "type": "object" },
+    "pulse": { "type": "object" },
+    "forbidden_body_reads": {
+      "type": "object",
+      "required": [
+        "memory_body_read",
+        "isa_body_read",
+        "pulse_event_payload_read",
+        "claude_project_memory_read",
+        "codex_memory_read"
+      ],
+      "properties": {
+        "memory_body_read": { "type": "boolean", "const": false },
+        "isa_body_read": { "type": "boolean", "const": false },
+        "pulse_event_payload_read": { "type": "boolean", "const": false },
+        "claude_project_memory_read": { "type": "boolean", "const": false },
+        "codex_memory_read": { "type": "boolean", "const": false }
+      }
+    },
+    "proposal_policy": { "type": "array", "items": { "type": "string" } }
+  }
+}

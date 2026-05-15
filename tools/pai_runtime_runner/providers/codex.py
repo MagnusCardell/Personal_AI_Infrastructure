@@ -22,6 +22,11 @@ S15I_CONTEXT_TASK_ID = "s15i-readonly-pai-context-task"
 S15I_CONTEXT_MILESTONE = "V5-S15I-PAI-RUNTIME-READONLY-PAI-CONTEXT-TASK"
 PAI_CONTEXT_REPORT_NAME = "pai-context-report.json"
 PAI_CONTEXT_EVENTS_NAME = "pai-context-events.jsonl"
+S16A_STATE_PROPOSAL_RUN_ID = "s16a-state-proposal"
+S16A_STATE_PROPOSAL_TASK_ID = "s16a-state-proposal-task"
+S16A_STATE_PROPOSAL_MILESTONE = "V5-S16A-PAI-STATE-PROPOSAL-RUNTIME-CODEX"
+STATE_PROPOSAL_NAME = "state-proposal.json"
+STATE_PROPOSAL_EVENTS_NAME = "state-proposal-events.jsonl"
 MARKER = "PAI_CODEX_PEER_BETA_ADAPTER"
 
 
@@ -393,4 +398,113 @@ def run_codex_pai_context_provider(
     if not isinstance(payload, dict):
         raise CodexProviderError("Codex PAI context provider response must be a JSON object")
     payload["provider_command"] = redact_pai_context_provider_command(command)
+    return payload
+
+
+def _state_proposal_prompt(task_card: dict[str, object], capsule: dict[str, object]) -> str:
+    capsule_json = json.dumps(capsule, indent=2, sort_keys=True)
+    return (
+        "You are Codex running as runtime provider codex under the PAI-owned runtime runner. "
+        "PAI owns live PAI state access, policy, validation, application, and run artifacts. "
+        "You must reason only over the sanitized PAI state context capsule included below. "
+        "Do not browse, list, cat, grep, inspect, or otherwise traverse live PAI state, PAI Memory, ISA, "
+        "Pulse, Claude product directories, Codex product directories, Claude project memory, Codex memory, "
+        "product memory, or arbitrary home files. "
+        "Do not write Memory files, ISA files, Pulse files, repo root AGENTS.md, repo .codex, or ~/.codex files. "
+        "Do not call localhost:31337 and do not probe Pulse. "
+        "Return only JSON matching the provided schema. "
+        f"Use milestone_name {S16A_STATE_PROPOSAL_MILESTONE!r}, run_id {S16A_STATE_PROPOSAL_RUN_ID!r}, "
+        "runtime 'codex', runtime_status 'peer-beta', provider_type 'codex-cli', task_id "
+        f"{S16A_STATE_PROPOSAL_TASK_ID!r}, task_kind 'proposal-only-memory-isa-state-update', "
+        f"adapter_identity_marker {MARKER!r}, upstream_adapter 'claude', agents_router_observed true, "
+        "context_capsule_used true, context_capsule_metadata_only true, proposal_only true, "
+        "memory_write_performed false, isa_write_performed false, pulse_probe_performed false, "
+        "and localhost_31337_called false. Set pai_dir_label to '~/.claude/PAI'. "
+        "Create proposal-only Memory and ISA update suggestions derived only from the metadata in the capsule. "
+        "For Memory proposals, use category WORK, LEARNING, or KNOWLEDGE and apply_status exactly proposed_only. "
+        "For ISA proposals, use apply_status exactly proposed_only and make proposed_record a concise string. "
+        "If the capsule does not justify a proposal, return an empty array for that proposal class. "
+        "Do not include raw Memory, ISA, Pulse, backup, credential, absolute personal path, or product memory contents. "
+        f"Task card: {json.dumps(task_card, sort_keys=True)}\n"
+        f"Sanitized PAI state context capsule JSON:\n{capsule_json}\n"
+    )
+
+
+def build_state_proposal_provider_command(
+    pai_dir: Path,
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    run_dir: Path,
+    proposal_path: Path,
+) -> list[str]:
+    schema_path = run_dir / "state-proposal.schema.json"
+    prompt = _state_proposal_prompt(task_card, capsule)
+    return [
+        "codex",
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--skip-git-repo-check",
+        "--ephemeral",
+        "--json",
+        "--sandbox",
+        "read-only",
+        "--cd",
+        str(run_dir),
+        "--add-dir",
+        str(run_dir),
+        "--output-schema",
+        str(schema_path),
+        "-o",
+        str(proposal_path),
+        prompt,
+    ]
+
+
+def redact_state_proposal_provider_command(command: list[str]) -> list[str]:
+    redacted = list(command)
+    if redacted:
+        redacted[-1] = "[sanitized-state-proposal-prompt]"
+    return redacted
+
+
+def run_codex_state_proposal_provider(
+    pai_dir: Path,
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    run_dir: Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    proposal_path = run_dir / STATE_PROPOSAL_NAME
+    events_path = run_dir / STATE_PROPOSAL_EVENTS_NAME
+    command = build_state_proposal_provider_command(pai_dir, task_card, capsule, run_dir, proposal_path)
+    if dry_run:
+        return {
+            "dry_run": True,
+            "provider_command": redact_state_proposal_provider_command(command),
+            "run_dir": str(run_dir),
+            "proposal": str(proposal_path),
+            "events_output": str(events_path),
+        }
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with events_path.open("w", encoding="utf-8") as events_file:
+        completed = subprocess.run(
+            command,
+            cwd=run_dir,
+            stdin=subprocess.DEVNULL,
+            stdout=events_file,
+            stderr=subprocess.PIPE,
+            text=True,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+    if completed.returncode != 0:
+        raise CodexProviderError(f"Codex state proposal provider failed: {completed.stderr.strip()}")
+    try:
+        payload = json.loads(proposal_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CodexProviderError("Codex state proposal provider did not write valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise CodexProviderError("Codex state proposal provider response must be a JSON object")
+    payload["provider_command"] = redact_state_proposal_provider_command(command)
     return payload

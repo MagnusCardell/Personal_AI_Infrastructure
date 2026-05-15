@@ -55,3 +55,17 @@ emits `beta-readiness-result.json`, `beta-readiness-events.jsonl`,
 S15J run directory. The gate preserves the S15 boundary: Codex remains
 peer beta, Claude remains the official/full-support upstream adapter, and no
 replacement-readiness or Claude-equivalence claim is made.
+
+S16A adds proposal-only PAI state semantics through:
+
+```bash
+pai-runtime propose-state --runtime codex
+```
+
+PAI collects a sanitized metadata-only state context capsule, invokes
+`runtime=codex` only over that capsule, and stores structured Memory/ISA
+proposals under the S16A run directory. The proposals are not applied to Memory
+or ISA. The paired `audit-state-proposal` command validates that all proposal
+entries have `apply_status=proposed_only`, that no Memory, ISA, or Pulse files
+were modified, and that Codex remains a peer-beta runtime provider rather than a
+replacement-grade adapter.
