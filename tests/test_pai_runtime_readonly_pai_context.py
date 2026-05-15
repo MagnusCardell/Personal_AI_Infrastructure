@@ -557,6 +557,59 @@ print(json.dumps({"type": "message", "message": "context report emitted"}))
             Draft202012Validator.check_schema(schema)
             Draft202012Validator(schema).validate(report)
 
+    def test_provider_facing_context_report_schema_avoids_allof(self):
+        schema = json.loads(Path("pai-runtime/pai-context-report.schema.json").read_text(encoding="utf-8"))
+        raw = json.dumps(schema)
+        self.assertNotIn('"allOf"', raw)
+
+    def test_provider_facing_context_report_schema_avoids_anyof_oneof_not_ref(self):
+        schema = json.loads(Path("pai-runtime/pai-context-report.schema.json").read_text(encoding="utf-8"))
+        raw = json.dumps(schema)
+        for keyword in ('"anyOf"', '"oneOf"', '"not"', '"$ref"'):
+            self.assertNotIn(keyword, raw)
+        self.assertEqual(schema.get("type"), "object")
+        self.assertIn("properties", schema)
+        self.assertIn("required", schema)
+        self.assertFalse(schema.get("additionalProperties"))
+
+    def test_context_report_semantic_validation_rejects_missing_provider_names(self):
+        with tempfile.TemporaryDirectory(prefix="s15i.context.") as tmp:
+            pai_dir = self._install_synthetic(tmp)
+            capsule = collect_pai_context_metadata(pai_dir)
+            report = context_report_from_capsule(capsule)
+            report["runtime_provider_names"] = []
+            self.assertIn("context report must include codex runtime provider", validate_context_report(report))
+
+    def test_context_report_semantic_validation_rejects_missing_capabilities(self):
+        with tempfile.TemporaryDirectory(prefix="s15i.context.") as tmp:
+            pai_dir = self._install_synthetic(tmp)
+            capsule = collect_pai_context_metadata(pai_dir)
+            report = context_report_from_capsule(capsule)
+            report["codex_capabilities_observed"] = []
+            self.assertIn(
+                "context report must include pai.context.read.metadata capability",
+                validate_context_report(report),
+            )
+
+    def test_context_report_semantic_validation_rejects_forbidden_text_markers(self):
+        with tempfile.TemporaryDirectory(prefix="s15i.context.") as tmp:
+            pai_dir = self._install_synthetic(tmp)
+            capsule = collect_pai_context_metadata(pai_dir)
+            forbidden_cases = (
+                ("context_summary", "Report mentioned localhost:31337."),
+                ("context_summary", "Report mentioned LocalHost:31337."),
+                ("known_limits", ["Report mentioned ~/.codex memory."]),
+                ("known_limits", ["Report mentioned ~/.Claude/Projects/demo/memory."]),
+                ("known_limits", ["Report mentioned /home/example."]),
+                ("known_limits", ["Report mentioned /users/example and C:\\users\\example."]),
+                ("evidence_classification", ["Report mentioned auth.json."]),
+                ("evidence_classification", ["Report mentioned Auth.JSON and Claude.md Contents."]),
+            )
+            for key, value in forbidden_cases:
+                report = context_report_from_capsule(capsule)
+                report[key] = value
+                self.assertTrue(validate_context_report(report), f"{key}={value!r}")
+
     def test_context_report_schema_requires_codex_provider_capability(self):
         with tempfile.TemporaryDirectory(prefix="s15i.context.") as tmp:
             pai_dir = self._install_synthetic(tmp)
