@@ -84,3 +84,21 @@ directory. Decisions may be `approved_for_future_commit_candidate`, `rejected`,
 `commit_status=not_committed`. The paired `audit-state-proposal-review` command
 validates that no commit authority was granted, no commit occurred, and no
 Memory, ISA, or Pulse files were modified.
+
+S16C adds a human-gated commit dry-run planning layer through:
+
+```bash
+pai-runtime dry-run-state-commit --runtime codex
+```
+
+PAI reads the accepted S16A proposal artifact and accepted S16B decision
+artifact, requires the exact human gate
+`S16C_DRY_RUN_ONLY_NO_MEMORY_ISA_WRITE`, creates a sanitized metadata-only
+dry-run context capsule, invokes `runtime=codex` for dry-run review assistance,
+and then derives a PAI-owned dry-run plan. The planner selects only decisions
+with `decision=approved_for_future_commit_candidate` and
+`commit_status=not_committed`, renders proposed target paths as relative PAI
+paths under Memory or ISA families, and marks every planned write
+`dry_run_status=not_written`. The paired `audit-state-commit-dry-run` command
+validates that no commit authority was granted, no commit occurred, and no
+Memory, ISA, or Pulse files were modified.

@@ -1,0 +1,31 @@
+{
+  "allowed_target_path_families": [
+    "Memory/WORK/**",
+    "Memory/LEARNING/**",
+    "Memory/KNOWLEDGE/**",
+    "ISA/**"
+  ],
+  "candidate_decision_selector": {
+    "commit_status": "not_committed",
+    "decision": "approved_for_future_commit_candidate"
+  },
+  "codex_direct_live_pai_traversal_allowed": false,
+  "commit_authority_granted": false,
+  "commit_performed": false,
+  "dry_run_only": true,
+  "human_gate_required": "S16C_DRY_RUN_ONLY_NO_MEMORY_ISA_WRITE",
+  "isa_writes_allowed": false,
+  "memory_writes_allowed": false,
+  "milestone_name": "V5-S16C-PAI-STATE-COMMIT-DRY-RUN",
+  "pulse_probe_allowed": false,
+  "required_capabilities": [
+    "pai.context.read.metadata",
+    "memory.commit.dry_run",
+    "isa.commit.dry_run"
+  ],
+  "run_id": "s16c-commit-dry-run",
+  "runtime": "codex",
+  "task_id": "s16c-state-commit-dry-run-task",
+  "task_kind": "human-gated-state-commit-dry-run",
+  "task_summary": "Create a human-gated dry-run commit plan from accepted S16A proposals and accepted S16B non-committing decisions. Select only approved_for_future_commit_candidate decisions with commit_status=not_committed. Do not write Memory, ISA, or Pulse files. Do not grant commit authority and do not apply proposals."
+}

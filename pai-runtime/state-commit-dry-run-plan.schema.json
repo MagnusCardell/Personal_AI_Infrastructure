@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI State Commit Dry-Run Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "source_proposal_run_id",
+    "source_decisions_run_id",
+    "plan_authority",
+    "plan_mode",
+    "human_gate",
+    "candidate_decisions_used",
+    "planned_memory_writes",
+    "planned_isa_writes",
+    "non_planned_decisions",
+    "commit_authority_granted",
+    "commit_performed",
+    "memory_files_modified",
+    "isa_files_modified",
+    "pulse_files_modified",
+    "known_limits"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S16C-PAI-STATE-COMMIT-DRY-RUN" },
+    "run_id": { "type": "string", "const": "s16c-commit-dry-run" },
+    "source_proposal_run_id": { "type": "string", "const": "s16a-state-proposal" },
+    "source_decisions_run_id": { "type": "string", "const": "s16b-proposal-review" },
+    "plan_authority": { "type": "string", "const": "pai-policy" },
+    "plan_mode": { "type": "string", "const": "dry-run-only" },
+    "human_gate": { "type": "string", "const": "S16C_DRY_RUN_ONLY_NO_MEMORY_ISA_WRITE" },
+    "candidate_decisions_used": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/decision_item" }
+    },
+    "planned_memory_writes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/planned_write" }
+    },
+    "planned_isa_writes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/planned_write" }
+    },
+    "non_planned_decisions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/non_planned_decision" }
+    },
+    "commit_authority_granted": { "type": "boolean", "const": false },
+    "commit_performed": { "type": "boolean", "const": false },
+    "memory_files_modified": { "type": "boolean", "const": false },
+    "isa_files_modified": { "type": "boolean", "const": false },
+    "pulse_files_modified": { "type": "boolean", "const": false },
+    "known_limits": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "decision_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "decision_family",
+        "decision",
+        "rationale",
+        "commit_status"
+      ],
+      "properties": {
+        "proposal_id": { "type": "string" },
+        "decision_family": { "type": "string", "enum": ["memory", "isa"] },
+        "decision": { "type": "string", "const": "approved_for_future_commit_candidate" },
+        "rationale": { "type": "string" },
+        "commit_status": { "type": "string", "const": "not_committed" }
+      }
+    },
+    "non_planned_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "decision_family",
+        "decision",
+        "rationale",
+        "commit_status",
+        "non_planned_reason"
+      ],
+      "properties": {
+        "proposal_id": { "type": "string" },
+        "decision_family": { "type": "string", "enum": ["memory", "isa"] },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "approved_for_future_commit_candidate",
+            "rejected",
+            "deferred",
+            "needs_revision"
+          ]
+        },
+        "rationale": { "type": "string" },
+        "commit_status": { "type": "string" },
+        "non_planned_reason": { "type": "string" }
+      }
+    },
+    "planned_write": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "relative_target_path",
+        "rendered_content_preview",
+        "dry_run_status"
+      ],
+      "properties": {
+        "proposal_id": { "type": "string" },
+        "relative_target_path": {
+          "type": "string",
+          "pattern": "^(Memory/(WORK|LEARNING|KNOWLEDGE)/|ISA/)(?!.*(^|/)\\.\\.(/|$)).+"
+        },
+        "rendered_content_preview": { "type": "string" },
+        "dry_run_status": { "type": "string", "const": "not_written" }
+      }
+    }
+  }
+}

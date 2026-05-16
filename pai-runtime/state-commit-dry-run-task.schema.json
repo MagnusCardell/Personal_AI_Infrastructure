@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI State Commit Dry-Run Task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "runtime",
+    "task_id",
+    "task_kind",
+    "required_capabilities",
+    "dry_run_only",
+    "human_gate_required",
+    "candidate_decision_selector",
+    "allowed_target_path_families",
+    "commit_authority_granted",
+    "commit_performed",
+    "memory_writes_allowed",
+    "isa_writes_allowed",
+    "pulse_probe_allowed",
+    "codex_direct_live_pai_traversal_allowed",
+    "task_summary"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S16C-PAI-STATE-COMMIT-DRY-RUN" },
+    "run_id": { "type": "string", "const": "s16c-commit-dry-run" },
+    "runtime": { "type": "string", "const": "codex" },
+    "task_id": { "type": "string", "const": "s16c-state-commit-dry-run-task" },
+    "task_kind": { "type": "string", "const": "human-gated-state-commit-dry-run" },
+    "required_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "pai.context.read.metadata",
+          "memory.commit.dry_run",
+          "isa.commit.dry_run"
+        ]
+      }
+    },
+    "dry_run_only": { "type": "boolean", "const": true },
+    "human_gate_required": { "type": "string", "const": "S16C_DRY_RUN_ONLY_NO_MEMORY_ISA_WRITE" },
+    "candidate_decision_selector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "commit_status"],
+      "properties": {
+        "decision": { "type": "string", "const": "approved_for_future_commit_candidate" },
+        "commit_status": { "type": "string", "const": "not_committed" }
+      }
+    },
+    "allowed_target_path_families": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "Memory/WORK/**",
+          "Memory/LEARNING/**",
+          "Memory/KNOWLEDGE/**",
+          "ISA/**"
+        ]
+      }
+    },
+    "commit_authority_granted": { "type": "boolean", "const": false },
+    "commit_performed": { "type": "boolean", "const": false },
+    "memory_writes_allowed": { "type": "boolean", "const": false },
+    "isa_writes_allowed": { "type": "boolean", "const": false },
+    "pulse_probe_allowed": { "type": "boolean", "const": false },
+    "codex_direct_live_pai_traversal_allowed": { "type": "boolean", "const": false },
+    "task_summary": { "type": "string" }
+  }
+}

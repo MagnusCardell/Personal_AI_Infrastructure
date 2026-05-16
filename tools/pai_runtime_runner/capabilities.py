@@ -28,6 +28,12 @@ CODEX_S16B_PROVIDER_CAPABILITIES: tuple[str, ...] = (
     "isa.proposal.review",
 )
 
+CODEX_S16C_PROVIDER_CAPABILITIES: tuple[str, ...] = (
+    *CODEX_S16B_PROVIDER_CAPABILITIES,
+    "memory.commit.dry_run",
+    "isa.commit.dry_run",
+)
+
 PATCH_PROPOSAL_REPO_TASK_CAPABILITIES: tuple[str, ...] = (
     "repo.read",
     "repo.write.proposal",
@@ -53,6 +59,12 @@ STATE_PROPOSAL_REVIEW_TASK_CAPABILITIES: tuple[str, ...] = (
     "pai.context.read.metadata",
     "memory.proposal.review",
     "isa.proposal.review",
+)
+
+STATE_COMMIT_DRY_RUN_TASK_CAPABILITIES: tuple[str, ...] = (
+    "pai.context.read.metadata",
+    "memory.commit.dry_run",
+    "isa.commit.dry_run",
 )
 
 FORBIDDEN_TASK_CAPABILITIES: dict[str, str] = {

@@ -32,6 +32,12 @@ S16B_STATE_PROPOSAL_REVIEW_TASK_ID = "s16b-state-proposal-review-task"
 S16B_STATE_PROPOSAL_REVIEW_MILESTONE = "V5-S16B-PAI-STATE-PROPOSAL-REVIEW-POLICY"
 STATE_PROPOSAL_REVIEW_NAME = "state-proposal-review.json"
 STATE_PROPOSAL_REVIEW_EVENTS_NAME = "state-proposal-review-events.jsonl"
+S16C_STATE_COMMIT_DRY_RUN_ID = "s16c-commit-dry-run"
+S16C_STATE_COMMIT_DRY_RUN_TASK_ID = "s16c-state-commit-dry-run-task"
+S16C_STATE_COMMIT_DRY_RUN_MILESTONE = "V5-S16C-PAI-STATE-COMMIT-DRY-RUN"
+S16C_STATE_COMMIT_DRY_RUN_GATE = "S16C_DRY_RUN_ONLY_NO_MEMORY_ISA_WRITE"
+STATE_COMMIT_DRY_RUN_REVIEW_NAME = "state-commit-dry-run-review.json"
+STATE_COMMIT_DRY_RUN_EVENTS_NAME = "state-commit-dry-run-events.jsonl"
 MARKER = "PAI_CODEX_PEER_BETA_ADAPTER"
 
 
@@ -639,4 +645,141 @@ def run_codex_state_proposal_review_provider(
     if not isinstance(payload, dict):
         raise CodexProviderError("Codex state proposal review provider response must be a JSON object")
     payload["provider_command"] = redact_state_proposal_review_provider_command(command)
+    return payload
+
+
+def _state_commit_dry_run_prompt(
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    source_proposal: dict[str, object],
+    source_decisions: dict[str, object],
+    human_gate: str,
+) -> str:
+    capsule_json = json.dumps(capsule, indent=2, sort_keys=True)
+    source_proposal_json = json.dumps(source_proposal, indent=2, sort_keys=True)
+    source_decisions_json = json.dumps(source_decisions, indent=2, sort_keys=True)
+    return (
+        "You are Codex running as runtime provider codex under the PAI-owned runtime runner. "
+        "PAI owns live PAI state access, policy, validation, final dry-run planning, application, and run artifacts. "
+        "You must reason only over the sanitized PAI dry-run context capsule, the accepted S16A proposal artifact, "
+        "and the accepted S16B decisions artifact included below. Do not browse, list, cat, grep, inspect, or "
+        "otherwise traverse live PAI state, PAI Memory, ISA, Pulse, Claude product directories, Codex product "
+        "directories, Claude project memory, Codex memory, product memory, or arbitrary home files. "
+        "Do not write Memory files, ISA files, Pulse files, repo root AGENTS.md, repo .codex, or ~/.codex files. "
+        "Do not call localhost:31337 and do not probe Pulse. "
+        "Return only JSON matching the provided schema. "
+        f"Use milestone_name {S16C_STATE_COMMIT_DRY_RUN_MILESTONE!r}, run_id {S16C_STATE_COMMIT_DRY_RUN_ID!r}, "
+        "runtime 'codex', runtime_status 'peer-beta', provider_type 'codex-cli', task_id "
+        f"{S16C_STATE_COMMIT_DRY_RUN_TASK_ID!r}, task_kind 'human-gated-state-commit-dry-run', "
+        f"adapter_identity_marker {MARKER!r}, upstream_adapter 'claude', agents_router_observed true, "
+        "source_proposal_run_id 's16a-state-proposal', source_decisions_run_id 's16b-proposal-review', "
+        "source_proposal_used true, source_decisions_used true, context_capsule_used true, "
+        "context_capsule_metadata_only true, human_gate_observed true, dry_run_only true, "
+        "commit_authority_requested false, commit_authority_granted false, commit_performed false, "
+        "memory_write_performed false, isa_write_performed false, pulse_probe_performed false, "
+        "and localhost_31337_called false. "
+        f"The exact human gate supplied by PAI is {human_gate!r}; it must match {S16C_STATE_COMMIT_DRY_RUN_GATE!r}. "
+        "Confirm only the dry-run planning boundary. Do not propose actual file writes and do not imply that any "
+        "planned content was committed. PAI will derive the authoritative dry-run plan itself from candidate "
+        "decisions that remain not_committed. "
+        "Do not include raw Memory, ISA, Pulse, backup, credential, absolute personal path, or product memory contents. "
+        f"Task card: {json.dumps(task_card, sort_keys=True)}\n"
+        f"Sanitized PAI dry-run context capsule JSON:\n{capsule_json}\n"
+        f"Accepted S16A source proposal artifact JSON supplied by PAI:\n{source_proposal_json}\n"
+        f"Accepted S16B source decisions artifact JSON supplied by PAI:\n{source_decisions_json}\n"
+    )
+
+
+def build_state_commit_dry_run_provider_command(
+    pai_dir: Path,
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    source_proposal: dict[str, object],
+    source_decisions: dict[str, object],
+    human_gate: str,
+    run_dir: Path,
+    review_path: Path,
+) -> list[str]:
+    schema_path = run_dir / "state-commit-dry-run-review.schema.json"
+    prompt = _state_commit_dry_run_prompt(task_card, capsule, source_proposal, source_decisions, human_gate)
+    return [
+        "codex",
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--skip-git-repo-check",
+        "--ephemeral",
+        "--json",
+        "--sandbox",
+        "read-only",
+        "--cd",
+        str(run_dir),
+        "--add-dir",
+        str(run_dir),
+        "--output-schema",
+        str(schema_path),
+        "-o",
+        str(review_path),
+        prompt,
+    ]
+
+
+def redact_state_commit_dry_run_provider_command(command: list[str]) -> list[str]:
+    redacted = list(command)
+    if redacted:
+        redacted[-1] = "[sanitized-state-commit-dry-run-prompt]"
+    return redacted
+
+
+def run_codex_state_commit_dry_run_provider(
+    pai_dir: Path,
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    source_proposal: dict[str, object],
+    source_decisions: dict[str, object],
+    human_gate: str,
+    run_dir: Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    review_path = run_dir / STATE_COMMIT_DRY_RUN_REVIEW_NAME
+    events_path = run_dir / STATE_COMMIT_DRY_RUN_EVENTS_NAME
+    command = build_state_commit_dry_run_provider_command(
+        pai_dir,
+        task_card,
+        capsule,
+        source_proposal,
+        source_decisions,
+        human_gate,
+        run_dir,
+        review_path,
+    )
+    if dry_run:
+        return {
+            "dry_run": True,
+            "provider_command": redact_state_commit_dry_run_provider_command(command),
+            "run_dir": str(run_dir),
+            "review": str(review_path),
+            "events_output": str(events_path),
+        }
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with events_path.open("w", encoding="utf-8") as events_file:
+        completed = subprocess.run(
+            command,
+            cwd=run_dir,
+            stdin=subprocess.DEVNULL,
+            stdout=events_file,
+            stderr=subprocess.PIPE,
+            text=True,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+    if completed.returncode != 0:
+        raise CodexProviderError(f"Codex state commit dry-run provider failed: {completed.stderr.strip()}")
+    try:
+        payload = json.loads(review_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CodexProviderError("Codex state commit dry-run provider did not write valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise CodexProviderError("Codex state commit dry-run provider response must be a JSON object")
+    payload["provider_command"] = redact_state_commit_dry_run_provider_command(command)
     return payload
