@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI Shadow Apply Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "source_dry_run_plan_run_id",
+    "selected_proposal_id",
+    "relative_target_path",
+    "shadow_target_path",
+    "shadow_target_path_relative_to_run",
+    "content_sha256",
+    "content_byte_count",
+    "shadow_apply_status",
+    "live_commit_status",
+    "commit_authority_granted",
+    "commit_performed",
+    "memory_files_modified",
+    "isa_files_modified",
+    "pulse_files_modified",
+    "known_limits"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S16D-PAI-STATE-SINGLE-PROPOSAL-SHADOW-COMMIT" },
+    "run_id": { "type": "string", "const": "s16d-single-proposal-shadow-commit" },
+    "source_dry_run_plan_run_id": { "type": "string", "const": "s16c-commit-dry-run" },
+    "selected_proposal_id": { "type": "string" },
+    "relative_target_path": {
+      "type": "string",
+      "pattern": "^(Memory/(WORK|LEARNING|KNOWLEDGE)/|ISA/)(?!.*(^|/)\\.\\.(/|$)).+"
+    },
+    "shadow_target_path": { "type": "string" },
+    "shadow_target_path_relative_to_run": {
+      "type": "string",
+      "pattern": "^shadow-state/(Memory/(WORK|LEARNING|KNOWLEDGE)/|ISA/)(?!.*(^|/)\\.\\.(/|$)).+"
+    },
+    "content_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "content_byte_count": { "type": "integer", "minimum": 0 },
+    "shadow_apply_status": { "type": "string", "const": "shadow_written" },
+    "live_commit_status": { "type": "string", "const": "not_committed" },
+    "commit_authority_granted": { "type": "boolean", "const": false },
+    "commit_performed": { "type": "boolean", "const": false },
+    "memory_files_modified": { "type": "boolean", "const": false },
+    "isa_files_modified": { "type": "boolean", "const": false },
+    "pulse_files_modified": { "type": "boolean", "const": false },
+    "known_limits": { "type": "array", "items": { "type": "string" } }
+  }
+}

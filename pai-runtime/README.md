@@ -102,3 +102,20 @@ paths under Memory or ISA families, and marks every planned write
 `dry_run_status=not_written`. The paired `audit-state-commit-dry-run` command
 validates that no commit authority was granted, no commit occurred, and no
 Memory, ISA, or Pulse files were modified.
+
+S16D adds a single-proposal shadow apply policy layer through:
+
+```bash
+pai-runtime shadow-apply-state-commit --runtime codex
+```
+
+PAI reads the accepted S16C dry-run plan artifact, requires the exact human
+gate `S16D_SHADOW_APPLY_ONLY_NO_LIVE_MEMORY_ISA_WRITE`, creates a sanitized
+metadata-only shadow commit context capsule, invokes `runtime=codex` for policy
+review assistance, selects exactly one candidate by PAI policy, and
+materializes the selected rendered content only under the S16D run directory
+`shadow-state/` tree. The paired `audit-state-shadow-commit` command validates
+that exactly one candidate was selected, the target path stayed relative and
+allowed, the shadow target stayed under the run directory, no commit authority
+was granted, no commit occurred, and no Memory, ISA, or Pulse files were
+modified.

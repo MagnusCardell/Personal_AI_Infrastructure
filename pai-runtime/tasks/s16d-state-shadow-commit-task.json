@@ -1,0 +1,29 @@
+{
+  "allowed_target_path_families": [
+    "Memory/WORK/**",
+    "Memory/LEARNING/**",
+    "Memory/KNOWLEDGE/**",
+    "ISA/**"
+  ],
+  "codex_direct_live_pai_traversal_allowed": false,
+  "commit_authority_granted": false,
+  "commit_performed": false,
+  "human_gate_required": "S16D_SHADOW_APPLY_ONLY_NO_LIVE_MEMORY_ISA_WRITE",
+  "isa_writes_allowed": false,
+  "memory_writes_allowed": false,
+  "milestone_name": "V5-S16D-PAI-STATE-SINGLE-PROPOSAL-SHADOW-COMMIT",
+  "pulse_probe_allowed": false,
+  "required_capabilities": [
+    "pai.context.read.metadata",
+    "memory.commit.shadow_apply",
+    "isa.commit.shadow_apply"
+  ],
+  "run_id": "s16d-single-proposal-shadow-commit",
+  "runtime": "codex",
+  "selection_policy": "first-memory-lexical-else-first-isa-lexical",
+  "shadow_apply_only": true,
+  "source_dry_run_plan": "runs/s16c/commit-dry-run/state-commit-dry-run-plan.json",
+  "task_id": "s16d-state-shadow-commit-task",
+  "task_kind": "single-proposal-shadow-commit-policy",
+  "task_summary": "Select exactly one candidate from the accepted S16C dry-run plan, validate its relative target path and rendered content, and materialize the content only under the S16D run directory shadow-state tree. Do not write live Memory, ISA, or Pulse files. Do not grant commit authority and do not apply proposals to live state."
+}

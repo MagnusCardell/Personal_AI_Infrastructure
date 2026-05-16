@@ -25,6 +25,7 @@ from tools.pai_runtime_runner.capabilities import (
     PAI_CONTEXT_TASK_CAPABILITIES,
     PATCH_PROPOSAL_REPO_TASK_CAPABILITIES,
     STATE_COMMIT_DRY_RUN_TASK_CAPABILITIES,
+    STATE_SHADOW_COMMIT_TASK_CAPABILITIES,
     STATE_PROPOSAL_REVIEW_TASK_CAPABILITIES,
     STATE_PROPOSAL_TASK_CAPABILITIES,
     enforce_capability_policy,
@@ -115,6 +116,35 @@ from tools.pai_runtime_runner.state_commit_dry_run import (
     validate_commit_dry_run_context_capsule,
     validate_human_gate,
 )
+from tools.pai_runtime_runner.state_shadow_commit import (
+    SELECTED_COMMIT_CANDIDATE_NAME,
+    SHADOW_APPLY_RESULT_NAME,
+    SHADOW_APPLY_RESULT_SCHEMA_NAME,
+    SHADOW_COMMIT_CONTEXT_CAPSULE_NAME,
+    SHADOW_COMMIT_EVENTS_NAME,
+    SHADOW_COMMIT_STATE_NAME,
+    SHADOW_COMMIT_VALIDATION_NAME,
+    S16D_HUMAN_GATE,
+    S16D_MILESTONE,
+    S16D_RUN_ID,
+    S16D_RUN_RELATIVE,
+    S16D_SOURCE_DRY_RUN_PLAN_RELATIVE,
+    S16D_TASK_ID,
+    S16D_TASK_KIND,
+    S16D_TASK_RELATIVE,
+    SELECTED_COMMIT_CANDIDATE_SCHEMA_NAME,
+    SINGLE_PROPOSAL_POLICY_REVIEW_NAME,
+    SINGLE_PROPOSAL_POLICY_REVIEW_SCHEMA_NAME,
+    StateShadowCommitError,
+    audit_state_shadow_commit as run_state_shadow_commit_audit,
+    collect_shadow_commit_context_metadata,
+    load_source_dry_run_plan,
+    normalize_single_proposal_policy_review,
+    select_single_commit_candidate,
+    shadow_apply_candidate,
+    validate_human_gate as validate_shadow_commit_human_gate,
+    validate_shadow_commit_context_capsule,
+)
 from tools.pai_runtime_runner.patch_proposal import (
     PatchProposalError,
     load_patch_proposal,
@@ -133,6 +163,7 @@ from tools.pai_runtime_runner.providers.codex import (
     build_provider_command,
     build_repo_provider_command,
     run_codex_state_commit_dry_run_provider,
+    run_codex_state_shadow_commit_provider,
     run_codex_state_proposal_review_provider,
     run_codex_state_proposal_provider,
     run_codex_provider,
@@ -196,10 +227,16 @@ APPROVED_REPOSITORY_WRITE_SET = {
     "pai-runtime/state-commit-dry-run-review.schema.json",
     "pai-runtime/state-commit-dry-run-plan.schema.json",
     "pai-runtime/state-commit-dry-run-validation.schema.json",
+    "pai-runtime/state-shadow-commit-task.schema.json",
+    "pai-runtime/single-proposal-policy-review.schema.json",
+    "pai-runtime/selected-commit-candidate.schema.json",
+    "pai-runtime/shadow-apply-result.schema.json",
+    "pai-runtime/shadow-commit-validation.schema.json",
     "pai-runtime/tasks/s15f-patch-proposal-repo-task.json",
     "pai-runtime/tasks/s15i-readonly-pai-context-task.json",
     "pai-runtime/tasks/s15e-provider-registry-repo-task.json",
     "pai-runtime/tasks/s16c-state-commit-dry-run-task.json",
+    "pai-runtime/tasks/s16d-state-shadow-commit-task.json",
     "tools/pai_runtime_runner/__main__.py",
     "tools/pai_runtime_runner/runner.py",
     "tools/pai_runtime_runner/audit.py",
@@ -210,16 +247,19 @@ APPROVED_REPOSITORY_WRITE_SET = {
     "tools/pai_runtime_runner/capabilities.py",
     "tools/pai_runtime_runner/providers/codex.py",
     "tools/pai_runtime_runner/state_commit_dry_run.py",
+    "tools/pai_runtime_runner/state_shadow_commit.py",
     "tests/test_pai_runtime_runner_codex.py",
     "tests/test_pai_runtime_runner_repo_task.py",
     "tests/test_pai_runtime_provider_registry.py",
     "tests/test_pai_runtime_patch_proposal.py",
     "tests/test_pai_runtime_readonly_pai_context.py",
     "tests/test_pai_runtime_state_commit_dry_run.py",
+    "tests/test_pai_runtime_state_shadow_commit.py",
     "docs/architecture/V5-S15E-PAI-RUNTIME-CODEX-REAL-REPO-TASK.md",
     "docs/architecture/V5-S15F-PAI-RUNTIME-PATCH-PROPOSAL-APPLIER.md",
     "docs/architecture/V5-S15I-PAI-RUNTIME-READONLY-PAI-CONTEXT-TASK.md",
     "docs/architecture/V5-S16C-PAI-STATE-COMMIT-DRY-RUN.md",
+    "docs/architecture/V5-S16D-PAI-STATE-SINGLE-PROPOSAL-SHADOW-COMMIT.md",
 }
 REPO_RUN_RESULT_FIELDS = {
     "milestone_name",
@@ -615,6 +655,51 @@ def _safe_state_commit_dry_run_run_dir(pai_dir: Path, run_dir: str | Path) -> Pa
     return path
 
 
+def _safe_state_shadow_commit_task_card(pai_dir: Path, task_card: str | Path) -> Path:
+    path = Path(task_card)
+    if str(task_card) == "":
+        raise RunnerError("--task-card must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--task-card must not contain path traversal")
+    resolved = path.resolve(strict=True)
+    expected = (pai_dir / S16D_TASK_RELATIVE).resolve(strict=True)
+    if resolved != expected:
+        raise RunnerError("--task-card must be the installed S16D state shadow commit task card")
+    return resolved
+
+
+def _safe_state_shadow_commit_source_plan(pai_dir: Path, source_dry_run_plan: str | Path) -> Path:
+    path = Path(source_dry_run_plan)
+    if str(source_dry_run_plan) == "":
+        raise RunnerError("--source-dry-run-plan must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--source-dry-run-plan must not contain path traversal")
+    resolved = path.resolve(strict=True)
+    expected = (pai_dir / S16D_SOURCE_DRY_RUN_PLAN_RELATIVE).resolve(strict=True)
+    if resolved != expected:
+        raise RunnerError("--source-dry-run-plan must be the accepted S16C state commit dry-run plan artifact")
+    if resolved.is_symlink():
+        raise RunnerError("--source-dry-run-plan target is a symlink")
+    return resolved
+
+
+def _safe_state_shadow_commit_run_dir(pai_dir: Path, run_dir: str | Path) -> Path:
+    path = Path(run_dir)
+    if str(run_dir) == "":
+        raise RunnerError("--run-dir must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--run-dir must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    expected = (pai_dir / S16D_RUN_RELATIVE).resolve(strict=False)
+    if resolved != expected:
+        raise RunnerError("S16D shadow commit directory must be runs/s16d/single-proposal-shadow-commit")
+    if path.exists() and not path.is_dir():
+        raise RunnerError("--run-dir target is not a directory")
+    if path.is_symlink():
+        raise RunnerError("--run-dir target is a symlink")
+    return path
+
+
 def _safe_pai_context_audit_output(run_dir: Path, output: str | Path) -> Path:
     path = Path(output)
     if str(output) == "":
@@ -680,6 +765,24 @@ def _safe_state_commit_dry_run_audit_output(run_dir: Path, output: str | Path) -
         raise RunnerError("--output must stay under runs/s16c/commit-dry-run")
     if resolved.name != STATE_COMMIT_DRY_RUN_VALIDATION_NAME:
         raise RunnerError("--output must be named state-commit-dry-run-validation.json")
+    if path.exists() and not path.is_file():
+        raise RunnerError("--output target is not a file")
+    if path.is_symlink():
+        raise RunnerError("--output target is a symlink")
+    return path
+
+
+def _safe_state_shadow_commit_audit_output(run_dir: Path, output: str | Path) -> Path:
+    path = Path(output)
+    if str(output) == "":
+        raise RunnerError("--output must not be empty")
+    if any(part == ".." for part in path.parts):
+        raise RunnerError("--output must not contain path traversal")
+    resolved = path.resolve(strict=False)
+    if not _is_within(run_dir.resolve(strict=False), resolved):
+        raise RunnerError("--output must stay under runs/s16d/single-proposal-shadow-commit")
+    if resolved.name != SHADOW_COMMIT_VALIDATION_NAME:
+        raise RunnerError("--output must be named shadow-commit-validation.json")
     if path.exists() and not path.is_file():
         raise RunnerError("--output target is not a file")
     if path.is_symlink():
@@ -807,6 +910,40 @@ def _validate_state_commit_dry_run_task_card_schema(pai_dir: Path, card: dict[st
         raise RunnerError("state commit dry-run task card schema validation failed: " + "; ".join(schema_errors))
 
 
+def _load_state_shadow_commit_task_card(path: Path) -> dict[str, object]:
+    card = _load_json(path, "state shadow commit task card")
+    expected = {
+        "milestone_name": S16D_MILESTONE,
+        "run_id": S16D_RUN_ID,
+        "runtime": "codex",
+        "task_id": S16D_TASK_ID,
+        "task_kind": S16D_TASK_KIND,
+        "shadow_apply_only": True,
+        "human_gate_required": S16D_HUMAN_GATE,
+        "selection_policy": "first-memory-lexical-else-first-isa-lexical",
+        "commit_authority_granted": False,
+        "commit_performed": False,
+        "memory_writes_allowed": False,
+        "isa_writes_allowed": False,
+        "pulse_probe_allowed": False,
+        "codex_direct_live_pai_traversal_allowed": False,
+    }
+    for key, value in expected.items():
+        if card.get(key) != value:
+            raise RunnerError(f"state shadow commit task card mismatch for {key}")
+    return card
+
+
+def _validate_state_shadow_commit_task_card_schema(pai_dir: Path, card: dict[str, object]) -> None:
+    schema_errors = _validate_json_schema(
+        card,
+        pai_dir / "runtime-schemas" / "state-shadow-commit-task.schema.json",
+        "state-shadow-commit-task.json",
+    )
+    if schema_errors:
+        raise RunnerError("state shadow commit task card schema validation failed: " + "; ".join(schema_errors))
+
+
 def doctor(pai_dir: Path) -> dict[str, object]:
     router = pai_dir / "AGENTS.md"
     if not router.is_file():
@@ -846,6 +983,11 @@ def doctor(pai_dir: Path) -> dict[str, object]:
         (pai_dir / "runtime-schemas" / "state-commit-dry-run-review.schema.json", "S16C state commit dry-run review schema"),
         (pai_dir / "runtime-schemas" / "state-commit-dry-run-plan.schema.json", "S16C state commit dry-run plan schema"),
         (pai_dir / "runtime-schemas" / "state-commit-dry-run-validation.schema.json", "S16C state commit dry-run validation schema"),
+        (pai_dir / "runtime-schemas" / "state-shadow-commit-task.schema.json", "S16D state shadow commit task schema"),
+        (pai_dir / "runtime-schemas" / "single-proposal-policy-review.schema.json", "S16D single-proposal policy review schema"),
+        (pai_dir / "runtime-schemas" / "selected-commit-candidate.schema.json", "S16D selected commit candidate schema"),
+        (pai_dir / "runtime-schemas" / "shadow-apply-result.schema.json", "S16D shadow apply result schema"),
+        (pai_dir / "runtime-schemas" / "shadow-commit-validation.schema.json", "S16D shadow commit validation schema"),
         (pai_dir / TASK_RELATIVE, "S15D task card"),
         (pai_dir / S15E_TASK_RELATIVE, "S15E repo task card"),
         (pai_dir / S15F_TASK_RELATIVE, "S15F patch proposal repo task card"),
@@ -853,6 +995,7 @@ def doctor(pai_dir: Path) -> dict[str, object]:
         (pai_dir / S16A_TASK_RELATIVE, "S16A state proposal task card"),
         (pai_dir / S16B_TASK_RELATIVE, "S16B state proposal review task card"),
         (pai_dir / S16C_TASK_RELATIVE, "S16C state commit dry-run task card"),
+        (pai_dir / S16D_TASK_RELATIVE, "S16D state shadow commit task card"),
         (pai_dir / "runtime-task-fixtures" / "s15d_bugfix" / "src" / "pai_priority.py", "S15D task fixture"),
         (pai_dir / "adapters" / "codex" / "bin" / "pai-codex", "Codex provider driver"),
     ):
@@ -1925,6 +2068,175 @@ def dry_run_state_commit_runtime(
     }
 
 
+def shadow_apply_state_commit_runtime(
+    pai_dir: Path,
+    runtime: str,
+    task_card: str | Path,
+    source_dry_run_plan: str | Path,
+    human_gate: str,
+    run_dir: str | Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    validate_shadow_commit_human_gate(human_gate)
+    doctor(pai_dir)
+    if runtime != "codex":
+        raise RunnerError(f"unknown runtime provider: {runtime}")
+    task_path = _safe_state_shadow_commit_task_card(pai_dir, task_card)
+    source_plan_path = _safe_state_shadow_commit_source_plan(pai_dir, source_dry_run_plan)
+    card = _load_state_shadow_commit_task_card(task_path)
+    _validate_state_shadow_commit_task_card_schema(pai_dir, card)
+    required_capabilities = _enforce_runtime_capabilities(
+        pai_dir,
+        "codex",
+        card,
+        STATE_SHADOW_COMMIT_TASK_CAPABILITIES,
+    )
+    safe_run_dir = _safe_state_shadow_commit_run_dir(pai_dir, run_dir)
+    command = [
+        str(pai_dir / "bin" / "pai-runtime"),
+        "shadow-apply-state-commit",
+        "--pai-dir",
+        str(pai_dir),
+        "--runtime",
+        "codex",
+        "--task-card",
+        str(task_path),
+        "--source-dry-run-plan",
+        str(source_plan_path),
+        "--human-gate",
+        human_gate,
+        "--run-dir",
+        str(safe_run_dir),
+    ]
+    source_plan = load_source_dry_run_plan(source_plan_path)
+    source_plan_schema_errors = _validate_json_schema(
+        source_plan,
+        pai_dir / "runtime-schemas" / "state-commit-dry-run-plan.schema.json",
+        STATE_COMMIT_DRY_RUN_PLAN_NAME,
+    )
+    if source_plan_schema_errors:
+        raise RunnerError("source S16C dry-run plan schema validation failed: " + "; ".join(source_plan_schema_errors))
+
+    selected, source_candidate = select_single_commit_candidate(source_plan)
+    selected_schema_errors = _validate_json_schema(
+        selected,
+        pai_dir / "runtime-schemas" / SELECTED_COMMIT_CANDIDATE_SCHEMA_NAME,
+        SELECTED_COMMIT_CANDIDATE_NAME,
+    )
+    if selected_schema_errors:
+        raise RunnerError("selected commit candidate schema validation failed: " + "; ".join(selected_schema_errors))
+
+    capsule = collect_shadow_commit_context_metadata(pai_dir, source_plan, selected)
+    capsule_errors = validate_shadow_commit_context_capsule(capsule)
+    if capsule_errors:
+        raise RunnerError("shadow commit context capsule validation failed: " + "; ".join(capsule_errors))
+    dry_provider_result = run_codex_state_shadow_commit_provider(
+        pai_dir,
+        card,
+        capsule,
+        source_plan,
+        human_gate,
+        safe_run_dir,
+        dry_run=True,
+    )
+    if dry_run:
+        return {
+            "dry_run": True,
+            "pai_runtime_command": command,
+            "provider_command": dry_provider_result["provider_command"],
+            "run_dir": str(safe_run_dir),
+            "required_capabilities": required_capabilities,
+            "source_dry_run_plan": str(source_plan_path),
+            "human_gate": human_gate,
+            "selected_candidate_count": selected.get("selected_candidate_count"),
+            "selected_relative_target_path": selected.get("relative_target_path"),
+            "shadow_context_capsule_metadata_only": True,
+        }
+
+    safe_run_dir.mkdir(parents=True, exist_ok=True)
+    capsule_path = safe_run_dir / SHADOW_COMMIT_CONTEXT_CAPSULE_NAME
+    capsule_path.write_text(json.dumps(capsule, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    review_schema_source = pai_dir / "runtime-schemas" / "single-proposal-policy-review.schema.json"
+    review_schema_target = safe_run_dir / SINGLE_PROPOSAL_POLICY_REVIEW_SCHEMA_NAME
+    review_schema_target.write_text(review_schema_source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    provider_result = run_codex_state_shadow_commit_provider(
+        pai_dir,
+        card,
+        capsule,
+        source_plan,
+        human_gate,
+        safe_run_dir,
+    )
+    review = normalize_single_proposal_policy_review(provider_result, capsule, human_gate)
+    review_schema_errors = _validate_json_schema(
+        review,
+        pai_dir / "runtime-schemas" / "single-proposal-policy-review.schema.json",
+        SINGLE_PROPOSAL_POLICY_REVIEW_NAME,
+    )
+    if review_schema_errors:
+        raise RunnerError("single-proposal policy review schema validation failed: " + "; ".join(review_schema_errors))
+    review_path = safe_run_dir / SINGLE_PROPOSAL_POLICY_REVIEW_NAME
+    review_path.write_text(json.dumps(review, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    selected_path = safe_run_dir / SELECTED_COMMIT_CANDIDATE_NAME
+    selected_path.write_text(json.dumps(selected, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    shadow = shadow_apply_candidate(safe_run_dir, selected, source_candidate)
+    shadow_schema_errors = _validate_json_schema(
+        shadow,
+        pai_dir / "runtime-schemas" / SHADOW_APPLY_RESULT_SCHEMA_NAME,
+        SHADOW_APPLY_RESULT_NAME,
+    )
+    if shadow_schema_errors:
+        raise RunnerError("shadow apply result schema validation failed: " + "; ".join(shadow_schema_errors))
+    shadow_path = safe_run_dir / SHADOW_APPLY_RESULT_NAME
+    shadow_path.write_text(json.dumps(shadow, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    state = {
+        "pai_runtime_command": command,
+        "provider_command": provider_result.get("provider_command", dry_provider_result["provider_command"]),
+        "required_capabilities": required_capabilities,
+        "source_dry_run_plan_path": str(source_plan_path),
+        "shadow_commit_context_capsule_path": str(capsule_path),
+        "single_proposal_policy_review_path": str(review_path),
+        "selected_commit_candidate_path": str(selected_path),
+        "shadow_apply_result_path": str(shadow_path),
+        "shadow_commit_events_path": str(safe_run_dir / SHADOW_COMMIT_EVENTS_NAME),
+        "shadow_context_capsule_metadata_only": True,
+        "single_proposal_policy_review_normalized_by_pai": True,
+        "single_candidate_policy": "first-memory-lexical-else-first-isa-lexical",
+        "shadow_apply_authority": "pai-policy",
+        "human_gate": human_gate,
+        "shadow_apply_only": True,
+        "commit_authority_granted": False,
+        "commit_performed": False,
+    }
+    (safe_run_dir / SHADOW_COMMIT_STATE_NAME).write_text(
+        json.dumps(state, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "ok": True,
+        "run_dir": str(safe_run_dir),
+        "source_dry_run_plan": str(source_plan_path),
+        "shadow_commit_context_capsule": str(capsule_path),
+        "single_proposal_policy_review": str(review_path),
+        "selected_commit_candidate": str(selected_path),
+        "shadow_apply_result": str(shadow_path),
+        "events_output": str(safe_run_dir / SHADOW_COMMIT_EVENTS_NAME),
+        "required_capabilities": required_capabilities,
+        "human_gate": human_gate,
+        "shadow_context_capsule_metadata_only": True,
+        "selected_candidate_count": selected.get("selected_candidate_count"),
+        "selected_relative_target_path": selected.get("relative_target_path"),
+        "shadow_target_path_relative_to_run": shadow.get("shadow_target_path_relative_to_run"),
+        "commit_authority_granted": False,
+        "commit_performed": False,
+    }
+
+
 def beta_readiness_runtime(
     pai_dir: Path,
     runtime: str,
@@ -2212,6 +2524,59 @@ def audit_state_commit_dry_run_runtime_run(
     }
 
 
+def audit_state_shadow_commit_runtime_run(
+    pai_dir: Path,
+    marker: str | Path,
+    run_dir: str | Path,
+    output: str | Path,
+    runtime_attempt_number: int,
+) -> dict[str, object]:
+    doctor(pai_dir)
+    marker_path = _safe_marker(marker)
+    safe_run_dir = _safe_state_shadow_commit_run_dir(pai_dir, run_dir)
+    output_path = _safe_state_shadow_commit_audit_output(safe_run_dir, output)
+    state = _load_json(safe_run_dir / SHADOW_COMMIT_STATE_NAME, "state shadow commit state")
+    source_plan_value = state.get("source_dry_run_plan_path")
+    source_plan_path = _safe_state_shadow_commit_source_plan(
+        pai_dir,
+        source_plan_value if isinstance(source_plan_value, str) else pai_dir / S16D_SOURCE_DRY_RUN_PLAN_RELATIVE,
+    )
+    result = run_state_shadow_commit_audit(
+        pai_dir=pai_dir,
+        marker=marker_path,
+        run_dir=safe_run_dir,
+        source_dry_run_plan_path=source_plan_path,
+        capsule_path=safe_run_dir / SHADOW_COMMIT_CONTEXT_CAPSULE_NAME,
+        review_path=safe_run_dir / SINGLE_PROPOSAL_POLICY_REVIEW_NAME,
+        selected_path=safe_run_dir / SELECTED_COMMIT_CANDIDATE_NAME,
+        shadow_apply_path=safe_run_dir / SHADOW_APPLY_RESULT_NAME,
+        events_path=safe_run_dir / SHADOW_COMMIT_EVENTS_NAME,
+        runtime_attempt_number=runtime_attempt_number,
+        repo_root=Path.cwd(),
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not result.get("validation_passed"):
+        raise RunnerError(f"state shadow commit runtime audit failed; wrote {output_path}")
+    validation_schema_errors = _validate_json_schema(
+        result,
+        pai_dir / "runtime-schemas" / "shadow-commit-validation.schema.json",
+        SHADOW_COMMIT_VALIDATION_NAME,
+    )
+    if validation_schema_errors:
+        raise RunnerError(
+            "state shadow commit validation artifact schema validation failed: "
+            + "; ".join(validation_schema_errors)
+            + f"; wrote {output_path}"
+        )
+    return {
+        "ok": True,
+        "output": str(output_path),
+        "event_attribution_passed": result.get("event_attribution_passed"),
+        "validation_passed": result.get("validation_passed"),
+    }
+
+
 def audit_provider_lifecycle_run(
     pai_dir: Path,
     marker: str | Path,
@@ -2340,6 +2705,15 @@ def build_parser() -> argparse.ArgumentParser:
     dry_commit_parser.add_argument("--run-dir", required=True)
     dry_commit_parser.add_argument("--dry-run", action="store_true")
 
+    shadow_commit_parser = subcommands.add_parser("shadow-apply-state-commit")
+    shadow_commit_parser.add_argument("--pai-dir", required=True)
+    shadow_commit_parser.add_argument("--runtime", required=True)
+    shadow_commit_parser.add_argument("--task-card", required=True)
+    shadow_commit_parser.add_argument("--source-dry-run-plan", required=True)
+    shadow_commit_parser.add_argument("--human-gate", required=True)
+    shadow_commit_parser.add_argument("--run-dir", required=True)
+    shadow_commit_parser.add_argument("--dry-run", action="store_true")
+
     beta_readiness_parser = subcommands.add_parser("beta-readiness")
     beta_readiness_parser.add_argument("--pai-dir", required=True)
     beta_readiness_parser.add_argument("--runtime", required=True)
@@ -2388,6 +2762,13 @@ def build_parser() -> argparse.ArgumentParser:
     dry_commit_audit_parser.add_argument("--run-dir", required=True)
     dry_commit_audit_parser.add_argument("--output", required=True)
     dry_commit_audit_parser.add_argument("--runtime-attempt-number", type=int, default=1)
+
+    shadow_commit_audit_parser = subcommands.add_parser("audit-state-shadow-commit")
+    shadow_commit_audit_parser.add_argument("--pai-dir", required=True)
+    shadow_commit_audit_parser.add_argument("--marker", required=True)
+    shadow_commit_audit_parser.add_argument("--run-dir", required=True)
+    shadow_commit_audit_parser.add_argument("--output", required=True)
+    shadow_commit_audit_parser.add_argument("--runtime-attempt-number", type=int, default=1)
 
     provider_lifecycle_audit_parser = subcommands.add_parser("audit-provider-lifecycle")
     provider_lifecycle_audit_parser.add_argument("--pai-dir", required=True)
@@ -2469,6 +2850,16 @@ def main(argv: list[str] | None = None) -> int:
                 args.run_dir,
                 args.dry_run,
             )
+        elif args.command == "shadow-apply-state-commit":
+            result = shadow_apply_state_commit_runtime(
+                pai_dir,
+                args.runtime,
+                args.task_card,
+                args.source_dry_run_plan,
+                args.human_gate,
+                args.run_dir,
+                args.dry_run,
+            )
         elif args.command == "beta-readiness":
             result = beta_readiness_runtime(
                 pai_dir,
@@ -2519,6 +2910,14 @@ def main(argv: list[str] | None = None) -> int:
                 args.output,
                 args.runtime_attempt_number,
             )
+        elif args.command == "audit-state-shadow-commit":
+            result = audit_state_shadow_commit_runtime_run(
+                pai_dir,
+                args.marker,
+                args.run_dir,
+                args.output,
+                args.runtime_attempt_number,
+            )
         elif args.command == "audit-provider-lifecycle":
             result = audit_provider_lifecycle_run(
                 pai_dir,
@@ -2546,6 +2945,7 @@ def main(argv: list[str] | None = None) -> int:
         StateProposalError,
         StateProposalReviewError,
         StateCommitDryRunError,
+        StateShadowCommitError,
         OSError,
     ) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

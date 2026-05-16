@@ -5,7 +5,7 @@ import shutil
 import stat
 from pathlib import Path
 
-from tools.pai_runtime_runner.capabilities import CODEX_S16C_PROVIDER_CAPABILITIES, CapabilityPolicyError, provider_capabilities
+from tools.pai_runtime_runner.capabilities import CODEX_S16D_PROVIDER_CAPABILITIES, CapabilityPolicyError, provider_capabilities
 
 try:
     from jsonschema import Draft202012Validator
@@ -48,6 +48,11 @@ INSTALL_TEXT_TARGETS = {
     REPO_ROOT / "pai-runtime" / "state-commit-dry-run-review.schema.json": Path("runtime-schemas") / "state-commit-dry-run-review.schema.json",
     REPO_ROOT / "pai-runtime" / "state-commit-dry-run-plan.schema.json": Path("runtime-schemas") / "state-commit-dry-run-plan.schema.json",
     REPO_ROOT / "pai-runtime" / "state-commit-dry-run-validation.schema.json": Path("runtime-schemas") / "state-commit-dry-run-validation.schema.json",
+    REPO_ROOT / "pai-runtime" / "state-shadow-commit-task.schema.json": Path("runtime-schemas") / "state-shadow-commit-task.schema.json",
+    REPO_ROOT / "pai-runtime" / "single-proposal-policy-review.schema.json": Path("runtime-schemas") / "single-proposal-policy-review.schema.json",
+    REPO_ROOT / "pai-runtime" / "selected-commit-candidate.schema.json": Path("runtime-schemas") / "selected-commit-candidate.schema.json",
+    REPO_ROOT / "pai-runtime" / "shadow-apply-result.schema.json": Path("runtime-schemas") / "shadow-apply-result.schema.json",
+    REPO_ROOT / "pai-runtime" / "shadow-commit-validation.schema.json": Path("runtime-schemas") / "shadow-commit-validation.schema.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15d-codex-synthetic-bugfix.json": Path("runtime-tasks") / "s15d-codex-synthetic-bugfix.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15e-provider-registry-repo-task.json": Path("runtime-tasks") / "s15e-provider-registry-repo-task.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s15f-patch-proposal-repo-task.json": Path("runtime-tasks") / "s15f-patch-proposal-repo-task.json",
@@ -55,6 +60,7 @@ INSTALL_TEXT_TARGETS = {
     REPO_ROOT / "pai-runtime" / "tasks" / "s16a-state-proposal-task.json": Path("runtime-tasks") / "s16a-state-proposal-task.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s16b-state-proposal-review-task.json": Path("runtime-tasks") / "s16b-state-proposal-review-task.json",
     REPO_ROOT / "pai-runtime" / "tasks" / "s16c-state-commit-dry-run-task.json": Path("runtime-tasks") / "s16c-state-commit-dry-run-task.json",
+    REPO_ROOT / "pai-runtime" / "tasks" / "s16d-state-shadow-commit-task.json": Path("runtime-tasks") / "s16d-state-shadow-commit-task.json",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "README.md": Path("runtime-task-fixtures") / "s15d_bugfix" / "README.md",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "src" / "pai_priority.py": Path("runtime-task-fixtures") / "s15d_bugfix" / "src" / "pai_priority.py",
     REPO_ROOT / "pai-runtime" / "task-fixtures" / "s15d_bugfix" / "tests" / "test_pai_priority.py": Path("runtime-task-fixtures") / "s15d_bugfix" / "tests" / "test_pai_priority.py",
@@ -112,6 +118,14 @@ APPROVED_LIVE_RELATIVES = tuple(INSTALL_TEXT_TARGETS.values()) + (
     Path("runs") / "s16c" / "commit-dry-run" / "state-commit-dry-run-events.jsonl",
     Path("runs") / "s16c" / "commit-dry-run" / "state-commit-dry-run-state.json",
     Path("runs") / "s16c" / "commit-dry-run" / "state-commit-dry-run-validation.json",
+    Path("runs") / "s16d" / "single-proposal-shadow-commit" / "shadow-commit-context-capsule.json",
+    Path("runs") / "s16d" / "single-proposal-shadow-commit" / "single-proposal-policy-review.schema.json",
+    Path("runs") / "s16d" / "single-proposal-shadow-commit" / "single-proposal-policy-review.json",
+    Path("runs") / "s16d" / "single-proposal-shadow-commit" / "selected-commit-candidate.json",
+    Path("runs") / "s16d" / "single-proposal-shadow-commit" / "shadow-apply-result.json",
+    Path("runs") / "s16d" / "single-proposal-shadow-commit" / "shadow-commit-events.jsonl",
+    Path("runs") / "s16d" / "single-proposal-shadow-commit" / "shadow-commit-state.json",
+    Path("runs") / "s16d" / "single-proposal-shadow-commit" / "shadow-commit-validation.json",
 )
 
 RUN_DIR_RELATIVE = Path("runs") / "s15d" / "codex-synthetic-bugfix"
@@ -122,6 +136,7 @@ S15J_RUN_DIR_RELATIVE = Path("runs") / "s15j" / "codex-beta-readiness"
 S16A_RUN_DIR_RELATIVE = Path("runs") / "s16a" / "state-proposal"
 S16B_RUN_DIR_RELATIVE = Path("runs") / "s16b" / "proposal-review"
 S16C_RUN_DIR_RELATIVE = Path("runs") / "s16c" / "commit-dry-run"
+S16D_RUN_DIR_RELATIVE = Path("runs") / "s16d" / "single-proposal-shadow-commit"
 S15I_MUTABLE_INSTALL_RELATIVES = {
     Path("bin") / "pai-runtime",
     Path("runtime-state.json"),
@@ -157,6 +172,16 @@ S16C_MUTABLE_INSTALL_RELATIVES = {
     Path("runtime-schemas") / "state-commit-dry-run-plan.schema.json",
     Path("runtime-schemas") / "state-commit-dry-run-validation.schema.json",
     Path("runtime-tasks") / "s16c-state-commit-dry-run-task.json",
+    Path("runtimes") / "codex" / "provider-manifest.json",
+}
+
+S16D_MUTABLE_INSTALL_RELATIVES = {
+    Path("runtime-schemas") / "state-shadow-commit-task.schema.json",
+    Path("runtime-schemas") / "single-proposal-policy-review.schema.json",
+    Path("runtime-schemas") / "selected-commit-candidate.schema.json",
+    Path("runtime-schemas") / "shadow-apply-result.schema.json",
+    Path("runtime-schemas") / "shadow-commit-validation.schema.json",
+    Path("runtime-tasks") / "s16d-state-shadow-commit-task.json",
     Path("runtimes") / "codex" / "provider-manifest.json",
 }
 
@@ -237,7 +262,7 @@ def _wrapper_text() -> str:
 def _runtime_state() -> str:
     payload = {
         "installed": True,
-        "milestone_name": "V5-S16C-PAI-STATE-COMMIT-DRY-RUN",
+        "milestone_name": "V5-S16D-PAI-STATE-SINGLE-PROPOSAL-SHADOW-COMMIT",
         "ownership_model": "PAI owns the run; Codex is runtime provider codex.",
         "runtime_provider": "codex",
         "runtime_status": "peer-beta",
@@ -249,9 +274,11 @@ def _runtime_state() -> str:
         "supports_state_proposals": True,
         "supports_state_proposal_reviews": True,
         "supports_state_commit_dry_runs": True,
+        "supports_state_shadow_commits": True,
         "state_proposal_apply_policy": "proposed_only",
         "state_proposal_review_policy": "review_only_non_committing",
         "state_commit_dry_run_policy": "human_gated_dry_run_only",
+        "state_shadow_commit_policy": "single_candidate_shadow_apply_only",
     }
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
@@ -263,8 +290,8 @@ def _load_provider_manifest() -> dict[str, object]:
 def _provider_manifest_for_install() -> dict[str, object]:
     manifest = dict(_load_provider_manifest())
     capabilities = list(provider_capabilities(manifest))
-    ordered = [capability for capability in CODEX_S16C_PROVIDER_CAPABILITIES if capability in set(capabilities)]
-    missing = [capability for capability in CODEX_S16C_PROVIDER_CAPABILITIES if capability not in set(capabilities)]
+    ordered = [capability for capability in CODEX_S16D_PROVIDER_CAPABILITIES if capability in set(capabilities)]
+    missing = [capability for capability in CODEX_S16D_PROVIDER_CAPABILITIES if capability not in set(capabilities)]
     manifest["capabilities"] = ordered + missing
     return manifest
 
@@ -332,7 +359,7 @@ def validate_staged_payload() -> None:
         capabilities = provider_capabilities(manifest)
     except CapabilityPolicyError as exc:
         raise RuntimeInstallError(f"provider manifest capabilities are invalid: {exc}") from exc
-    expected_capabilities = set(CODEX_S16C_PROVIDER_CAPABILITIES)
+    expected_capabilities = set(CODEX_S16D_PROVIDER_CAPABILITIES)
     if capabilities != expected_capabilities:
         raise RuntimeInstallError("provider manifest capabilities do not match the approved Codex provider set")
     if "pai.context.read.metadata" not in capabilities:
@@ -360,6 +387,11 @@ def validate_staged_payload() -> None:
         REPO_ROOT / "pai-runtime" / "state-commit-dry-run-review.schema.json",
         REPO_ROOT / "pai-runtime" / "state-commit-dry-run-plan.schema.json",
         REPO_ROOT / "pai-runtime" / "state-commit-dry-run-validation.schema.json",
+        REPO_ROOT / "pai-runtime" / "state-shadow-commit-task.schema.json",
+        REPO_ROOT / "pai-runtime" / "single-proposal-policy-review.schema.json",
+        REPO_ROOT / "pai-runtime" / "selected-commit-candidate.schema.json",
+        REPO_ROOT / "pai-runtime" / "shadow-apply-result.schema.json",
+        REPO_ROOT / "pai-runtime" / "shadow-commit-validation.schema.json",
     ):
         _validate_schema_file(source, source.name)
     _validate_json_instance(
@@ -381,6 +413,11 @@ def validate_staged_payload() -> None:
         REPO_ROOT / "pai-runtime" / "tasks" / "s16c-state-commit-dry-run-task.json",
         REPO_ROOT / "pai-runtime" / "state-commit-dry-run-task.schema.json",
         "s16c-state-commit-dry-run-task.json",
+    )
+    _validate_json_instance(
+        REPO_ROOT / "pai-runtime" / "tasks" / "s16d-state-shadow-commit-task.json",
+        REPO_ROOT / "pai-runtime" / "state-shadow-commit-task.schema.json",
+        "s16d-state-shadow-commit-task.json",
     )
     runner = (REPO_ROOT / "tools" / "pai_runtime_runner" / "runner.py").read_text(encoding="utf-8")
     audit = (REPO_ROOT / "tools" / "pai_runtime_runner" / "audit.py").read_text(encoding="utf-8")
@@ -455,6 +492,25 @@ def validate_staged_payload() -> None:
     for token in ("memory.commit.dry_run", "isa.commit.dry_run"):
         if token not in runner + state_commit_dry_run + provider:
             raise RuntimeInstallError(f"S16C state commit dry-run pipeline is missing capability token: {token}")
+    state_shadow_commit = (
+        REPO_ROOT / "tools" / "pai_runtime_runner" / "state_shadow_commit.py"
+    ).read_text(encoding="utf-8")
+    if "shadow-apply-state-commit" not in runner or "audit-state-shadow-commit" not in runner:
+        raise RuntimeInstallError("runner is missing S16D state shadow commit command tokens")
+    for token in (
+        "select_single_commit_candidate",
+        "shadow_apply_candidate",
+        "validate_shadow_commit",
+        "shadow_target_under_run_dir",
+        "single_candidate_selected",
+        "commit_authority_granted",
+        "commit_performed",
+    ):
+        if token not in state_shadow_commit:
+            raise RuntimeInstallError(f"state shadow commit module is missing token: {token}")
+    for token in ("memory.commit.shadow_apply", "isa.commit.shadow_apply"):
+        if token not in runner + state_shadow_commit + provider:
+            raise RuntimeInstallError(f"S16D state shadow commit pipeline is missing capability token: {token}")
     beta_readiness = (REPO_ROOT / "tools" / "pai_runtime_runner" / "beta_readiness.py").read_text(encoding="utf-8")
     if "beta-readiness" not in runner or "run_beta_readiness_gate" not in beta_readiness:
         raise RuntimeInstallError("runner is missing S15J beta-readiness command tokens")
@@ -500,7 +556,7 @@ def install_runtime(pai_dir: str | Path | None, backup_root: str | Path | None) 
 
     for source, relative in INSTALL_TEXT_TARGETS.items():
         target = _safe_live_path(resolved_pai_dir, relative)
-        if live_pai_dir and relative not in S16C_MUTABLE_INSTALL_RELATIVES:
+        if live_pai_dir and relative not in S16D_MUTABLE_INSTALL_RELATIVES:
             if not target.is_file():
                 raise RuntimeInstallError(f"required pre-S15I live runtime file is missing: {target}")
             continue
@@ -585,6 +641,7 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
         S16A_RUN_DIR_RELATIVE,
         S16B_RUN_DIR_RELATIVE,
         S16C_RUN_DIR_RELATIVE,
+        S16D_RUN_DIR_RELATIVE,
     ):
         changed.extend(_rollback_run_dir(resolved_pai_dir, backup_pai, run_relative))
     for relative in APPROVED_LIVE_RELATIVES:
@@ -604,6 +661,8 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
             continue
         if relative == S16C_RUN_DIR_RELATIVE or _is_within(S16C_RUN_DIR_RELATIVE, relative):
             continue
+        if relative == S16D_RUN_DIR_RELATIVE or _is_within(S16D_RUN_DIR_RELATIVE, relative):
+            continue
         if _restore_or_remove(resolved_pai_dir, backup_pai, relative):
             changed.append(resolved_pai_dir / relative)
     _remove_empty_dirs(
@@ -616,6 +675,8 @@ def rollback_runtime(pai_dir: str | Path | None, backup_root: str | Path | None)
             resolved_pai_dir / S16A_RUN_DIR_RELATIVE,
             resolved_pai_dir / S16B_RUN_DIR_RELATIVE,
             resolved_pai_dir / S16C_RUN_DIR_RELATIVE,
+            resolved_pai_dir / S16D_RUN_DIR_RELATIVE,
+            resolved_pai_dir / "runs" / "s16d",
             resolved_pai_dir / "runs" / "s16c",
             resolved_pai_dir / "runs" / "s16b",
             resolved_pai_dir / "runs" / "s16a",

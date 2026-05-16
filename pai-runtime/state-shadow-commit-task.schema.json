@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PAI State Shadow Commit Task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone_name",
+    "run_id",
+    "runtime",
+    "task_id",
+    "task_kind",
+    "task_summary",
+    "source_dry_run_plan",
+    "selection_policy",
+    "shadow_apply_only",
+    "human_gate_required",
+    "required_capabilities",
+    "allowed_target_path_families",
+    "commit_authority_granted",
+    "commit_performed",
+    "memory_writes_allowed",
+    "isa_writes_allowed",
+    "pulse_probe_allowed",
+    "codex_direct_live_pai_traversal_allowed"
+  ],
+  "properties": {
+    "milestone_name": { "type": "string", "const": "V5-S16D-PAI-STATE-SINGLE-PROPOSAL-SHADOW-COMMIT" },
+    "run_id": { "type": "string", "const": "s16d-single-proposal-shadow-commit" },
+    "runtime": { "type": "string", "const": "codex" },
+    "task_id": { "type": "string", "const": "s16d-state-shadow-commit-task" },
+    "task_kind": { "type": "string", "const": "single-proposal-shadow-commit-policy" },
+    "task_summary": { "type": "string" },
+    "source_dry_run_plan": { "type": "string", "const": "runs/s16c/commit-dry-run/state-commit-dry-run-plan.json" },
+    "selection_policy": { "type": "string", "const": "first-memory-lexical-else-first-isa-lexical" },
+    "shadow_apply_only": { "type": "boolean", "const": true },
+    "human_gate_required": { "type": "string", "const": "S16D_SHADOW_APPLY_ONLY_NO_LIVE_MEMORY_ISA_WRITE" },
+    "required_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "pai.context.read.metadata",
+          "memory.commit.shadow_apply",
+          "isa.commit.shadow_apply"
+        ]
+      },
+      "contains": { "const": "memory.commit.shadow_apply" }
+    },
+    "allowed_target_path_families": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "Memory/WORK/**",
+          "Memory/LEARNING/**",
+          "Memory/KNOWLEDGE/**",
+          "ISA/**"
+        ]
+      }
+    },
+    "commit_authority_granted": { "type": "boolean", "const": false },
+    "commit_performed": { "type": "boolean", "const": false },
+    "memory_writes_allowed": { "type": "boolean", "const": false },
+    "isa_writes_allowed": { "type": "boolean", "const": false },
+    "pulse_probe_allowed": { "type": "boolean", "const": false },
+    "codex_direct_live_pai_traversal_allowed": { "type": "boolean", "const": false }
+  }
+}

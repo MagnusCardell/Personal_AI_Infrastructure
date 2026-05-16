@@ -38,6 +38,12 @@ S16C_STATE_COMMIT_DRY_RUN_MILESTONE = "V5-S16C-PAI-STATE-COMMIT-DRY-RUN"
 S16C_STATE_COMMIT_DRY_RUN_GATE = "S16C_DRY_RUN_ONLY_NO_MEMORY_ISA_WRITE"
 STATE_COMMIT_DRY_RUN_REVIEW_NAME = "state-commit-dry-run-review.json"
 STATE_COMMIT_DRY_RUN_EVENTS_NAME = "state-commit-dry-run-events.jsonl"
+S16D_STATE_SHADOW_COMMIT_ID = "s16d-single-proposal-shadow-commit"
+S16D_STATE_SHADOW_COMMIT_TASK_ID = "s16d-state-shadow-commit-task"
+S16D_STATE_SHADOW_COMMIT_MILESTONE = "V5-S16D-PAI-STATE-SINGLE-PROPOSAL-SHADOW-COMMIT"
+S16D_STATE_SHADOW_COMMIT_GATE = "S16D_SHADOW_APPLY_ONLY_NO_LIVE_MEMORY_ISA_WRITE"
+SINGLE_PROPOSAL_POLICY_REVIEW_NAME = "single-proposal-policy-review.json"
+SHADOW_COMMIT_EVENTS_NAME = "shadow-commit-events.jsonl"
 MARKER = "PAI_CODEX_PEER_BETA_ADAPTER"
 
 
@@ -782,4 +788,135 @@ def run_codex_state_commit_dry_run_provider(
     if not isinstance(payload, dict):
         raise CodexProviderError("Codex state commit dry-run provider response must be a JSON object")
     payload["provider_command"] = redact_state_commit_dry_run_provider_command(command)
+    return payload
+
+
+def _state_shadow_commit_prompt(
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    source_dry_run_plan: dict[str, object],
+    human_gate: str,
+) -> str:
+    capsule_json = json.dumps(capsule, indent=2, sort_keys=True)
+    source_plan_json = json.dumps(source_dry_run_plan, indent=2, sort_keys=True)
+    return (
+        "You are Codex running as runtime provider codex under the PAI-owned runtime runner. "
+        "PAI owns live PAI state access, policy, validation, final candidate selection, shadow application, "
+        "and run artifacts. You must reason only over the sanitized shadow commit context capsule and the "
+        "accepted S16C dry-run plan supplied below. Do not browse, list, cat, grep, inspect, or otherwise "
+        "traverse live PAI state, PAI Memory, ISA, Pulse, Claude product directories, Codex product directories, "
+        "Claude project memory, Codex memory, product memory, or arbitrary home files. "
+        "Do not write live Memory files, live ISA files, Pulse files, repo root AGENTS.md, repo .codex, "
+        "or ~/.codex files. Do not call localhost:31337 and do not probe Pulse. "
+        "Return only JSON matching the provided schema. "
+        f"Use milestone_name {S16D_STATE_SHADOW_COMMIT_MILESTONE!r}, run_id {S16D_STATE_SHADOW_COMMIT_ID!r}, "
+        "runtime 'codex', runtime_status 'peer-beta', provider_type 'codex-cli', task_id "
+        f"{S16D_STATE_SHADOW_COMMIT_TASK_ID!r}, task_kind 'single-proposal-shadow-commit-policy', "
+        f"adapter_identity_marker {MARKER!r}, upstream_adapter 'claude', agents_router_observed true, "
+        "source_dry_run_plan_run_id 's16c-commit-dry-run', source_dry_run_plan_used true, "
+        "context_capsule_used true, context_capsule_metadata_only true, human_gate_observed true, "
+        "shadow_apply_only true, single_candidate_policy_observed true, commit_authority_requested false, "
+        "commit_authority_granted false, commit_performed false, memory_write_performed false, "
+        "isa_write_performed false, pulse_probe_performed false, and localhost_31337_called false. "
+        f"The exact human gate supplied by PAI is {human_gate!r}; it must match {S16D_STATE_SHADOW_COMMIT_GATE!r}. "
+        "Confirm only the shadow-apply boundary. PAI will choose exactly one candidate by policy and will "
+        "materialize selected content only inside the run directory shadow tree. Do not imply that live state "
+        "was committed or that commit authority exists. "
+        "Do not include raw live state bodies, Pulse payloads, backups, credentials, absolute personal paths, "
+        "or product memory contents. "
+        f"Task card: {json.dumps(task_card, sort_keys=True)}\n"
+        f"Sanitized PAI shadow commit context capsule JSON:\n{capsule_json}\n"
+        f"Accepted S16C dry-run plan JSON supplied by PAI:\n{source_plan_json}\n"
+    )
+
+
+def build_state_shadow_commit_provider_command(
+    pai_dir: Path,
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    source_dry_run_plan: dict[str, object],
+    human_gate: str,
+    run_dir: Path,
+    review_path: Path,
+) -> list[str]:
+    schema_path = run_dir / "single-proposal-policy-review.schema.json"
+    prompt = _state_shadow_commit_prompt(task_card, capsule, source_dry_run_plan, human_gate)
+    return [
+        "codex",
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--skip-git-repo-check",
+        "--ephemeral",
+        "--json",
+        "--sandbox",
+        "read-only",
+        "--cd",
+        str(run_dir),
+        "--add-dir",
+        str(run_dir),
+        "--output-schema",
+        str(schema_path),
+        "-o",
+        str(review_path),
+        prompt,
+    ]
+
+
+def redact_state_shadow_commit_provider_command(command: list[str]) -> list[str]:
+    redacted = list(command)
+    if redacted:
+        redacted[-1] = "[sanitized-state-shadow-commit-prompt]"
+    return redacted
+
+
+def run_codex_state_shadow_commit_provider(
+    pai_dir: Path,
+    task_card: dict[str, object],
+    capsule: dict[str, object],
+    source_dry_run_plan: dict[str, object],
+    human_gate: str,
+    run_dir: Path,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    review_path = run_dir / SINGLE_PROPOSAL_POLICY_REVIEW_NAME
+    events_path = run_dir / SHADOW_COMMIT_EVENTS_NAME
+    command = build_state_shadow_commit_provider_command(
+        pai_dir,
+        task_card,
+        capsule,
+        source_dry_run_plan,
+        human_gate,
+        run_dir,
+        review_path,
+    )
+    if dry_run:
+        return {
+            "dry_run": True,
+            "provider_command": redact_state_shadow_commit_provider_command(command),
+            "run_dir": str(run_dir),
+            "review": str(review_path),
+            "events_output": str(events_path),
+        }
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with events_path.open("w", encoding="utf-8") as events_file:
+        completed = subprocess.run(
+            command,
+            cwd=run_dir,
+            stdin=subprocess.DEVNULL,
+            stdout=events_file,
+            stderr=subprocess.PIPE,
+            text=True,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+    if completed.returncode != 0:
+        raise CodexProviderError(f"Codex state shadow commit provider failed: {completed.stderr.strip()}")
+    try:
+        payload = json.loads(review_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CodexProviderError("Codex state shadow commit provider did not write valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise CodexProviderError("Codex state shadow commit provider response must be a JSON object")
+    payload["provider_command"] = redact_state_shadow_commit_provider_command(command)
     return payload
