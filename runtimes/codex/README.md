@@ -40,3 +40,41 @@ Current evidence:
 - S17A MVP session: `~/.claude/PAI/MEMORY/OBSERVABILITY/s17a-runtime-mvp-evidence.md`
 - S17B live ISA write: `~/.claude/PAI/MEMORY/OBSERVABILITY/s17b-live-write-evidence.md`
 - S17C full Algorithm run: `~/.claude/PAI/MEMORY/OBSERVABILITY/s17c-full-algorithm-evidence.md`
+
+## S17D native Codex skills and read-only agents
+
+S17D extends the BYOM-C runtime-native line with native Codex skills and
+read-only custom agents. It does not revive adapter delegation, task-runner
+ceremony, capsules, shadow commits, or human-gate adapter flows.
+
+S17D0 sealed the S17C baseline at:
+
+- commit: `45e00fbd9f351c0ad84d6991c7ac277c0e5cf26d`
+- tag: `v5-s17c-codex-runtime-mvp`
+- manifest: `~/.claude/PAI/MEMORY/OBSERVABILITY/s17d0-runtime-baseline-manifest.json`
+- regression evidence: `~/.claude/PAI/MEMORY/OBSERVABILITY/s17d0-regression-evidence.md`
+
+S17D1 installed user-level PAI skills under `~/.agents/skills`:
+
+- `pai-algorithm`
+- `pai-memory`
+- `pai-isa`
+- `pai-runtime-audit`
+
+S17D2 installed read-only custom Codex agents under `~/.codex/agents`:
+
+- `pai_explorer`
+- `pai_reviewer`
+- `pai_security_reviewer`
+
+The custom agents are review/exploration surfaces only. They do not write PAI
+Memory, do not mutate `~/.codex`, `~/.claude`, `~/.agents`, or the repository,
+and do not become delegated write authorities. Parent runtime hooks may still
+record normal observability/state activity around agent work.
+
+S17D evidence is recorded at:
+
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s17d-skills-evidence.md`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s17d-subagents-evidence.md`
+
+Replacement-grade status is still not claimed.
