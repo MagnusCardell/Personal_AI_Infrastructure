@@ -44,4 +44,4 @@ If sync is absent or fails, log the result honestly.
 
 ## Validation
 
-Use `scripts/validate-isa.sh <path-to-ISA.md>` for a basic structural check. It is not a substitute for task-specific verification.
+Use `scripts/validate-isa.sh <path-to-ISA.md>` for a basic structural check. It is not a substitute for verification tied to the actual task.

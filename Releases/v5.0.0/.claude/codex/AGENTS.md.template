@@ -69,6 +69,14 @@ For full Algorithm runs, include all seven phase headers and record verification
 - Resolve the active Algorithm from `${HOME}/.claude/PAI/ALGORITHM/LATEST`.
 - If `LATEST` contains a version such as `6.3.0`, read `ALGORITHM/v6.3.0.md`.
 - Use canonical task ISA paths: `${HOME}/.claude/PAI/MEMORY/WORK/{slug}/ISA.md`.
+- Minimum ISA shape matches the bundled validator:
+  - frontmatter delimiter `---`
+  - frontmatter fields: `task`, `slug`, `effort`, `phase`, `progress`, `mode`, `started`, `updated`
+  - `## Goal`
+  - `## Criteria`
+  - at least one criterion in `- [ ] ISC-N:` or `- [x] ISC-N:` form
+  - `## Verification` entries in `- ISC-N:` form before completed criteria are marked `[x]`
+- Validate basic ISA structure with `${HOME}/.agents/skills/pai-isa/scripts/validate-isa.sh <ISA.md>` when the skill is installed globally.
 - Mark ISA criteria complete only after verification evidence exists.
 - Do not write `MEMORY/LEARNING` unless completion is explicit or clearly evidenced.
 - Do not mutate `USER` files unless the user explicitly asks for that state change.
