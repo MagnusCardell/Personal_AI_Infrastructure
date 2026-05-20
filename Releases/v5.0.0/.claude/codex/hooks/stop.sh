@@ -51,9 +51,69 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
+learning_enabled() {
+  case "${PAI_CODEX_LEARNING_ENABLED:-0}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+run_stop_learning() {
+  learning_enabled || return 0
+  local helper="$HOOK_DIR/lib/learning.py"
+  local work_dir="$PAI_DIR/MEMORY/WORK"
+  [[ -f "$helper" && -d "$work_dir" ]] || return 0
+
+  while IFS= read -r -d '' isa_path; do
+    python3 "$helper" "$isa_path" >/dev/null || true
+  done < <(
+    python3 - "$work_dir" <<'PY' 2>/dev/null || true
+from __future__ import annotations
+
+from pathlib import Path
+import re
+import sys
+
+
+def parse_phase(path: Path) -> str:
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    if not lines:
+        return ""
+    if lines[0].strip() == "---":
+        scan = []
+        for line in lines[1:120]:
+            if line.strip() == "---":
+                break
+            scan.append(line)
+    else:
+        scan = []
+        for line in lines[:80]:
+            if line.lstrip().startswith("#"):
+                break
+            scan.append(line)
+    for line in scan:
+        match = re.match(r"^\s*phase\s*:\s*['\"]?([A-Za-z_-]+)['\"]?\s*$", line)
+        if match:
+            return match.group(1).strip().lower()
+    return ""
+
+
+work_dir = Path(sys.argv[1]).expanduser()
+for isa in sorted(work_dir.glob("**/ISA.md")):
+    if parse_phase(isa) in {"complete", "learn"}:
+        sys.stdout.buffer.write(str(isa).encode("utf-8") + b"\0")
+PY
+  )
+}
+
 TMP_INPUT="$(mktemp "${TMPDIR:-/tmp}/pai-codex-stop.XXXXXX")"
 trap 'command rm "$TMP_INPUT" 2>/dev/null || true' EXIT
 cat > "$TMP_INPUT"
+
+run_stop_learning || true
 
 python3 - "$TMP_INPUT" "$OBS_DIR/codex-stop.jsonl" <<'PY'
 from __future__ import annotations
