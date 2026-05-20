@@ -136,6 +136,7 @@ verify_tree() {
   require_file "$root/tests/acceptance-clean-home.sh"
   require_file "$root/tests/test-da-runtime-context.sh"
   require_file "$root/tests/test-algorithm-isa-runtime.sh"
+  require_file "$root/tests/test-pulse-runtime.sh"
 
   json_check "$root/hooks.json.template"
 
@@ -166,6 +167,7 @@ verify_installed() {
   require_file "$HOME/.claude/hooks/codex/lib/redact.py"
   require_file "$HOME/.claude/hooks/codex/lib/log_event.py"
   require_file "$HOME/.claude/hooks/codex/lib/pai_context.py"
+  require_file "$HOME/.claude/hooks/codex/lib/pulse_notify.py"
 
   json_check "$HOME/.codex/hooks.json"
   for script in "$HOME/.claude/hooks/codex"/*.sh; do
