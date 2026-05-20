@@ -120,5 +120,11 @@ S18A baseline evidence starts at:
 
 - `~/.claude/PAI/MEMORY/OBSERVABILITY/s18a0-baseline-check.md`
 
+For a sanitized path-only index of S17/S18 runtime evidence, run:
+
+```bash
+python3 tools/codex_runtime_evidence_index.py
+```
+
 This README does not claim replacement-grade status. The replacement-grade
 decision belongs to the S18A scorecard after the E1/E2/E3 trials are complete.
