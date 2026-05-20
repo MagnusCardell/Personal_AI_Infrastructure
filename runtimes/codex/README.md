@@ -144,3 +144,32 @@ S18A repo docs:
 S18A scorecard decision: **replacement-grade candidate**. This README does not
 declare final replacement-grade status. S18A did not add write-capable
 subagents, runtime backup behavior, or adapter delegation.
+
+## S18B default runtime cutover
+
+S18B converts the S18A replacement-grade candidate result into an explicit
+default-runtime decision.
+
+S18B decision path:
+
+- S18A boundary tag: `v5-s18a-codex-primary-runtime-trial`
+- S18B0 tag evidence:
+  `~/.claude/PAI/MEMORY/OBSERVABILITY/s18b0-tag-boundary.md`
+- S18B1 readiness evidence:
+  `~/.claude/PAI/MEMORY/OBSERVABILITY/s18b1-cutover-readiness.md`
+- S18B2 live project-state update:
+  `~/.claude/PAI/MEMORY/OBSERVABILITY/s18b2-live-project-state-update.md`
+- S18B3 cutover run:
+  `~/.claude/PAI/MEMORY/OBSERVABILITY/s18b3-default-runtime-cutover-run.md`
+- S18B4 decision:
+  `~/.claude/PAI/MEMORY/OBSERVABILITY/s18b-default-runtime-decision.md`
+
+S18B's target is **default PAI runtime with fallback available**, not sole
+runtime. S18B does not add write-capable subagents, does not add runtime backup
+behavior, and does not revive adapter delegation.
+
+S18B final decision: **APPROVED: Codex is now the default PAI runtime.**
+
+S18B repo doc:
+
+- `docs/architecture/V5-S18B-CODEX-DEFAULT-RUNTIME-CUTOVER.md`

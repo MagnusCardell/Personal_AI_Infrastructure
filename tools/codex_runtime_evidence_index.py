@@ -51,11 +51,21 @@ EVIDENCE_ITEMS = [
     EvidenceItem("S18A3", "E3 trial ISA", "MEMORY/WORK/20260520-083325_s18a3-runtime-readiness-report/ISA.md"),
     EvidenceItem("S18A3", "E3 trial learning", "MEMORY/LEARNING/ALGORITHM/2026-05/2026-05-20-083505_LEARNING_s18a-primary-runtime-trial.md"),
     EvidenceItem("S18A4", "Replacement-grade evaluation", "MEMORY/OBSERVABILITY/s18a-replacement-grade-evaluation.md"),
+    EvidenceItem("S18B0", "Tag boundary evidence", "MEMORY/OBSERVABILITY/s18b0-tag-boundary.md"),
+    EvidenceItem("S18B1", "Cutover readiness evidence", "MEMORY/OBSERVABILITY/s18b1-cutover-readiness.md"),
+    EvidenceItem("S18B2", "Live project-state update evidence", "MEMORY/OBSERVABILITY/s18b2-live-project-state-update.md"),
+    EvidenceItem("S18B2", "Live project-state update ISA", "MEMORY/WORK/20260520-115056_s18b2-live-project-state-update/ISA.md"),
+    EvidenceItem("S18B3", "Default-runtime cutover run evidence", "MEMORY/OBSERVABILITY/s18b3-default-runtime-cutover-run.md"),
+    EvidenceItem("S18B3", "Default-runtime cutover run ISA", "MEMORY/WORK/20260520-115236_s18b-default-runtime-cutover/ISA.md"),
+    EvidenceItem("S18B3", "Default-runtime cutover note", "MEMORY/WORK/20260520-115236_s18b-default-runtime-cutover/CUTOVER_DECISION_NOTE.md"),
+    EvidenceItem("S18B3", "Default-runtime cutover learning", "MEMORY/LEARNING/ALGORITHM/2026-05/2026-05-20-115356_LEARNING_s18b-default-runtime-cutover.md"),
+    EvidenceItem("S18B4", "Default-runtime decision", "MEMORY/OBSERVABILITY/s18b-default-runtime-decision.md"),
     EvidenceItem("S17", "Runtime architecture doc", "docs/architecture/V5-S17-CODEX-AS-PAI-RUNTIME.md", "repo"),
     EvidenceItem("S17D", "Skills and agents architecture doc", "docs/architecture/V5-S17D-CODEX-NATIVE-SKILLS-AND-SUBAGENTS.md", "repo"),
     EvidenceItem("S17E", "Hardening architecture doc", "docs/architecture/V5-S17E-CODEX-RUNTIME-HARDENING.md", "repo"),
     EvidenceItem("S18A3", "Operational readiness report", "docs/architecture/V5-S18A-CODEX-RUNTIME-READINESS-REPORT.md", "repo"),
     EvidenceItem("S18A", "Primary runtime trial architecture doc", "docs/architecture/V5-S18A-CODEX-PRIMARY-RUNTIME-TRIAL.md", "repo"),
+    EvidenceItem("S18B", "Default runtime cutover architecture doc", "docs/architecture/V5-S18B-CODEX-DEFAULT-RUNTIME-CUTOVER.md", "repo"),
 ]
 
 
