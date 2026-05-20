@@ -12,15 +12,17 @@ SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
 SCOPE="pai-local"
 DRY_RUN=0
 FORCE_REPLACE=0
+GENERATE_AGENTS=0
 
 usage() {
   cat <<'EOF'
-usage: install-codex.sh [--global|--pai-local] [--dry-run] [--force-replace]
+usage: install-codex.sh [--global|--pai-local] [--dry-run] [--force-replace] [--generate-agents]
 
-  --pai-local      stage PAI-local Codex files only (default)
-  --global         activate Codex-facing ~/.codex and ~/.agents files
-  --dry-run        print intended changes without writing
-  --force-replace  explicitly replace managed global Codex files instead of merging
+  --pai-local        stage PAI-local Codex files only (default)
+  --global           activate Codex-facing ~/.codex and ~/.agents files
+  --dry-run          print intended changes without writing
+  --force-replace    explicitly replace managed global Codex files instead of merging
+  --generate-agents  regenerate ~/.codex/AGENTS.md from live PAI state; requires --global
 EOF
 }
 
@@ -30,6 +32,7 @@ while [[ $# -gt 0 ]]; do
     --pai-local) SCOPE="pai-local" ;;
     --dry-run) DRY_RUN=1 ;;
     --force-replace) FORCE_REPLACE=1 ;;
+    --generate-agents) GENERATE_AGENTS=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage; exit 2 ;;
   esac
@@ -112,7 +115,7 @@ install_tree() {
     local rel="${src#$src_dir/}"
     local mode="$default_mode"
     case "$src" in
-      *.sh) mode="0755" ;;
+      *.sh|*.ts) mode="0755" ;;
     esac
     install_file "$src" "$dest_dir/$rel" "$mode"
   done < <(find "$src_dir" -type f ! -path '*/__pycache__/*' ! -name '*.pyc' | sort)
@@ -249,6 +252,27 @@ merge_agents() {
   write_agents "$dest" "$template"
   say "AGENTS.md: $action at $dest"
   changed "$dest"
+}
+
+agents_has_generated_block() {
+  local dest="$1"
+  [[ -f "$dest" ]] || return 1
+  python3 - "$dest" "$AGENTS_BEGIN" "$AGENTS_END" <<'PY'
+from __future__ import annotations
+
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+begin = sys.argv[2]
+end = sys.argv[3]
+text = path.read_text(encoding="utf-8", errors="replace")
+match = re.search(re.escape(begin) + r"(?P<body>.*?)" + re.escape(end), text, re.S)
+if match and "## Managed Runtime Summary" in match.group("body"):
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
 }
 
 hooks_action() {
@@ -404,6 +428,25 @@ merge_hooks_json() {
   backup_if_needed "$dest"
   write_hooks_json "$dest" "$template"
   say "hooks.json: $action at $dest"
+  changed "$dest"
+}
+
+run_agents_generator() {
+  local generator="$SCRIPT_DIR/tools/GenerateAgentsMd.ts"
+  local dest="$CODEX_HOME/AGENTS.md"
+  [[ -f "$generator" ]] || { echo "missing AGENTS generator: $generator" >&2; exit 1; }
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "bun is required for --generate-agents" >&2
+    exit 1
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    say "AGENTS.md: dry-run generator for $dest"
+    bun "$generator" --dry-run --output "$dest" --pai-dir "$PAI_DIR"
+    changed "$dest"
+    return 0
+  fi
+  backup_if_needed "$dest"
+  bun "$generator" --output "$dest" --pai-dir "$PAI_DIR"
   changed "$dest"
 }
 
@@ -581,6 +624,11 @@ configure_codex_config() {
 
 require_python3
 
+if [[ "$GENERATE_AGENTS" -eq 1 && "$SCOPE" != "global" ]]; then
+  echo "--generate-agents requires --global" >&2
+  exit 2
+fi
+
 if [[ ! -d "$PAI_DIR" ]]; then
   say "PAI engine not found at $PAI_DIR"
   say "Install PAI before enabling Codex support."
@@ -605,9 +653,16 @@ install_file "$SCRIPT_DIR/config.example.toml" "$LOCAL_DEST/config.example.toml"
 install_file "$SCRIPT_DIR/install-codex.sh" "$LOCAL_DEST/install-codex.sh" "0755"
 install_file "$SCRIPT_DIR/uninstall-codex.sh" "$LOCAL_DEST/uninstall-codex.sh" "0755"
 install_file "$SCRIPT_DIR/verify-codex.sh" "$LOCAL_DEST/verify-codex.sh" "0755"
+install_tree "$SCRIPT_DIR/tools" "$LOCAL_DEST/tools" "0644"
 
 if [[ "$SCOPE" == "global" ]]; then
-  merge_agents "$CODEX_HOME/AGENTS.md" "$SCRIPT_DIR/AGENTS.md.template"
+  if [[ "$GENERATE_AGENTS" -eq 1 ]]; then
+    run_agents_generator
+  elif [[ "$FORCE_REPLACE" -eq 0 ]] && agents_has_generated_block "$CODEX_HOME/AGENTS.md"; then
+    say "AGENTS.md: preserved generated managed block at $CODEX_HOME/AGENTS.md; use --generate-agents to refresh or --force-replace to install the static template"
+  else
+    merge_agents "$CODEX_HOME/AGENTS.md" "$SCRIPT_DIR/AGENTS.md.template"
+  fi
   merge_hooks_json "$CODEX_HOME/hooks.json" "$SCRIPT_DIR/hooks.json.template"
   configure_codex_config
   install_tree "$SCRIPT_DIR/skills" "$HOME/.agents/skills" "0644"
@@ -646,3 +701,4 @@ else
 fi
 
 say "verify with: $LOCAL_DEST/verify-codex.sh --installed"
+say "AGENTS regeneration preview: bun $LOCAL_DEST/tools/GenerateAgentsMd.ts --dry-run"

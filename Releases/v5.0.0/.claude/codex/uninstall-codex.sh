@@ -280,7 +280,7 @@ for name in session-start prompt-processing pre-tool-use post-tool-use permissio
   remove_file "$HOME/.claude/hooks/codex/$name.sh"
 done
 remove_pulse_env
-for name in redact log_event pai_context pulse_notify; do
+for name in redact log_event pai_context pulse_notify learning; do
   remove_file "$HOME/.claude/hooks/codex/lib/$name.py"
 done
 remove_dir_if_empty "$HOME/.claude/hooks/codex/lib"
@@ -301,6 +301,7 @@ remove_file "$HOME/.codex/pai-config.example.toml"
 
 remove_tree_files "$HOME/.claude/codex/skills"
 remove_tree_files "$HOME/.claude/codex/agents"
+remove_tree_files "$HOME/.claude/codex/tools"
 for file in README.md AGENTS.md.template hooks.json.template config.example.toml install-codex.sh uninstall-codex.sh verify-codex.sh install-state/last-install.txt; do
   remove_file "$HOME/.claude/codex/$file"
 done
