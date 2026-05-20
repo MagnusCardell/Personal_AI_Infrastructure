@@ -48,10 +48,13 @@ EVIDENCE_ITEMS = [
     EvidenceItem("S18A2", "E2 trial evidence", "MEMORY/OBSERVABILITY/s18a2-e2-trial.md"),
     EvidenceItem("S18A2", "E2 trial ISA", "MEMORY/WORK/20260520-082915_s18a2-codex-evidence-index/ISA.md"),
     EvidenceItem("S18A3", "E3 trial evidence", "MEMORY/OBSERVABILITY/s18a3-e3-trial.md"),
+    EvidenceItem("S18A3", "E3 trial ISA", "MEMORY/WORK/20260520-083325_s18a3-runtime-readiness-report/ISA.md"),
+    EvidenceItem("S18A3", "E3 trial learning", "MEMORY/LEARNING/ALGORITHM/2026-05/2026-05-20-083505_LEARNING_s18a-primary-runtime-trial.md"),
     EvidenceItem("S18A4", "Replacement-grade evaluation", "MEMORY/OBSERVABILITY/s18a-replacement-grade-evaluation.md"),
     EvidenceItem("S17", "Runtime architecture doc", "docs/architecture/V5-S17-CODEX-AS-PAI-RUNTIME.md", "repo"),
     EvidenceItem("S17D", "Skills and agents architecture doc", "docs/architecture/V5-S17D-CODEX-NATIVE-SKILLS-AND-SUBAGENTS.md", "repo"),
     EvidenceItem("S17E", "Hardening architecture doc", "docs/architecture/V5-S17E-CODEX-RUNTIME-HARDENING.md", "repo"),
+    EvidenceItem("S18A3", "Operational readiness report", "docs/architecture/V5-S18A-CODEX-RUNTIME-READINESS-REPORT.md", "repo"),
     EvidenceItem("S18A", "Primary runtime trial architecture doc", "docs/architecture/V5-S18A-CODEX-PRIMARY-RUNTIME-TRIAL.md", "repo"),
 ]
 
