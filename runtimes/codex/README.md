@@ -78,3 +78,34 @@ S17D evidence is recorded at:
 - `~/.claude/PAI/MEMORY/OBSERVABILITY/s17d-subagents-evidence.md`
 
 Replacement-grade status is still not claimed.
+
+## S17E privacy and containment hardening
+
+S17E hardens the BYOM-C runtime-native line before any write-capable subagent
+surface is considered. It does not add write-capable custom agents, does not
+expand agent fan-out, does not revive adapter delegation, and does not introduce
+runtime backup behavior.
+
+S17E changes the live runtime posture:
+
+- prompt classification is deterministic and local by default;
+- raw prompts are not forwarded to nested classifier/model inference by default;
+- hook logs use shared redaction and structured safe facts instead of raw prompt
+  or command previews;
+- persisted writable roots are narrowed from `/home/maca/.claude` to
+  `/home/maca/.claude/PAI` plus this repo;
+- S17D read-only custom agents have negative write-test evidence;
+- current hook coverage is explicitly mapped without overclaiming MCP,
+  WebSearch, or internal developer-tool surfaces.
+
+S17E evidence is recorded at:
+
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s17e0-runtime-baseline-manifest.json`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s17e0-regression-evidence.md`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s17e1-prompt-privacy-evidence.md`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s17e2-redaction-evidence.md`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s17e3-writable-root-evidence.md`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s17e4-readonly-agent-enforcement.md`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s17e5-hook-coverage-matrix.md`
+
+Replacement-grade status is still not claimed after S17E.
