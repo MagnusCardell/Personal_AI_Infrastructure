@@ -55,6 +55,7 @@ PAI-local staging may write:
 - `~/.claude/codex/*`
 - `~/.claude/hooks/codex/*.sh`
 - `~/.claude/hooks/codex/lib/*.py`
+- `~/.claude/hooks/codex/pulse.env`
 
 Global activation may also write:
 
@@ -67,7 +68,7 @@ Global activation may also write:
 
 Existing `AGENTS.md` receives a managed PAI block. Existing `hooks.json` keeps non-PAI hook groups and receives PAI hook groups. Existing `config.toml` keeps user writable roots and adds required PAI roots if missing.
 
-Before overwriting user files, the installer creates installer-local backups under `~/.claude/codex/backups`. These are install-time backups only. The runtime does not create backups, retention jobs, or hidden maintenance.
+Before overwriting user files, the installer creates installer-local backups under `~/.claude/codex/backups`. These are install-time backups only. The runtime does not create backups, retention jobs, or hidden maintenance. Existing local `pulse.env` files are preserved unless `--force-replace` is used.
 
 ## Install
 
@@ -145,6 +146,8 @@ Environment variables:
 - `PAI_CODEX_PULSE_ENABLED=1` enables notifications.
 - `PAI_CODEX_PULSE_URL=http://localhost:31337` sets the Pulse base URL. If unset while enabled, the default is `http://localhost:31337`.
 
+Persistent local enablement can be configured in `~/.claude/hooks/codex/pulse.env`. The packaged default keeps Pulse disabled.
+
 Example:
 
 ```bash
@@ -173,6 +176,8 @@ Environment variables:
 - `PAI_CODEX_VOICE_ID=<id>` adds a voice identifier when explicitly set.
 - `PAI_CODEX_VOICE_MESSAGE_TURN_COMPLETE=<message>` overrides the turn-complete speech message.
 - `PAI_CODEX_VOICE_MESSAGE_ISA_UPDATED=<message>` overrides the ISA-updated speech message.
+
+Persistent local voice settings can be configured in `~/.claude/hooks/codex/pulse.env`. The packaged default keeps voice disabled and does not include a voice identifier.
 
 Example:
 
@@ -225,6 +230,12 @@ Restore a backup:
 ```
 
 Uninstall removes only managed PAI blocks, PAI hook groups, managed hook files, PAI skills, and read-only PAI agents. It does not remove unrelated Codex configuration.
+
+If `pulse.env` still matches the packaged disabled defaults, uninstall removes it. If it appears locally modified, uninstall preserves it and prints a notice.
+
+## Optional Diagnostic Probe
+
+The package includes `~/.claude/hooks/codex/probe.sh` as a passive diagnostic hook for hook-event troubleshooting. It is not enabled by default in `hooks.json.template`. If you enable it manually, it writes redacted event summaries to `~/.claude/PAI/MEMORY/OBSERVABILITY/codex-runtime-probe.jsonl` and avoids raw prompt or command logging.
 
 ## What Is Not Included Yet
 

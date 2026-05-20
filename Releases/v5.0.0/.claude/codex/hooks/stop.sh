@@ -7,6 +7,45 @@ OBS_DIR="$PAI_DIR/MEMORY/OBSERVABILITY"
 mkdir -p "$OBS_DIR"
 export PYTHONPATH="$HOOK_DIR/lib${PYTHONPATH:+:$PYTHONPATH}"
 
+PAI_CODEX_ENV="$HOOK_DIR/pulse.env"
+if [[ -f "$PAI_CODEX_ENV" ]]; then
+  PAI_CODEX_ENV_VARS=(
+    PAI_CODEX_PULSE_ENABLED
+    PAI_CODEX_PULSE_URL
+    PAI_CODEX_VOICE_ENABLED
+    PAI_CODEX_VOICE_ID
+    PAI_CODEX_VOICE_EVENTS
+    PAI_CODEX_VOICE_MESSAGE_TURN_COMPLETE
+    PAI_CODEX_VOICE_MESSAGE_ISA_UPDATED
+    PAI_CODEX_LEARNING_ENABLED
+    PAI_CODEX_CHECKPOINT_ENABLED
+  )
+  for name in "${PAI_CODEX_ENV_VARS[@]}"; do
+    had_name="__PAI_CODEX_HAD_${name}"
+    saved_name="__PAI_CODEX_SAVED_${name}"
+    if [[ ${!name+x} ]]; then
+      printf -v "$had_name" '%s' "1"
+      printf -v "$saved_name" '%s' "${!name}"
+    else
+      printf -v "$had_name" '%s' "0"
+    fi
+  done
+  set -a
+  # shellcheck source=/dev/null
+  . "$PAI_CODEX_ENV"
+  set +a
+  for name in "${PAI_CODEX_ENV_VARS[@]}"; do
+    had_name="__PAI_CODEX_HAD_${name}"
+    saved_name="__PAI_CODEX_SAVED_${name}"
+    if [[ ${!had_name} == "1" ]]; then
+      printf -v "$name" '%s' "${!saved_name}"
+      export "$name"
+    fi
+    unset "$had_name" "$saved_name"
+  done
+  unset PAI_CODEX_ENV_VARS name had_name saved_name
+fi
+
 if ! command -v python3 >/dev/null 2>&1; then
   printf '%s\n' '{}'
   exit 0
