@@ -11,7 +11,16 @@ SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
 
 MODE="package"
 SCAN_TMP="$(mktemp "${TMPDIR:-/tmp}/pai-codex-verify.XXXXXX")"
-trap 'rm -f "$SCAN_TMP"' EXIT
+VERIFY_TMP_DIR=""
+
+cleanup() {
+  rm -f "$SCAN_TMP"
+  if [[ -n "$VERIFY_TMP_DIR" && -d "$VERIFY_TMP_DIR" ]]; then
+    find "$VERIFY_TMP_DIR" -depth -type f -delete 2>/dev/null || true
+    find "$VERIFY_TMP_DIR" -depth -type d -empty -delete 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
 
 usage() {
   cat <<'EOF'
@@ -93,6 +102,7 @@ scan_private_refs() {
     "Mag""nus"
     "Lov""able"
     "P""wC"
+    "JBFqn""CBsd6RMkjVDRZzb"
     "S""17"
     "S""18"
     "S""19"
@@ -185,6 +195,36 @@ check_pulse_env_sourcing() {
   require_contains "$path" '\. "\$PAI_CODEX_ENV"' "$path sources pulse env file"
 }
 
+check_learning_integration() {
+  local root="$1"
+  require_file "$root/hooks/lib/learning.py"
+  require_contains "$root/hooks/stop.sh" 'learning\.py' "Stop references learning helper"
+  require_contains "$root/hooks/stop.sh" 'PAI_CODEX_LEARNING_ENABLED' "Stop gates learning on PAI_CODEX_LEARNING_ENABLED"
+  require_contains "$root/hooks/stop.sh" 'MEMORY/WORK' "Stop scans MEMORY/WORK for ISA files"
+}
+
+check_agents_generator() {
+  local root="$1"
+  require_file "$root/tools/GenerateAgentsMd.ts"
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "skip: bun not installed; AGENTS generator dry-run not executed"
+    return 0
+  fi
+
+  VERIFY_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pai-codex-agents-verify.XXXXXX")"
+  mkdir -p "$VERIFY_TMP_DIR/.claude/PAI/USER" "$VERIFY_TMP_DIR/.claude/PAI/ALGORITHM" "$VERIFY_TMP_DIR/.codex"
+  printf '# Principal\nTest Principal\n' > "$VERIFY_TMP_DIR/.claude/PAI/USER/PRINCIPAL_IDENTITY.md"
+  printf '# Runtime Assistant\nTest Assistant\n' > "$VERIFY_TMP_DIR/.claude/PAI/USER/DA_IDENTITY.md"
+  printf 'test-algorithm.md\n' > "$VERIFY_TMP_DIR/.claude/PAI/ALGORITHM/LATEST"
+  printf '# Algorithm\nTest Algorithm\n' > "$VERIFY_TMP_DIR/.claude/PAI/ALGORITHM/test-algorithm.md"
+  HOME="$VERIFY_TMP_DIR" bun "$root/tools/GenerateAgentsMd.ts" \
+    --dry-run \
+    --pai-dir "$VERIFY_TMP_DIR/.claude/PAI" \
+    --output "$VERIFY_TMP_DIR/.codex/AGENTS.md" >/dev/null \
+    && ok "AGENTS generator dry-run" \
+    || fail "AGENTS generator dry-run"
+}
+
 verify_tree() {
   local root="$1"
   require_file "$root/README.md"
@@ -200,12 +240,16 @@ verify_tree() {
   require_file "$root/tests/test-algorithm-isa-runtime.sh"
   require_file "$root/tests/test-pulse-runtime.sh"
   require_file "$root/tests/test-voice-runtime.sh"
+  require_file "$root/tests/test-learning-runtime.sh"
+  require_file "$root/tests/test-generate-agents.sh"
   require_file "$root/tests/run-all.sh"
   require_file "$root/RELEASE_CHECKLIST.md"
   require_file "$root/hooks/probe.sh"
   check_pulse_env_defaults "$root/hooks/pulse.env"
   check_pulse_env_sourcing "$root/hooks/post-tool-use.sh"
   check_pulse_env_sourcing "$root/hooks/stop.sh"
+  check_learning_integration "$root"
+  check_agents_generator "$root"
 
   json_check "$root/hooks.json.template"
 
@@ -240,8 +284,13 @@ verify_installed() {
   require_file "$HOME/.claude/hooks/codex/lib/log_event.py"
   require_file "$HOME/.claude/hooks/codex/lib/pai_context.py"
   require_file "$HOME/.claude/hooks/codex/lib/pulse_notify.py"
+  require_file "$HOME/.claude/hooks/codex/lib/learning.py"
+  require_file "$HOME/.claude/codex/tools/GenerateAgentsMd.ts"
   check_pulse_env_sourcing "$HOME/.claude/hooks/codex/post-tool-use.sh"
   check_pulse_env_sourcing "$HOME/.claude/hooks/codex/stop.sh"
+  require_contains "$HOME/.claude/hooks/codex/stop.sh" 'learning\.py' "installed Stop references learning helper"
+  require_contains "$HOME/.claude/hooks/codex/stop.sh" 'PAI_CODEX_LEARNING_ENABLED' "installed Stop gates learning"
+  require_contains "$HOME/.claude/hooks/codex/stop.sh" 'MEMORY/WORK' "installed Stop scans MEMORY/WORK"
 
   json_check "$HOME/.codex/hooks.json"
   for script in "$HOME/.claude/hooks/codex"/*.sh; do

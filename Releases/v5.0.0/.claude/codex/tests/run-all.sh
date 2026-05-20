@@ -18,6 +18,8 @@ TESTS=(
   "$SCRIPT_DIR/test-algorithm-isa-runtime.sh"
   "$SCRIPT_DIR/test-pulse-runtime.sh"
   "$SCRIPT_DIR/test-voice-runtime.sh"
+  "$SCRIPT_DIR/test-learning-runtime.sh"
+  "$SCRIPT_DIR/test-generate-agents.sh"
 )
 
 PASS_COUNT=0

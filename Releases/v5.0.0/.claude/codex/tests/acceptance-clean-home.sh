@@ -71,7 +71,9 @@ EOF
 
 HOME="$TMP_HOME" "$PKG_DIR/install-codex.sh" >/dev/null
 test -f "$TMP_HOME/.claude/codex/AGENTS.md.template"
+test -f "$TMP_HOME/.claude/codex/tools/GenerateAgentsMd.ts"
 test -f "$TMP_HOME/.claude/hooks/codex/session-start.sh"
+test -f "$TMP_HOME/.claude/hooks/codex/lib/learning.py"
 
 HOME="$TMP_HOME" "$PKG_DIR/install-codex.sh" --global >/dev/null
 
@@ -100,6 +102,7 @@ test -f "$TMP_HOME/.claude/hooks/codex/pulse.env"
 rg -q '^export PAI_CODEX_PULSE_ENABLED=0$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
 rg -q '^export PAI_CODEX_VOICE_ENABLED=0$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
 rg -q '^export PAI_CODEX_VOICE_ID=$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
+rg -q '^export PAI_CODEX_LEARNING_ENABLED=0$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
 HOME="$TMP_HOME" "$TMP_HOME/.agents/skills/pai-runtime-audit/scripts/runtime-audit.sh" >/dev/null
 
 sha_before="$(sha256sum "$TMP_HOME/.codex/AGENTS.md" "$TMP_HOME/.codex/hooks.json" "$TMP_HOME/.codex/config.toml")"
@@ -125,6 +128,7 @@ rg -q '"/tmp/user-root"' "$TMP_HOME/.codex/config.toml"
 
 test ! -e "$TMP_HOME/.agents/skills/pai-algorithm/SKILL.md"
 test ! -e "$TMP_HOME/.codex/agents/pai_explorer.toml"
+test ! -e "$TMP_HOME/.claude/codex/tools/GenerateAgentsMd.ts"
 test ! -e "$TMP_HOME/.claude/hooks/codex/session-start.sh"
 test -f "$TMP_HOME/.claude/hooks/codex/pulse.env"
 
