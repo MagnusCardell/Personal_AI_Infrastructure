@@ -13,6 +13,23 @@ With it enabled, Codex can:
 - use Codex hook semantics correctly
 - use optional PAI skills and read-only custom agents
 
+## DA/Runtime Parity
+
+Session start loads bounded runtime context from live PAI files so Codex can answer identity and status questions in PAI-native form. The context includes principal identity, DA identity, Telos, active projects, the active Algorithm pointer, and any missing-file notes.
+
+## Runtime Context Files
+
+The runtime context helper reads:
+
+- `~/.claude/PAI/USER/PRINCIPAL_IDENTITY.md`
+- `~/.claude/PAI/USER/DA_IDENTITY.md`
+- `~/.claude/PAI/USER/PROJECTS/PROJECTS.md`
+- `~/.claude/PAI/USER/TELOS/PRINCIPAL_TELOS.md`
+- `~/.claude/PAI/ALGORITHM/LATEST`
+- `~/.claude/PAI/MEMORY/WORK`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY`
+- `~/.claude/PAI/MEMORY/LEARNING`
+
 ## Install Modes
 
 Default mode is PAI-local staging:
@@ -100,6 +117,15 @@ Installed verification:
 
 The verifier checks JSON syntax, shell syntax, Python syntax, executable bits, read-only agent policy, and common private or secret-like references.
 
+Runtime parity tests in the release package:
+
+```bash
+~/.claude/codex/tests/test-da-runtime-context.sh
+~/.claude/codex/tests/test-algorithm-isa-runtime.sh
+```
+
+These tests use a temporary HOME and do not require a real Codex CLI.
+
 ## Uninstall And Restore
 
 Preview uninstall:
@@ -134,6 +160,13 @@ Restore a backup:
 
 Uninstall removes only managed PAI blocks, PAI hook groups, managed hook files, PAI skills, and read-only PAI agents. It does not remove unrelated Codex configuration.
 
+## What Is Not Included Yet
+
+- Pulse full parity.
+- Voice full parity.
+- Write-capable custom agents.
+- Private user state.
+
 ## Known Limitations
 
 - Hooks are guardrails, not a complete security boundary. Codex sandboxing and approval policy remain authoritative.
@@ -141,3 +174,4 @@ Uninstall removes only managed PAI blocks, PAI hook groups, managed hook files, 
 - ISA sync runs only when a supported PAI sync hook or tool is present.
 - Pulse/voice support is optional and not full parity yet.
 - Custom agents installed by this package are read-only. Parent Codex remains responsible for writes.
+- Private user state is not included in this package.
