@@ -82,6 +82,41 @@ remove_tree_files() {
   done < <(find "$path" -depth -type d ! -path '*/backups*' | sort -r)
 }
 
+remove_pulse_env() {
+  local path="$HOME/.claude/hooks/codex/pulse.env"
+  [[ -f "$path" ]] || return 0
+  python3 - "$path" "$DRY_RUN" <<'PY'
+from __future__ import annotations
+
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+dry = sys.argv[2] == "1"
+expected = {
+    "export PAI_CODEX_PULSE_ENABLED=0",
+    "export PAI_CODEX_VOICE_ENABLED=0",
+    "export PAI_CODEX_VOICE_ID=",
+    "export PAI_CODEX_VOICE_EVENTS=turn_complete,algorithm_isa_updated",
+    "export PAI_CODEX_LEARNING_ENABLED=0",
+    "export PAI_CODEX_CHECKPOINT_ENABLED=0",
+}
+lines = [
+    line.strip()
+    for line in path.read_text(encoding="utf-8").splitlines()
+    if line.strip() and not line.lstrip().startswith("#")
+]
+if set(lines) == expected and len(lines) == len(expected):
+    if dry:
+        print(f"would remove managed pulse.env: {path}")
+    else:
+        path.unlink()
+        print(f"removed managed pulse.env: {path}")
+else:
+    print(f"preserved local pulse.env: {path}")
+PY
+}
+
 remove_agents_block() {
   local path="$1"
   [[ -f "$path" ]] || return 0
@@ -241,10 +276,11 @@ esac
 
 require_python3
 
-for name in session-start prompt-processing pre-tool-use post-tool-use permission-request stop; do
+for name in session-start prompt-processing pre-tool-use post-tool-use permission-request stop probe; do
   remove_file "$HOME/.claude/hooks/codex/$name.sh"
 done
-for name in redact log_event; do
+remove_pulse_env
+for name in redact log_event pai_context pulse_notify; do
   remove_file "$HOME/.claude/hooks/codex/lib/$name.py"
 done
 remove_dir_if_empty "$HOME/.claude/hooks/codex/lib"

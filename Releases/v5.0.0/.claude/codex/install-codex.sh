@@ -118,6 +118,46 @@ install_tree() {
   done < <(find "$src_dir" -type f ! -path '*/__pycache__/*' ! -name '*.pyc' | sort)
 }
 
+install_pulse_env() {
+  local src="$SCRIPT_DIR/hooks/pulse.env"
+  local dest="$HOOK_DEST/pulse.env"
+  [[ -f "$src" ]] || return 0
+
+  if [[ ! -e "$dest" ]]; then
+    install_file "$src" "$dest" "0644"
+    return 0
+  fi
+
+  if cmp -s "$src" "$dest"; then
+    say "pulse.env: unchanged $dest"
+    return 0
+  fi
+
+  if [[ "$FORCE_REPLACE" -eq 1 ]]; then
+    install_file "$src" "$dest" "0644"
+    say "pulse.env: force-replaced $dest"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    say "pulse.env: would preserve existing local file at $dest"
+  else
+    say "pulse.env: preserved existing local file at $dest; use --force-replace to install package defaults"
+  fi
+}
+
+install_hooks() {
+  while IFS= read -r src; do
+    local rel="${src#$SCRIPT_DIR/hooks/}"
+    local mode="0644"
+    case "$src" in
+      *.sh) mode="0755" ;;
+    esac
+    install_file "$src" "$HOOK_DEST/$rel" "$mode"
+  done < <(find "$SCRIPT_DIR/hooks" -type f ! -path '*/__pycache__/*' ! -name '*.pyc' ! -name 'pulse.env' | sort)
+  install_pulse_env
+}
+
 agents_action() {
   local dest="$1"
   local template="$2"
@@ -557,7 +597,7 @@ say "install scope: $SCOPE"
 say "source: $SCRIPT_DIR"
 say "force replace: $FORCE_REPLACE"
 
-install_tree "$SCRIPT_DIR/hooks" "$HOOK_DEST" "0644"
+install_hooks
 install_file "$SCRIPT_DIR/README.md" "$LOCAL_DEST/README.md" "0644"
 install_file "$SCRIPT_DIR/AGENTS.md.template" "$LOCAL_DEST/AGENTS.md.template" "0644"
 install_file "$SCRIPT_DIR/hooks.json.template" "$LOCAL_DEST/hooks.json.template" "0644"

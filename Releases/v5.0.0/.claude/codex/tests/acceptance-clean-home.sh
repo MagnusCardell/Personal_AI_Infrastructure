@@ -93,9 +93,13 @@ for agent in pai_explorer pai_reviewer pai_security_reviewer; do
   test -f "$TMP_HOME/.codex/agents/$agent.toml"
   rg -q 'sandbox_mode = "read-only"' "$TMP_HOME/.codex/agents/$agent.toml"
 done
-for hook in session-start prompt-processing pre-tool-use post-tool-use permission-request stop; do
+for hook in session-start prompt-processing pre-tool-use post-tool-use permission-request stop probe; do
   test -x "$TMP_HOME/.claude/hooks/codex/$hook.sh"
 done
+test -f "$TMP_HOME/.claude/hooks/codex/pulse.env"
+rg -q '^export PAI_CODEX_PULSE_ENABLED=0$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
+rg -q '^export PAI_CODEX_VOICE_ENABLED=0$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
+rg -q '^export PAI_CODEX_VOICE_ID=$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
 HOME="$TMP_HOME" "$TMP_HOME/.agents/skills/pai-runtime-audit/scripts/runtime-audit.sh" >/dev/null
 
 sha_before="$(sha256sum "$TMP_HOME/.codex/AGENTS.md" "$TMP_HOME/.codex/hooks.json" "$TMP_HOME/.codex/config.toml")"
@@ -105,6 +109,10 @@ sha_after="$(sha256sum "$TMP_HOME/.codex/AGENTS.md" "$TMP_HOME/.codex/hooks.json
 backup_count_after="$(find "$TMP_HOME/.claude/codex/backups" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
 [[ "$sha_before" == "$sha_after" ]] || { echo "global reinstall changed merged files" >&2; exit 1; }
 [[ "$backup_count_before" == "$backup_count_after" ]] || { echo "idempotent reinstall created backups" >&2; exit 1; }
+
+printf '\nexport PAI_CODEX_PULSE_URL=http://localhost:31337\n' >> "$TMP_HOME/.claude/hooks/codex/pulse.env"
+HOME="$TMP_HOME" "$PKG_DIR/install-codex.sh" --global >/dev/null
+rg -q '^export PAI_CODEX_PULSE_URL=http://localhost:31337$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
 
 HOME="$TMP_HOME" "$PKG_DIR/uninstall-codex.sh" --dry-run >/dev/null
 HOME="$TMP_HOME" "$PKG_DIR/uninstall-codex.sh" >/dev/null
@@ -118,6 +126,7 @@ rg -q '"/tmp/user-root"' "$TMP_HOME/.codex/config.toml"
 test ! -e "$TMP_HOME/.agents/skills/pai-algorithm/SKILL.md"
 test ! -e "$TMP_HOME/.codex/agents/pai_explorer.toml"
 test ! -e "$TMP_HOME/.claude/hooks/codex/session-start.sh"
+test -f "$TMP_HOME/.claude/hooks/codex/pulse.env"
 
 HOME="$TMP_HOME" "$PKG_DIR/uninstall-codex.sh" --list-backups >/dev/null
 HOME="$TMP_HOME" "$PKG_DIR/uninstall-codex.sh" --restore-latest --dry-run >/dev/null

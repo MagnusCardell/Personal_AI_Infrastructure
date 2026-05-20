@@ -53,6 +53,17 @@ require_exec() {
   [[ -x "$path" ]] && ok "executable $path" || fail "not executable $path"
 }
 
+require_contains() {
+  local path="$1"
+  local pattern="$2"
+  local label="$3"
+  if rg -q "$pattern" "$path"; then
+    ok "$label"
+  else
+    fail "$label"
+  fi
+}
+
 json_check() {
   local path="$1"
   python3 -m json.tool "$path" >/dev/null && ok "json $path" || fail "invalid json $path"
@@ -153,6 +164,27 @@ scan_provider_call_refs() {
   done
 }
 
+check_pulse_env_defaults() {
+  local path="$1"
+  require_file "$path"
+  require_contains "$path" '^export PAI_CODEX_PULSE_ENABLED=0$' "Pulse disabled by default"
+  require_contains "$path" '^export PAI_CODEX_VOICE_ENABLED=0$' "voice disabled by default"
+  require_contains "$path" '^export PAI_CODEX_VOICE_ID=$' "voice id empty by default"
+  require_contains "$path" '^export PAI_CODEX_LEARNING_ENABLED=0$' "learning disabled by default"
+  require_contains "$path" '^export PAI_CODEX_CHECKPOINT_ENABLED=0$' "checkpoint disabled by default"
+  if rg -q '^export PAI_CODEX_VOICE_ID=.+$' "$path"; then
+    fail "non-empty voice id in package pulse.env"
+  else
+    ok "no personal voice id in package pulse.env"
+  fi
+}
+
+check_pulse_env_sourcing() {
+  local path="$1"
+  require_contains "$path" 'PAI_CODEX_ENV=.*pulse\.env' "$path sources pulse env path"
+  require_contains "$path" '\. "\$PAI_CODEX_ENV"' "$path sources pulse env file"
+}
+
 verify_tree() {
   local root="$1"
   require_file "$root/README.md"
@@ -168,6 +200,12 @@ verify_tree() {
   require_file "$root/tests/test-algorithm-isa-runtime.sh"
   require_file "$root/tests/test-pulse-runtime.sh"
   require_file "$root/tests/test-voice-runtime.sh"
+  require_file "$root/tests/run-all.sh"
+  require_file "$root/RELEASE_CHECKLIST.md"
+  require_file "$root/hooks/probe.sh"
+  check_pulse_env_defaults "$root/hooks/pulse.env"
+  check_pulse_env_sourcing "$root/hooks/post-tool-use.sh"
+  check_pulse_env_sourcing "$root/hooks/stop.sh"
 
   json_check "$root/hooks.json.template"
 
@@ -196,10 +234,14 @@ verify_installed() {
   require_file "$HOME/.claude/hooks/codex/post-tool-use.sh"
   require_file "$HOME/.claude/hooks/codex/permission-request.sh"
   require_file "$HOME/.claude/hooks/codex/stop.sh"
+  require_file "$HOME/.claude/hooks/codex/probe.sh"
+  require_file "$HOME/.claude/hooks/codex/pulse.env"
   require_file "$HOME/.claude/hooks/codex/lib/redact.py"
   require_file "$HOME/.claude/hooks/codex/lib/log_event.py"
   require_file "$HOME/.claude/hooks/codex/lib/pai_context.py"
   require_file "$HOME/.claude/hooks/codex/lib/pulse_notify.py"
+  check_pulse_env_sourcing "$HOME/.claude/hooks/codex/post-tool-use.sh"
+  check_pulse_env_sourcing "$HOME/.claude/hooks/codex/stop.sh"
 
   json_check "$HOME/.codex/hooks.json"
   for script in "$HOME/.claude/hooks/codex"/*.sh; do
