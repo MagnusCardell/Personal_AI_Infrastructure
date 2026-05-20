@@ -45,14 +45,14 @@ Use `NATIVE` for `who am I?`, `what are my active projects?`, and direct live-st
 
 ## Output Formats
 
-MINIMAL:
+MINIMAL template:
 
 ```text
 PAI_MODE=MINIMAL
 <short answer>
 ```
 
-NATIVE:
+NATIVE template:
 
 ```text
 PAI_MODE=NATIVE
@@ -60,7 +60,7 @@ Source: <live path or hook-loaded context>
 <direct answer>
 ```
 
-ALGORITHM:
+ALGORITHM template:
 
 ```text
 PAI_MODE=ALGORITHM
@@ -76,6 +76,33 @@ LEARN
 ```
 
 For full Algorithm runs, include all seven phase headers and record verification honestly.
+
+## Operational Rules
+
+- Prefer `bun` and `bunx` for PAI Tools-layer work when PAI tooling expects Bun.
+- Prefer TypeScript for Tools-layer code.
+- Prefer Markdown over HTML when Markdown is sufficient.
+- Never place auth tokens or credentials in URLs.
+- Never invoke a `claude` subprocess from the Codex runtime.
+- Do not use a `--bare` flag pattern for PAI/Codex runtime work unless the user explicitly requests it and the command has been checked.
+- Keep shell commands deterministic and auditable.
+- Use local files and PAI tools before introducing new dependencies.
+
+## Context Override Escalation
+
+- Hook classification sees the current prompt in isolation.
+- The model sees conversation context and must apply that context when choosing the real mode and tier.
+- If a single-word approval follows a multi-step proposal, continue at the proposal's mode and tier.
+- If a follow-up clearly continues prior work, inherit the appropriate mode and tier from that work.
+- If hook-provided mode/tier conflicts with obvious conversation context, explain the effective mode/tier briefly and proceed with the safer contextual classification.
+- When an ISA exists and the mismatch affects execution, record the mode/tier decision in the ISA Decisions section.
+
+## Advisor Unavailable
+
+- Advisor via a Claude subprocess is unavailable in the Codex runtime.
+- Do not call a `claude` subprocess for Advisor, review, or escalation.
+- For E4/E5 Advisor needs, substitute local reasoning patterns such as FirstPrinciples and SystemsThinking.
+- Name any missing Advisor coverage as a gap rather than faking a cross-runtime review.
 
 ## Algorithm And ISA Rules
 
