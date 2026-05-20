@@ -109,3 +109,16 @@ S17E evidence is recorded at:
 - `~/.claude/PAI/MEMORY/OBSERVABILITY/s17e5-hook-coverage-matrix.md`
 
 Replacement-grade status is still not claimed after S17E.
+
+## S18A primary runtime trial start
+
+S18A evaluates whether Codex can operate as the primary PAI session runtime
+across real E1, E2, and E3 work. The trial starts from S17E commit
+`42fdae57238c16664e94f531d61b019660b309dd`.
+
+S18A baseline evidence starts at:
+
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s18a0-baseline-check.md`
+
+This README does not claim replacement-grade status. The replacement-grade
+decision belongs to the S18A scorecard after the E1/E2/E3 trials are complete.
