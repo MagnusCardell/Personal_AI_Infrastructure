@@ -28,6 +28,7 @@ import subprocess
 import sys
 
 from log_event import append_jsonl, load_json_file, now, safe_error
+from pulse_notify import notify
 from redact import risk_flags, text_facts
 
 input_path = Path(sys.argv[1])
@@ -170,6 +171,26 @@ try:
         result = run_isasync(isa_path, payload)
         result["timestamp"] = now()
         append_jsonl(sync_log_path, result)
+        if result.get("status") in {"ran", "failed"}:
+            pulse_result = notify(
+                "codex.algorithm.isa_updated",
+                "PAI Codex ISA updated",
+                details={
+                    "isa_slug": isa_path.parent.name,
+                    "isasync_status": result.get("status"),
+                    "isasync_attempted": True,
+                },
+            )
+            if pulse_result.get("attempted"):
+                append_jsonl(
+                    sync_log_path,
+                    {
+                        "timestamp": now(),
+                        "hook_event_name": "PostToolUse",
+                        "isa_slug": isa_path.parent.name,
+                        "pulse": pulse_result,
+                    },
+                )
 except Exception as exc:
     try:
         append_jsonl(tool_log_path, {"timestamp": now(), "hook_event_name": "PostToolUse", "error": safe_error(exc)})

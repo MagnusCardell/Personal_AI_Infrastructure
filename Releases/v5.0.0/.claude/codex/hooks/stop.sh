@@ -22,11 +22,10 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import os
-import socket
 import sys
-import urllib.request
 
 from log_event import append_jsonl, load_json_file, now, safe_error
+from pulse_notify import notify
 
 input_path = Path(sys.argv[1])
 log_path = Path(sys.argv[2]).expanduser()
@@ -40,35 +39,16 @@ def last_assistant_len(payload: dict) -> int:
     return 0
 
 
-def pulse_reachable() -> bool:
-    try:
-        with socket.create_connection(("127.0.0.1", 31337), timeout=0.35):
-            return True
-    except OSError:
-        return False
-
-
-def maybe_notify(enabled: bool) -> bool:
-    if not enabled:
-        return False
-    payload = json.dumps({"message": "PAI Codex turn complete"}).encode("utf-8")
-    request = urllib.request.Request(
-        "http://127.0.0.1:31337/notify",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=0.5):
-            return True
-    except Exception:
-        return False
-
-
 try:
     payload = load_json_file(input_path)
-    reachable = pulse_reachable()
-    notified = maybe_notify(reachable and os.environ.get("PAI_CODEX_PULSE_NOTIFY", "").lower() in {"1", "true", "yes", "on"})
+    pulse_result = notify(
+        "codex.turn.complete",
+        "PAI Codex turn complete",
+        details={
+            "turn_id_present": bool(payload.get("turn_id") or payload.get("turnId")),
+            "last_assistant_message_length": last_assistant_len(payload),
+        },
+    )
     append_jsonl(
         log_path,
         {
@@ -78,8 +58,7 @@ try:
             "cwd": payload.get("cwd") or os.getcwd(),
             "stop_hook_active": True,
             "last_assistant_message_length": last_assistant_len(payload),
-            "pulse_reachable": reachable,
-            "pulse_notified": notified,
+            "pulse": pulse_result,
         },
     )
 except Exception as exc:
