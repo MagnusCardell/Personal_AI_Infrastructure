@@ -123,6 +123,7 @@ Runtime parity tests in the release package:
 ~/.claude/codex/tests/test-da-runtime-context.sh
 ~/.claude/codex/tests/test-algorithm-isa-runtime.sh
 ~/.claude/codex/tests/test-pulse-runtime.sh
+~/.claude/codex/tests/test-voice-runtime.sh
 ```
 
 These tests use a temporary HOME and do not require a real Codex CLI.
@@ -148,7 +149,40 @@ Smoke test:
 ~/.claude/codex/tests/test-pulse-runtime.sh
 ```
 
-If Pulse is unavailable, hooks still emit valid JSON and continue. Voice is not included yet.
+If Pulse is unavailable, hooks still emit valid JSON and continue. Voice intent is configured separately and remains disabled by default.
+
+## Optional Voice Notifications
+
+Voice notifications are disabled by default and require Pulse. Codex emits voice intent through the Pulse `/notify` payload only; Codex hooks do not render speech or call speech providers directly.
+
+The local Pulse contract is flat JSON: `message`, `voice_enabled`, and optional `voice_id`. Because local Pulse may treat an omitted `voice_enabled` field as enabled, Codex sends `voice_enabled: false` unless voice is explicitly enabled for the event.
+
+Environment variables:
+
+- `PAI_CODEX_PULSE_ENABLED=1` enables Pulse delivery.
+- `PAI_CODEX_VOICE_ENABLED=1` enables voice intent.
+- `PAI_CODEX_VOICE_EVENTS=turn_complete,algorithm_isa_updated` selects voice events. If unset while voice is enabled, only `turn_complete` is selected.
+- `PAI_CODEX_VOICE_ID=<id>` adds a voice identifier when explicitly set.
+- `PAI_CODEX_VOICE_MESSAGE_TURN_COMPLETE=<message>` overrides the turn-complete speech message.
+- `PAI_CODEX_VOICE_MESSAGE_ISA_UPDATED=<message>` overrides the ISA-updated speech message.
+
+Example:
+
+```bash
+PAI_CODEX_PULSE_ENABLED=1 PAI_CODEX_VOICE_ENABLED=1 codex exec --json "run pwd"
+```
+
+Smoke test:
+
+```bash
+~/.claude/codex/tests/test-voice-runtime.sh
+```
+
+Known limitations:
+
+- Voice rendering depends on the local Pulse implementation.
+- Codex does not perform direct speech rendering.
+- Phase-transition voice is not emitted by Codex unless future Pulse events are added.
 
 ## Uninstall And Restore
 
@@ -187,7 +221,7 @@ Uninstall removes only managed PAI blocks, PAI hook groups, managed hook files, 
 ## What Is Not Included Yet
 
 - Pulse features beyond basic optional notifications.
-- Voice full parity.
+- Voice features beyond Pulse intent payloads.
 - Write-capable custom agents.
 - Private user state.
 
@@ -197,5 +231,6 @@ Uninstall removes only managed PAI blocks, PAI hook groups, managed hook files, 
 - Prompt classification is deterministic by default and does not forward raw prompts to another model.
 - ISA sync runs only when a supported PAI sync hook or tool is present.
 - Pulse notifications are optional and disabled by default.
+- Voice notifications are optional, disabled by default, and require Pulse.
 - Custom agents installed by this package are read-only. Parent Codex remains responsible for writes.
 - Private user state is not included in this package.
