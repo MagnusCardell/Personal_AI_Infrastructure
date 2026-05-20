@@ -7,6 +7,11 @@ OBS_DIR="$PAI_DIR/MEMORY/OBSERVABILITY"
 mkdir -p "$OBS_DIR"
 export PYTHONPATH="$HOOK_DIR/lib${PYTHONPATH:+:$PYTHONPATH}"
 
+if ! command -v python3 >/dev/null 2>&1; then
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"PAI_MODE=ALGORITHM\nPAI_TIER=E3\nPAI_CLASSIFIER=unavailable\nPAI_PRIVACY=raw-prompt-not-forwarded\nPAI_REASON=python3 unavailable; conservative fallback.\n"}}'
+  exit 0
+fi
+
 TMP_INPUT="$(mktemp "${TMPDIR:-/tmp}/pai-codex-prompt.XXXXXX")"
 trap 'rm -f "$TMP_INPUT"' EXIT
 cat > "$TMP_INPUT"

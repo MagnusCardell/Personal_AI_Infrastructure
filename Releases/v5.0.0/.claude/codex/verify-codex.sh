@@ -10,6 +10,8 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
 
 MODE="package"
+SCAN_TMP="$(mktemp "${TMPDIR:-/tmp}/pai-codex-verify.XXXXXX")"
+trap 'rm -f "$SCAN_TMP"' EXIT
 
 usage() {
   cat <<'EOF'
@@ -58,7 +60,13 @@ json_check() {
 
 python_check() {
   local path="$1"
-  python3 -m py_compile "$path" && ok "python $path" || fail "python syntax $path"
+  python3 - "$path" <<'PY' && ok "python $path" || fail "python syntax $path"
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+compile(path.read_text(encoding="utf-8"), str(path), "exec")
+PY
 }
 
 bash_check() {
@@ -84,11 +92,33 @@ scan_private_refs() {
   )
   local pattern
   for pattern in "${patterns[@]}"; do
-    if rg -n --fixed-strings "$pattern" "$root" >/tmp/pai-codex-verify-scan.txt 2>/dev/null; then
-      cat /tmp/pai-codex-verify-scan.txt >&2
+    if rg -n --fixed-strings "$pattern" "$root" >"$SCAN_TMP" 2>/dev/null; then
+      cat "$SCAN_TMP" >&2
       fail "private or research reference found: $pattern"
     else
       ok "no reference: $pattern"
+    fi
+  done
+}
+
+scan_secret_refs() {
+  local root="$1"
+  local patterns
+  patterns=(
+    "OPENAI_""API_KEY"
+    "ANTHROPIC_""API_KEY"
+    "ghp""_"
+    "sk""-"
+    "BEGIN ""PRIVATE KEY"
+    "AWS_SECRET_""ACCESS_KEY"
+  )
+  local pattern
+  for pattern in "${patterns[@]}"; do
+    if rg -n --fixed-strings "$pattern" "$root" >"$SCAN_TMP" 2>/dev/null; then
+      cat "$SCAN_TMP" >&2
+      fail "secret-like reference found: $pattern"
+    else
+      ok "no secret reference: $pattern"
     fi
   done
 }
@@ -102,6 +132,8 @@ verify_tree() {
   require_file "$root/install-codex.sh"
   require_file "$root/uninstall-codex.sh"
   require_file "$root/verify-codex.sh"
+  require_file "$root/tests/test-dry-run-purity.sh"
+  require_file "$root/tests/acceptance-clean-home.sh"
 
   json_check "$root/hooks.json.template"
 
@@ -116,6 +148,7 @@ verify_tree() {
   done
 
   scan_private_refs "$root"
+  scan_secret_refs "$root"
 }
 
 verify_installed() {

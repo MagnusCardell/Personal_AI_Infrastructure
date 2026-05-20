@@ -7,6 +7,11 @@ OBS_DIR="$PAI_DIR/MEMORY/OBSERVABILITY"
 mkdir -p "$OBS_DIR"
 export PYTHONPATH="$HOOK_DIR/lib${PYTHONPATH:+:$PYTHONPATH}"
 
+if ! command -v python3 >/dev/null 2>&1; then
+  printf '%s\n' '{}'
+  exit 0
+fi
+
 TMP_INPUT="$(mktemp "${TMPDIR:-/tmp}/pai-codex-stop.XXXXXX")"
 trap 'command rm "$TMP_INPUT" 2>/dev/null || true' EXIT
 cat > "$TMP_INPUT"

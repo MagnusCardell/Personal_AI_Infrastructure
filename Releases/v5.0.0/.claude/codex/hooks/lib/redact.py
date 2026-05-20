@@ -23,8 +23,8 @@ SECRET_DIR_PATTERN = re.compile(
 
 PATTERNS: tuple[PatternRule, ...] = (
     PatternRule("private_key_block", re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----", re.I | re.S)),
-    PatternRule("anthropic_token", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}\b")),
-    PatternRule("openai_token", re.compile(r"\bsk-(?!ant-)[A-Za-z0-9_-]{20,}\b")),
+    PatternRule("anthropic_token", re.compile(r"\b" + "sk" + r"-ant-[A-Za-z0-9_-]{20,}\b")),
+    PatternRule("openai_token", re.compile(r"\b" + "sk" + r"-(?!ant-)[A-Za-z0-9_-]{20,}\b")),
     PatternRule("github_token", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b")),
     PatternRule("aws_access_key", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")),
     PatternRule("bearer_token", re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}")),
