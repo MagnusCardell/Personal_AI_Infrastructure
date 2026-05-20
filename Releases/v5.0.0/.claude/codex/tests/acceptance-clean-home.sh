@@ -96,6 +96,7 @@ done
 for hook in session-start prompt-processing pre-tool-use post-tool-use permission-request stop; do
   test -x "$TMP_HOME/.claude/hooks/codex/$hook.sh"
 done
+HOME="$TMP_HOME" "$TMP_HOME/.agents/skills/pai-runtime-audit/scripts/runtime-audit.sh" >/dev/null
 
 sha_before="$(sha256sum "$TMP_HOME/.codex/AGENTS.md" "$TMP_HOME/.codex/hooks.json" "$TMP_HOME/.codex/config.toml")"
 backup_count_before="$(find "$TMP_HOME/.claude/codex/backups" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
