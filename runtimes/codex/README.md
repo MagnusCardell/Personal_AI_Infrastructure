@@ -110,15 +110,25 @@ S17E evidence is recorded at:
 
 Replacement-grade status is still not claimed after S17E.
 
-## S18A primary runtime trial start
+## S18A primary runtime trial
 
 S18A evaluates whether Codex can operate as the primary PAI session runtime
 across real E1, E2, and E3 work. The trial starts from S17E commit
 `42fdae57238c16664e94f531d61b019660b309dd`.
 
-S18A baseline evidence starts at:
+S18A completed real E1, E2, and E3 work:
+
+- E1: README pointer to S18A0 baseline evidence.
+- E2: sanitized runtime evidence index script.
+- E3: operational readiness report plus learning capture.
+
+S18A evidence:
 
 - `~/.claude/PAI/MEMORY/OBSERVABILITY/s18a0-baseline-check.md`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s18a1-e1-trial.md`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s18a2-e2-trial.md`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s18a3-e3-trial.md`
+- `~/.claude/PAI/MEMORY/OBSERVABILITY/s18a-replacement-grade-evaluation.md`
 
 For a sanitized path-only index of S17/S18 runtime evidence, run:
 
@@ -126,5 +136,11 @@ For a sanitized path-only index of S17/S18 runtime evidence, run:
 python3 tools/codex_runtime_evidence_index.py
 ```
 
-This README does not claim replacement-grade status. The replacement-grade
-decision belongs to the S18A scorecard after the E1/E2/E3 trials are complete.
+S18A repo docs:
+
+- `docs/architecture/V5-S18A-CODEX-RUNTIME-READINESS-REPORT.md`
+- `docs/architecture/V5-S18A-CODEX-PRIMARY-RUNTIME-TRIAL.md`
+
+S18A scorecard decision: **replacement-grade candidate**. This README does not
+declare final replacement-grade status. S18A did not add write-capable
+subagents, runtime backup behavior, or adapter delegation.
