@@ -111,6 +111,8 @@ scan_secret_refs() {
     "sk""-"
     "BEGIN ""PRIVATE KEY"
     "AWS_SECRET_""ACCESS_KEY"
+    "ELEVEN""LABS_""API_KEY"
+    "ELEVEN_""API_KEY"
   )
   local pattern
   for pattern in "${patterns[@]}"; do
@@ -119,6 +121,34 @@ scan_secret_refs() {
       fail "secret-like reference found: $pattern"
     else
       ok "no secret reference: $pattern"
+    fi
+  done
+}
+
+scan_provider_call_refs() {
+  local root="$1"
+  local cword="curl"
+  local vword="voice"
+  local tword="tts"
+  local oword="openai"
+  local aword="audio"
+  local patterns
+  patterns=(
+    "eleven""labs"
+    "api.eleven""labs"
+    "text-to-""speech"
+    "speech-to-""text"
+    "${oword}.${aword}"
+    "${cword}.*${vword}"
+    "${cword}.*${tword}"
+  )
+  local pattern
+  for pattern in "${patterns[@]}"; do
+    if rg -n -i "$pattern" "$root" >"$SCAN_TMP" 2>/dev/null; then
+      cat "$SCAN_TMP" >&2
+      fail "direct provider invocation reference found: $pattern"
+    else
+      ok "no provider call reference: $pattern"
     fi
   done
 }
@@ -137,6 +167,7 @@ verify_tree() {
   require_file "$root/tests/test-da-runtime-context.sh"
   require_file "$root/tests/test-algorithm-isa-runtime.sh"
   require_file "$root/tests/test-pulse-runtime.sh"
+  require_file "$root/tests/test-voice-runtime.sh"
 
   json_check "$root/hooks.json.template"
 
@@ -152,6 +183,7 @@ verify_tree() {
 
   scan_private_refs "$root"
   scan_secret_refs "$root"
+  scan_provider_call_refs "$root"
 }
 
 verify_installed() {
