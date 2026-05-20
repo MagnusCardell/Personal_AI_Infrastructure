@@ -109,6 +109,12 @@ Package verification:
 ~/.claude/codex/verify-codex.sh --package
 ```
 
+Full package test runner:
+
+```bash
+~/.claude/codex/tests/run-all.sh
+```
+
 Installed verification:
 
 ```bash
@@ -127,6 +133,8 @@ Runtime parity tests in the release package:
 ```
 
 These tests use a temporary HOME and do not require a real Codex CLI.
+
+Maintainers should also run `shellcheck` when it is available locally. See `~/.claude/codex/RELEASE_CHECKLIST.md` for the exact release check sequence.
 
 ## Optional Pulse Notifications
 
