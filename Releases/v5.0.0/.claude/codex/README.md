@@ -122,9 +122,33 @@ Runtime parity tests in the release package:
 ```bash
 ~/.claude/codex/tests/test-da-runtime-context.sh
 ~/.claude/codex/tests/test-algorithm-isa-runtime.sh
+~/.claude/codex/tests/test-pulse-runtime.sh
 ```
 
 These tests use a temporary HOME and do not require a real Codex CLI.
+
+## Optional Pulse Notifications
+
+Pulse notifications are disabled by default and are never required for runtime correctness. When enabled, Stop sends a turn-complete notification and ISA updates may send an `codex.algorithm.isa_updated` notification after ISA detection or sync activity.
+
+Environment variables:
+
+- `PAI_CODEX_PULSE_ENABLED=1` enables notifications.
+- `PAI_CODEX_PULSE_URL=http://localhost:31337` sets the Pulse base URL. If unset while enabled, the default is `http://localhost:31337`.
+
+Example:
+
+```bash
+PAI_CODEX_PULSE_ENABLED=1 codex exec --json "run pwd and explain the result"
+```
+
+Smoke test:
+
+```bash
+~/.claude/codex/tests/test-pulse-runtime.sh
+```
+
+If Pulse is unavailable, hooks still emit valid JSON and continue. Voice is not included yet.
 
 ## Uninstall And Restore
 
@@ -162,7 +186,7 @@ Uninstall removes only managed PAI blocks, PAI hook groups, managed hook files, 
 
 ## What Is Not Included Yet
 
-- Pulse full parity.
+- Pulse features beyond basic optional notifications.
 - Voice full parity.
 - Write-capable custom agents.
 - Private user state.
@@ -172,6 +196,6 @@ Uninstall removes only managed PAI blocks, PAI hook groups, managed hook files, 
 - Hooks are guardrails, not a complete security boundary. Codex sandboxing and approval policy remain authoritative.
 - Prompt classification is deterministic by default and does not forward raw prompts to another model.
 - ISA sync runs only when a supported PAI sync hook or tool is present.
-- Pulse/voice support is optional and not full parity yet.
+- Pulse notifications are optional and disabled by default.
 - Custom agents installed by this package are read-only. Parent Codex remains responsible for writes.
 - Private user state is not included in this package.
