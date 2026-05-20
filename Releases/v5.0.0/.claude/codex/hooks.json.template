@@ -1,0 +1,80 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'exec \"$HOME/.claude/hooks/codex/session-start.sh\"'",
+            "timeout": 30,
+            "statusMessage": "Loading PAI context"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'exec \"$HOME/.claude/hooks/codex/prompt-processing.sh\"'",
+            "timeout": 20,
+            "statusMessage": "Classifying PAI mode"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'exec \"$HOME/.claude/hooks/codex/pre-tool-use.sh\"'",
+            "timeout": 10,
+            "statusMessage": "Checking PAI containment"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'exec \"$HOME/.claude/hooks/codex/post-tool-use.sh\"'",
+            "timeout": 10,
+            "statusMessage": "Recording PAI tool activity"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'exec \"$HOME/.claude/hooks/codex/permission-request.sh\"'",
+            "timeout": 5,
+            "statusMessage": "Checking PAI approval policy"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'exec \"$HOME/.claude/hooks/codex/stop.sh\"'",
+            "timeout": 20,
+            "statusMessage": "Finalizing PAI turn"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+# Example Codex settings for PAI runtime support.
+# Copy or merge into ~/.codex/config.toml only when enabling Codex globally.
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[features]
+hooks = true
+
+[sandbox_workspace_write]
+# Use absolute paths for your machine.
+writable_roots = [
+  "/ABSOLUTE/PATH/TO/.claude/PAI",
+  "/ABSOLUTE/PATH/TO/.claude/hooks/codex",
+]
