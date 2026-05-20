@@ -20,6 +20,19 @@
 - Learning memory: `${HOME}/.claude/PAI/MEMORY/LEARNING`
 - Observability memory: `${HOME}/.claude/PAI/MEMORY/OBSERVABILITY`
 
+## DA And Runtime Identity
+
+- Principal identity is read from `${HOME}/.claude/PAI/USER/PRINCIPAL_IDENTITY.md`.
+- DA identity is read from `${HOME}/.claude/PAI/USER/DA_IDENTITY.md`.
+- Telos is read from `${HOME}/.claude/PAI/USER/TELOS/PRINCIPAL_TELOS.md`.
+- Active projects are read from `${HOME}/.claude/PAI/USER/PROJECTS/PROJECTS.md`.
+- The active Algorithm pointer is read from `${HOME}/.claude/PAI/ALGORITHM/LATEST`.
+- Do not invent identity, DA identity, project, Telos, or Algorithm content when files are missing.
+- Use `NATIVE` mode for identity, DA, project, Telos, and runtime-status questions.
+- Use `ALGORITHM` mode for execution work and artifact changes.
+- Use `MEMORY/WORK` for ISA-backed work.
+- Use `MEMORY/LEARNING` only after explicit completion or clear Algorithm completion.
+
 ## Mode Rules
 
 Classify each request as:
@@ -99,3 +112,36 @@ For full Algorithm runs, include all seven phase headers and record verification
 - Keep changes scoped to the requested task.
 - Do not add write-capable custom agents.
 - Read-only custom agents may inspect and summarize, but parent Codex is responsible for writes.
+
+## Answer Contracts
+
+`who am I?`
+
+- Use `PAI_MODE=NATIVE`.
+- Read principal identity from the live principal identity file or hook-loaded principal context.
+- State missing identity files plainly instead of guessing.
+
+`who are you?`
+
+- Use `PAI_MODE=NATIVE`.
+- Read DA identity from the live DA identity file or hook-loaded DA context.
+- Explain the runtime role only from available PAI context.
+
+`what are my active projects?`
+
+- Use `PAI_MODE=NATIVE`.
+- Read the live projects file or hook-loaded active projects context.
+- List actual projects only.
+
+`what matters now?`
+
+- Use `PAI_MODE=NATIVE`.
+- Read Telos and active projects from live PAI state.
+- Summarize the current priority without inventing goals.
+
+`start an Algorithm run`
+
+- Use `PAI_MODE=ALGORITHM`.
+- Resolve the active Algorithm pointer.
+- Create or update a canonical `MEMORY/WORK/{slug}/ISA.md` when the work needs durable task state.
+- Use the validator for basic ISA structure when available.
