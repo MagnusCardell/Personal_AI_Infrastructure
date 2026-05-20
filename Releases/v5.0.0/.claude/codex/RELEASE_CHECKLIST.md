@@ -33,6 +33,12 @@ Use this checklist before publishing or opening a pull request for the Codex run
   python3 -m json.tool Releases/v5.0.0/.claude/codex/hooks.json.template >/dev/null
   ```
 
+- Run the AGENTS generator preview when Bun is available:
+
+  ```bash
+  bun Releases/v5.0.0/.claude/codex/tools/GenerateAgentsMd.ts --dry-run
+  ```
+
 - Run shellcheck when available:
 
   ```bash
@@ -97,6 +103,18 @@ Expected result for each built-in scan is no matches.
 
   ```bash
   Releases/v5.0.0/.claude/codex/tests/test-voice-runtime.sh
+  ```
+
+- Learning runtime smoke test:
+
+  ```bash
+  Releases/v5.0.0/.claude/codex/tests/test-learning-runtime.sh
+  ```
+
+- AGENTS generator smoke test:
+
+  ```bash
+  Releases/v5.0.0/.claude/codex/tests/test-generate-agents.sh
   ```
 
 - Manual Codex smoke test after global install:

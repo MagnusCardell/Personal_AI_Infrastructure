@@ -11,6 +11,8 @@ With it enabled, Codex can:
 - follow the PAI Algorithm and create/update canonical ISA files
 - write structured observability logs with redaction
 - use Codex hook semantics correctly
+- optionally write completion-gated Algorithm learning records
+- optionally regenerate the managed `AGENTS.md` block from live PAI doctrine
 - use optional PAI skills and read-only custom agents
 
 ## DA/Runtime Parity
@@ -48,11 +50,14 @@ Global mode activates Codex-facing files:
 
 Global mode merges into existing `~/.codex/AGENTS.md`, `~/.codex/hooks.json`, and `~/.codex/config.toml`. It does not replace those files by default. Use `--force-replace` only when you explicitly want destructive replacement of managed global files.
 
+AGENTS regeneration from live PAI state is manual by default. Use `--generate-agents` with `--global` only when you explicitly want the installer to run the generator during activation.
+
 ## What Changes On Disk
 
 PAI-local staging may write:
 
 - `~/.claude/codex/*`
+- `~/.claude/codex/tools/*`
 - `~/.claude/hooks/codex/*.sh`
 - `~/.claude/hooks/codex/lib/*.py`
 - `~/.claude/hooks/codex/pulse.env`
@@ -82,6 +87,18 @@ Then activate:
 
 ```bash
 ~/.claude/codex/install-codex.sh --global
+```
+
+Preview AGENTS regeneration without writing:
+
+```bash
+bun ~/.claude/codex/tools/GenerateAgentsMd.ts --dry-run
+```
+
+Activate and regenerate the managed AGENTS block in one explicit step:
+
+```bash
+~/.claude/codex/install-codex.sh --global --generate-agents
 ```
 
 After the first run, Codex may ask you to review and trust hooks through `/hooks`.
@@ -131,6 +148,8 @@ Runtime parity tests in the release package:
 ~/.claude/codex/tests/test-algorithm-isa-runtime.sh
 ~/.claude/codex/tests/test-pulse-runtime.sh
 ~/.claude/codex/tests/test-voice-runtime.sh
+~/.claude/codex/tests/test-learning-runtime.sh
+~/.claude/codex/tests/test-generate-agents.sh
 ```
 
 These tests use a temporary HOME and do not require a real Codex CLI.
@@ -196,6 +215,61 @@ Known limitations:
 - Voice rendering depends on the local Pulse implementation.
 - Codex does not perform direct speech rendering.
 - Phase-transition voice is not emitted by Codex unless future Pulse events are added.
+
+## Optional Stop-Gated Learning
+
+Stop-gated learning is disabled by default. When `PAI_CODEX_LEARNING_ENABLED=1`, `stop.sh` scans `~/.claude/PAI/MEMORY/WORK` for `ISA.md` files whose top metadata has `phase: complete` or `phase: learn`. Matching ISAs are passed to `hooks/lib/learning.py`.
+
+The helper writes only explicit learning material already present in `## Changelog`, `## Learning`, or compatible learning-marked ISA sections. It does not invent learnings. Records are JSONL under:
+
+```text
+~/.claude/PAI/MEMORY/LEARNING/ALGORITHM/YYYY-MM/session.jsonl
+```
+
+Each record includes timestamp, source, ISA slug, ISA path, phase, entries, and a content hash. Existing hashes are skipped so repeated Stop events do not duplicate the same ISA learning record. Learning failures are non-blocking and Stop still returns `{}`.
+
+Persistent local enablement can be configured in `~/.claude/hooks/codex/pulse.env`:
+
+```bash
+export PAI_CODEX_LEARNING_ENABLED=1
+```
+
+Smoke test:
+
+```bash
+~/.claude/codex/tests/test-learning-runtime.sh
+```
+
+## AGENTS.md Regeneration
+
+`tools/GenerateAgentsMd.ts` regenerates only the managed block between:
+
+```text
+<!-- PAI-CODEX:BEGIN managed by Personal_AI_Infrastructure -->
+<!-- PAI-CODEX:END managed by Personal_AI_Infrastructure -->
+```
+
+Content outside the managed block is preserved. The generator reads bounded PAI identity, runtime assistant identity, the Algorithm pointer and resolved Algorithm file, plus the packaged `AGENTS.md.template`. It does not read private project detail directories, logs, learning files, or broad PAI Memory.
+
+Dry-run writes nothing and prints a summary:
+
+```bash
+bun ~/.claude/codex/tools/GenerateAgentsMd.ts --dry-run
+```
+
+Write the default target:
+
+```bash
+bun ~/.claude/codex/tools/GenerateAgentsMd.ts
+```
+
+Use a custom PAI root or output:
+
+```bash
+bun ~/.claude/codex/tools/GenerateAgentsMd.ts --pai-dir /path/to/PAI --output /path/to/AGENTS.md
+```
+
+The installer does not run this generator unless `--generate-agents` is supplied. Uninstall never removes user `AGENTS.md`; it only removes the managed block when present.
 
 ## Uninstall And Restore
 
