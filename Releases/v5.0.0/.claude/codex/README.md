@@ -11,7 +11,9 @@ With it enabled, Codex can:
 - follow the PAI Algorithm and create/update canonical ISA files
 - write structured observability logs with redaction
 - use Codex hook semantics correctly
+- add defense-in-depth pre-tool checks for known sink domains, shell-injection forms, and protected paths
 - optionally write completion-gated Algorithm learning records
+- optionally checkpoint completed ISA criteria into git when explicitly enabled
 - optionally regenerate the managed `AGENTS.md` block from live PAI doctrine
 - use optional PAI skills and read-only custom agents
 
@@ -150,6 +152,8 @@ Runtime parity tests in the release package:
 ~/.claude/codex/tests/test-voice-runtime.sh
 ~/.claude/codex/tests/test-learning-runtime.sh
 ~/.claude/codex/tests/test-generate-agents.sh
+~/.claude/codex/tests/test-security-runtime.sh
+~/.claude/codex/tests/test-checkpoint-runtime.sh
 ```
 
 These tests use a temporary HOME and do not require a real Codex CLI.
@@ -215,6 +219,55 @@ Known limitations:
 - Voice rendering depends on the local Pulse implementation.
 - Codex does not perform direct speech rendering.
 - Phase-transition voice is not emitted by Codex unless future Pulse events are added.
+
+## Security Guardrails
+
+The pre-tool hook includes defense-in-depth checks for common high-risk tool requests. These checks are guardrails, not complete enforcement. Codex sandboxing and approval policy remain authoritative.
+
+The package checks:
+
+- known exfiltration or sink URL domains in applicable command text
+- dangerous shell forms such as command substitution and network input piped into a shell
+- detectable Write/Edit/MultiEdit/apply_patch targets outside configured PAI or workspace roots
+- protected credential and system paths
+
+Normal local operations, localhost Pulse calls, GitHub API/raw GitHub reads, and ordinary package or git operations are not blocked unless they match a dangerous pattern. Decisions are written to `~/.claude/PAI/MEMORY/OBSERVABILITY/codex-pretool.jsonl` using safe structured logging.
+
+Smoke test:
+
+```bash
+~/.claude/codex/tests/test-security-runtime.sh
+```
+
+## Optional CheckpointPerISC
+
+Checkpointing is disabled by default. The public package does not enable automatic git commits unless the local operator explicitly sets:
+
+```bash
+export PAI_CODEX_CHECKPOINT_ENABLED=1
+```
+
+When enabled, `post-tool-use.sh` watches canonical task ISA paths under `~/.claude/PAI/MEMORY/WORK/*/ISA.md`. It tracks checkbox state in:
+
+```text
+~/.claude/PAI/MEMORY/OBSERVABILITY/codex-isa-state.json
+```
+
+Only criterion transitions from `- [ ] ISC-N` to `- [x] ISC-N` are checkpoint candidates. Ordinary ISA writes without a new completed criterion do not create commits.
+
+Checkpoint commits run only inside `~/.claude` when that directory is a git repository. If unrelated local changes are present, checkpointing skips and logs the reason instead of trying to clean or rewrite the working tree. Commit messages use:
+
+```text
+ISC checkpoint: {slug} — {ISC ids}
+```
+
+Checkpoint attempts are logged to `~/.claude/PAI/MEMORY/OBSERVABILITY/codex-checkpoint.jsonl`. The runtime does not create backups or hidden maintenance jobs.
+
+Smoke test:
+
+```bash
+~/.claude/codex/tests/test-checkpoint-runtime.sh
+```
 
 ## Optional Stop-Gated Learning
 

@@ -117,6 +117,18 @@ Expected result for each built-in scan is no matches.
   Releases/v5.0.0/.claude/codex/tests/test-generate-agents.sh
   ```
 
+- Security runtime smoke test:
+
+  ```bash
+  Releases/v5.0.0/.claude/codex/tests/test-security-runtime.sh
+  ```
+
+- Checkpoint runtime smoke test:
+
+  ```bash
+  Releases/v5.0.0/.claude/codex/tests/test-checkpoint-runtime.sh
+  ```
+
 - Manual Codex smoke test after global install:
 
   ```bash
@@ -134,4 +146,6 @@ Review hooks through `/hooks` if Codex asks for trust confirmation.
 - Installer backups are install-time only; runtime hooks do not create backups or retention jobs.
 - Custom agents are read-only.
 - Pulse and voice are optional and disabled by default.
+- Stop-gated learning and checkpointing are optional and disabled by default.
+- Checkpointing commits only ISC checkbox transitions and skips unrelated dirty working trees.
 - Hooks are documented as guardrails, not a complete security boundary.
