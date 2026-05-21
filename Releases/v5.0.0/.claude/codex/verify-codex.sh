@@ -203,6 +203,24 @@ check_learning_integration() {
   require_contains "$root/hooks/stop.sh" 'MEMORY/WORK' "Stop scans MEMORY/WORK for ISA files"
 }
 
+check_security_integration() {
+  local root="$1"
+  require_contains "$root/hooks/pre-tool-use.sh" 'EGRESS_BLOCKED' "PreToolUse has EgressInspector blocklist"
+  require_contains "$root/hooks/pre-tool-use.sh" 'webhook\.site' "PreToolUse blocks sink domains"
+  require_contains "$root/hooks/pre-tool-use.sh" 'injection_inspector' "PreToolUse has InjectionInspector"
+  require_contains "$root/hooks/pre-tool-use.sh" 'containment_guard' "PreToolUse has ContainmentGuard"
+  require_contains "$root/hooks/pre-tool-use.sh" 'codex-pretool\.jsonl' "PreToolUse logs structured decisions"
+}
+
+check_checkpoint_integration() {
+  local root="$1"
+  require_contains "$root/hooks/pulse.env" '^export PAI_CODEX_CHECKPOINT_ENABLED=0$' "checkpoint disabled by default"
+  require_contains "$root/hooks/post-tool-use.sh" 'PAI_CODEX_CHECKPOINT_ENABLED' "PostToolUse gates checkpointing"
+  require_contains "$root/hooks/post-tool-use.sh" 'codex-isa-state\.json' "PostToolUse tracks ISA state"
+  require_contains "$root/hooks/post-tool-use.sh" 'ISC checkpoint:' "PostToolUse creates ISC checkpoint messages"
+  require_contains "$root/hooks/post-tool-use.sh" 'git_run\(\["commit"' "PostToolUse can commit checkpoints when enabled"
+}
+
 check_agents_generator() {
   local root="$1"
   require_file "$root/tools/GenerateAgentsMd.ts"
@@ -242,6 +260,8 @@ verify_tree() {
   require_file "$root/tests/test-voice-runtime.sh"
   require_file "$root/tests/test-learning-runtime.sh"
   require_file "$root/tests/test-generate-agents.sh"
+  require_file "$root/tests/test-security-runtime.sh"
+  require_file "$root/tests/test-checkpoint-runtime.sh"
   require_file "$root/tests/run-all.sh"
   require_file "$root/RELEASE_CHECKLIST.md"
   require_file "$root/hooks/probe.sh"
@@ -249,6 +269,8 @@ verify_tree() {
   check_pulse_env_sourcing "$root/hooks/post-tool-use.sh"
   check_pulse_env_sourcing "$root/hooks/stop.sh"
   check_learning_integration "$root"
+  check_security_integration "$root"
+  check_checkpoint_integration "$root"
   check_agents_generator "$root"
 
   json_check "$root/hooks.json.template"
@@ -291,6 +313,9 @@ verify_installed() {
   require_contains "$HOME/.claude/hooks/codex/stop.sh" 'learning\.py' "installed Stop references learning helper"
   require_contains "$HOME/.claude/hooks/codex/stop.sh" 'PAI_CODEX_LEARNING_ENABLED' "installed Stop gates learning"
   require_contains "$HOME/.claude/hooks/codex/stop.sh" 'MEMORY/WORK' "installed Stop scans MEMORY/WORK"
+  require_contains "$HOME/.claude/hooks/codex/pre-tool-use.sh" 'containment_guard' "installed PreToolUse has ContainmentGuard"
+  require_contains "$HOME/.claude/hooks/codex/post-tool-use.sh" 'PAI_CODEX_CHECKPOINT_ENABLED' "installed PostToolUse gates checkpointing"
+  require_contains "$HOME/.claude/hooks/codex/post-tool-use.sh" 'codex-isa-state\.json' "installed PostToolUse tracks ISA state"
 
   json_check "$HOME/.codex/hooks.json"
   for script in "$HOME/.claude/hooks/codex"/*.sh; do

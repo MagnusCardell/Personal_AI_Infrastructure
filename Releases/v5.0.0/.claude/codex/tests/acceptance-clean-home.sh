@@ -103,6 +103,7 @@ rg -q '^export PAI_CODEX_PULSE_ENABLED=0$' "$TMP_HOME/.claude/hooks/codex/pulse.
 rg -q '^export PAI_CODEX_VOICE_ENABLED=0$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
 rg -q '^export PAI_CODEX_VOICE_ID=$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
 rg -q '^export PAI_CODEX_LEARNING_ENABLED=0$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
+rg -q '^export PAI_CODEX_CHECKPOINT_ENABLED=0$' "$TMP_HOME/.claude/hooks/codex/pulse.env"
 HOME="$TMP_HOME" "$TMP_HOME/.agents/skills/pai-runtime-audit/scripts/runtime-audit.sh" >/dev/null
 
 sha_before="$(sha256sum "$TMP_HOME/.codex/AGENTS.md" "$TMP_HOME/.codex/hooks.json" "$TMP_HOME/.codex/config.toml")"

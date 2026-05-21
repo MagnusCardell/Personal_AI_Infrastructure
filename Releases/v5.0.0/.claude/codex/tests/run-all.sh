@@ -20,6 +20,8 @@ TESTS=(
   "$SCRIPT_DIR/test-voice-runtime.sh"
   "$SCRIPT_DIR/test-learning-runtime.sh"
   "$SCRIPT_DIR/test-generate-agents.sh"
+  "$SCRIPT_DIR/test-security-runtime.sh"
+  "$SCRIPT_DIR/test-checkpoint-runtime.sh"
 )
 
 PASS_COUNT=0
