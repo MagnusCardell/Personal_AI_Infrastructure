@@ -284,6 +284,7 @@ for name in redact log_event pai_context pulse_notify learning; do
   remove_file "$HOME/.claude/hooks/codex/lib/$name.py"
 done
 remove_dir_if_empty "$HOME/.claude/hooks/codex/lib"
+remove_tree_files "$HOME/.claude/hooks/codex/skills"
 remove_dir_if_empty "$HOME/.claude/hooks/codex"
 
 for skill in pai-algorithm pai-memory pai-isa pai-runtime-audit; do

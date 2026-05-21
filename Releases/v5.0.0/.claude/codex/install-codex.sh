@@ -702,3 +702,4 @@ fi
 
 say "verify with: $LOCAL_DEST/verify-codex.sh --installed"
 say "AGENTS regeneration preview: bun $LOCAL_DEST/tools/GenerateAgentsMd.ts --dry-run"
+say "skill dispatch: $HOOK_DEST/skills/dispatch.sh isa_append <ISA.md> <decisions|changelog|verification> <content>"

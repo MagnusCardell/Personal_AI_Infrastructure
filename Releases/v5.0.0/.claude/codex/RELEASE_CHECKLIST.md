@@ -21,6 +21,7 @@ Use this checklist before publishing or opening a pull request for the Codex run
   ```bash
   bash -n Releases/v5.0.0/.claude/codex/*.sh
   bash -n Releases/v5.0.0/.claude/codex/hooks/*.sh
+  bash -n Releases/v5.0.0/.claude/codex/hooks/skills/*.sh
   bash -n Releases/v5.0.0/.claude/codex/tests/*.sh
   bash -n Releases/v5.0.0/.claude/codex/skills/pai-isa/scripts/*.sh
   bash -n Releases/v5.0.0/.claude/codex/skills/pai-runtime-audit/scripts/*.sh
@@ -30,6 +31,7 @@ Use this checklist before publishing or opening a pull request for the Codex run
 
   ```bash
   python3 -m py_compile Releases/v5.0.0/.claude/codex/hooks/lib/*.py
+  python3 -m py_compile Releases/v5.0.0/.claude/codex/hooks/skills/*.py
   python3 -m json.tool Releases/v5.0.0/.claude/codex/hooks.json.template >/dev/null
   ```
 
@@ -44,6 +46,7 @@ Use this checklist before publishing or opening a pull request for the Codex run
   ```bash
   shellcheck Releases/v5.0.0/.claude/codex/*.sh \
     Releases/v5.0.0/.claude/codex/hooks/*.sh \
+    Releases/v5.0.0/.claude/codex/hooks/skills/*.sh \
     Releases/v5.0.0/.claude/codex/tests/*.sh \
     Releases/v5.0.0/.claude/codex/skills/pai-isa/scripts/*.sh \
     Releases/v5.0.0/.claude/codex/skills/pai-runtime-audit/scripts/*.sh
@@ -127,6 +130,12 @@ Expected result for each built-in scan is no matches.
 
   ```bash
   Releases/v5.0.0/.claude/codex/tests/test-checkpoint-runtime.sh
+  ```
+
+- Skill dispatch runtime smoke test:
+
+  ```bash
+  Releases/v5.0.0/.claude/codex/tests/test-skill-dispatch-runtime.sh
   ```
 
 - Manual Codex smoke test after global install:

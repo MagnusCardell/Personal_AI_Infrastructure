@@ -154,6 +154,7 @@ Runtime parity tests in the release package:
 ~/.claude/codex/tests/test-generate-agents.sh
 ~/.claude/codex/tests/test-security-runtime.sh
 ~/.claude/codex/tests/test-checkpoint-runtime.sh
+~/.claude/codex/tests/test-skill-dispatch-runtime.sh
 ```
 
 These tests use a temporary HOME and do not require a real Codex CLI.
@@ -237,6 +238,32 @@ Smoke test:
 
 ```bash
 ~/.claude/codex/tests/test-security-runtime.sh
+```
+
+## Skill Invocation
+
+Minimal package skills are available after install through an explicit dispatcher. The runtime does not auto-run skills during install and does not treat skill dispatch as a separate agent surface.
+
+Command pattern:
+
+```bash
+~/.claude/hooks/codex/skills/dispatch.sh isa_append <ISA.md> <decisions|changelog|verification> "<content>"
+```
+
+`isa_append` appends redacted content to `## Decisions`, `## Changelog`, or `## Verification` in a canonical ISA under `~/.claude/PAI/MEMORY/WORK/*/ISA.md`. It rejects paths outside work memory, non-ISA filenames, symlink escapes, unsupported sections, and empty content.
+
+Execution metadata is written to:
+
+```text
+~/.claude/PAI/MEMORY/SKILLS/codex-execution.jsonl
+```
+
+The skill does not run git, does not trigger checkpointing directly, and does not perform network calls. Parent Codex remains responsible for deciding when explicit dispatch is appropriate.
+
+Smoke test:
+
+```bash
+~/.claude/codex/tests/test-skill-dispatch-runtime.sh
 ```
 
 ## Optional CheckpointPerISC

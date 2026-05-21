@@ -227,19 +227,19 @@ def checkpoint_git_commit(isa_path: Path, state: dict, isc_ids: list[str]) -> di
     root = claude_git_root()
     if not is_claude_git_repo(root):
         write_isa_state(state)
-        return {"status": "skipped", "reason": "claude git repo unavailable", "git_repo": str(root)}
+        return {"status": "skipped", "reason": "checkpoint git repo unavailable", "git_repo": str(root)}
 
     isa_rel = rel_to_claude(isa_path, root)
     state_rel = rel_to_claude(isa_state_path, root)
     if isa_rel is None or state_rel is None:
         write_isa_state(state)
-        return {"status": "skipped", "reason": "ISA or state path outside claude git repo", "git_repo": str(root)}
+        return {"status": "skipped", "reason": "ISA or state path outside checkpoint git repo", "git_repo": str(root)}
 
     allowed_dirty = {isa_rel, state_rel}
     dirty = git_status_paths(root)
     unrelated = [path for path in dirty if path not in allowed_dirty and not is_runtime_observability_path(path)]
     if unrelated:
-        return {"status": "skipped", "reason": "claude git repo has unrelated dirty paths", "dirty_paths": unrelated}
+        return {"status": "skipped", "reason": "checkpoint git repo has unrelated dirty paths", "dirty_paths": unrelated}
 
     write_isa_state(state)
     add_proc = git_run(["add", "--", isa_rel, state_rel], root)

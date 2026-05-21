@@ -140,6 +140,14 @@ For full Algorithm runs, include all seven phase headers and record verification
 - Do not add write-capable custom agents.
 - Read-only custom agents may inspect and summarize, but parent Codex is responsible for writes.
 
+## Skill Invocation
+
+- Package skills are invoked explicitly through `${HOME}/.claude/hooks/codex/skills/dispatch.sh`.
+- Available package skill: `isa_append`.
+- Example: `${HOME}/.claude/hooks/codex/skills/dispatch.sh isa_append <ISA.md> decisions "<content>"`.
+- Parent Codex remains responsible for deciding when a skill is appropriate.
+- Do not call a `claude` subprocess for skill dispatch.
+
 ## Answer Contracts
 
 `who am I?`

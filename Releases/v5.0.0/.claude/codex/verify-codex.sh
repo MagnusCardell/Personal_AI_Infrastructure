@@ -221,6 +221,35 @@ check_checkpoint_integration() {
   require_contains "$root/hooks/post-tool-use.sh" 'git_run\(\["commit"' "PostToolUse can commit checkpoints when enabled"
 }
 
+check_skill_dispatch_integration() {
+  local root="$1"
+  require_file "$root/hooks/skills/dispatch.sh"
+  require_exec "$root/hooks/skills/dispatch.sh"
+  require_file "$root/hooks/skills/isa_append.py"
+  require_contains "$root/hooks/skills/dispatch.sh" 'isa_append' "skill dispatcher supports isa_append"
+  require_contains "$root/hooks/skills/dispatch.sh" 'command -v python3' "skill dispatcher guards python3"
+  require_contains "$root/hooks/skills/isa_append.py" 'codex-execution\.jsonl' "ISA append writes skill execution log"
+}
+
+scan_skill_dispatch_command_refs() {
+  local root="$1"
+  local cword="cla""ude"
+  local nword="n""pm"
+  local xword="n""px"
+  local bflag="--""bare"
+  local targets=(
+    "$root/hooks/skills/dispatch.sh"
+    "$root/hooks/skills/isa_append.py"
+  )
+  local pattern="(^|[^A-Za-z0-9_./-])(${cword}|${nword}|${xword})([[:space:];|&]|$)|${bflag}"
+  if rg -n "$pattern" "${targets[@]}" >"$SCAN_TMP" 2>/dev/null; then
+    cat "$SCAN_TMP" >&2
+    fail "skill dispatch contains disallowed subprocess or package-manager command pattern"
+  else
+    ok "skill dispatch has no disallowed subprocess or package-manager command patterns"
+  fi
+}
+
 check_agents_generator() {
   local root="$1"
   require_file "$root/tools/GenerateAgentsMd.ts"
@@ -262,6 +291,7 @@ verify_tree() {
   require_file "$root/tests/test-generate-agents.sh"
   require_file "$root/tests/test-security-runtime.sh"
   require_file "$root/tests/test-checkpoint-runtime.sh"
+  require_file "$root/tests/test-skill-dispatch-runtime.sh"
   require_file "$root/tests/run-all.sh"
   require_file "$root/RELEASE_CHECKLIST.md"
   require_file "$root/hooks/probe.sh"
@@ -271,20 +301,22 @@ verify_tree() {
   check_learning_integration "$root"
   check_security_integration "$root"
   check_checkpoint_integration "$root"
+  check_skill_dispatch_integration "$root"
   check_agents_generator "$root"
 
   json_check "$root/hooks.json.template"
 
-  for script in "$root"/*.sh "$root"/hooks/*.sh "$root"/skills/pai-isa/scripts/*.sh "$root"/skills/pai-runtime-audit/scripts/*.sh; do
+  for script in "$root"/*.sh "$root"/hooks/*.sh "$root"/hooks/skills/*.sh "$root"/skills/pai-isa/scripts/*.sh "$root"/skills/pai-runtime-audit/scripts/*.sh; do
     [[ -e "$script" ]] || continue
     bash_check "$script"
   done
 
-  for py in "$root"/hooks/lib/*.py; do
+  for py in "$root"/hooks/lib/*.py "$root"/hooks/skills/*.py; do
     [[ -e "$py" ]] || continue
     python_check "$py"
   done
 
+  scan_skill_dispatch_command_refs "$root"
   scan_private_refs "$root"
   scan_secret_refs "$root"
   scan_provider_call_refs "$root"
@@ -307,6 +339,8 @@ verify_installed() {
   require_file "$HOME/.claude/hooks/codex/lib/pai_context.py"
   require_file "$HOME/.claude/hooks/codex/lib/pulse_notify.py"
   require_file "$HOME/.claude/hooks/codex/lib/learning.py"
+  require_file "$HOME/.claude/hooks/codex/skills/isa_append.py"
+  require_exec "$HOME/.claude/hooks/codex/skills/dispatch.sh"
   require_file "$HOME/.claude/codex/tools/GenerateAgentsMd.ts"
   check_pulse_env_sourcing "$HOME/.claude/hooks/codex/post-tool-use.sh"
   check_pulse_env_sourcing "$HOME/.claude/hooks/codex/stop.sh"
@@ -323,6 +357,13 @@ verify_installed() {
     require_exec "$script"
   done
   for py in "$HOME/.claude/hooks/codex/lib"/*.py; do
+    python_check "$py"
+  done
+  for script in "$HOME/.claude/hooks/codex/skills"/*.sh; do
+    bash_check "$script"
+    require_exec "$script"
+  done
+  for py in "$HOME/.claude/hooks/codex/skills"/*.py; do
     python_check "$py"
   done
 
