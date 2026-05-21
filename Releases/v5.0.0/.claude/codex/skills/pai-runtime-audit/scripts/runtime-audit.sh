@@ -173,8 +173,17 @@ for agent in pai_explorer pai_reviewer pai_security_reviewer; do
 done
 
 if [[ -d "$HOME/.claude/hooks/codex" ]]; then
-  if rg -n 'git commit|tar\s|retention|backup' "$HOME/.claude/hooks/codex" >/dev/null 2>&1; then
+  if rg -n 'tar\s|retention|backup' "$HOME/.claude/hooks/codex" >/dev/null 2>&1; then
     report FAIL "runtime_backup_behavior" "review hidden maintenance keywords in hooks"
+  elif rg -n 'git commit' "$HOME/.claude/hooks/codex" >/dev/null 2>&1; then
+    if [[ -f "$HOME/.claude/hooks/codex/post-tool-use.sh" ]] \
+      && [[ -f "$HOME/.claude/hooks/codex/pulse.env" ]] \
+      && rg -q 'PAI_CODEX_CHECKPOINT_ENABLED' "$HOME/.claude/hooks/codex/post-tool-use.sh" \
+      && rg -q '^export PAI_CODEX_CHECKPOINT_ENABLED=0$' "$HOME/.claude/hooks/codex/pulse.env"; then
+      report OK "runtime_backup_behavior" "git checkpoint path is opt-in and disabled by default"
+    else
+      report FAIL "runtime_backup_behavior" "review ungated git commit keyword in hooks"
+    fi
   else
     report OK "runtime_backup_behavior" "no hidden maintenance keywords in hooks"
   fi

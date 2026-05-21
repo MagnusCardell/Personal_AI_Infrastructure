@@ -75,6 +75,8 @@ pai_dir = Path(sys.argv[2]).expanduser()
 tool_log_path = Path(sys.argv[3]).expanduser()
 sync_log_path = Path(sys.argv[4]).expanduser()
 home = str(Path.home())
+checkpoint_log_path = pai_dir / "MEMORY" / "OBSERVABILITY" / "codex-checkpoint.jsonl"
+isa_state_path = pai_dir / "MEMORY" / "OBSERVABILITY" / "codex-isa-state.json"
 
 
 def get_tool(payload: dict) -> tuple[str, dict, str]:
@@ -132,6 +134,171 @@ def extract_isa_paths(payload: dict, tool_name: str, tool_input: dict, command: 
         except Exception:
             continue
     return sorted(set(resolved), key=str)
+
+
+def env_enabled(name: str) -> bool:
+    return os.environ.get(name, "").lower() in {"1", "true", "yes", "on"}
+
+
+def parse_isc_state(isa_path: Path) -> dict[str, bool]:
+    try:
+        text = isa_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    states: dict[str, bool] = {}
+    pattern = re.compile(r"^-\s+\[(?P<mark>[ xX])\]\s+(?P<id>ISC-[0-9]+(?:\.[0-9]+)?):", re.M)
+    for match in pattern.finditer(text):
+        states[match.group("id")] = match.group("mark").lower() == "x"
+    return states
+
+
+def load_isa_state() -> dict:
+    if not isa_state_path.exists():
+        return {"version": 1, "isas": {}}
+    try:
+        value = json.loads(isa_state_path.read_text(encoding="utf-8", errors="replace"))
+    except Exception:
+        return {"version": 1, "isas": {}}
+    if not isinstance(value, dict):
+        return {"version": 1, "isas": {}}
+    if not isinstance(value.get("isas"), dict):
+        value["isas"] = {}
+    value.setdefault("version", 1)
+    return value
+
+
+def write_isa_state(state: dict) -> None:
+    isa_state_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = isa_state_path.with_suffix(".json.tmp")
+    tmp_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp_path.replace(isa_state_path)
+
+
+def git_run(args: list[str], cwd: Path, *, timeout: int = 8) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def claude_git_root() -> Path:
+    return Path(home) / ".claude"
+
+
+def is_claude_git_repo(root: Path) -> bool:
+    if not (root / ".git").exists():
+        return False
+    proc = git_run(["rev-parse", "--is-inside-work-tree"], root)
+    return proc.returncode == 0 and proc.stdout.strip() == "true"
+
+
+def rel_to_claude(path: Path, root: Path) -> str | None:
+    try:
+        return str(path.resolve(strict=False).relative_to(root.resolve(strict=False)))
+    except ValueError:
+        return None
+
+
+def git_status_paths(root: Path) -> list[str]:
+    proc = git_run(["status", "--porcelain", "--untracked-files=all"], root)
+    if proc.returncode != 0:
+        return []
+    paths: list[str] = []
+    for line in proc.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        item = line[3:]
+        if " -> " in item:
+            item = item.split(" -> ", 1)[1]
+        paths.append(item.strip())
+    return paths
+
+
+def is_runtime_observability_path(path: str) -> bool:
+    return path.startswith("PAI/MEMORY/OBSERVABILITY/codex-") and path.endswith(".jsonl")
+
+
+def checkpoint_git_commit(isa_path: Path, state: dict, isc_ids: list[str]) -> dict:
+    root = claude_git_root()
+    if not is_claude_git_repo(root):
+        write_isa_state(state)
+        return {"status": "skipped", "reason": "claude git repo unavailable", "git_repo": str(root)}
+
+    isa_rel = rel_to_claude(isa_path, root)
+    state_rel = rel_to_claude(isa_state_path, root)
+    if isa_rel is None or state_rel is None:
+        write_isa_state(state)
+        return {"status": "skipped", "reason": "ISA or state path outside claude git repo", "git_repo": str(root)}
+
+    allowed_dirty = {isa_rel, state_rel}
+    dirty = git_status_paths(root)
+    unrelated = [path for path in dirty if path not in allowed_dirty and not is_runtime_observability_path(path)]
+    if unrelated:
+        return {"status": "skipped", "reason": "claude git repo has unrelated dirty paths", "dirty_paths": unrelated}
+
+    write_isa_state(state)
+    add_proc = git_run(["add", "--", isa_rel, state_rel], root)
+    if add_proc.returncode != 0:
+        return {
+            "status": "failed",
+            "reason": "git add failed",
+            "exit_code": add_proc.returncode,
+            "stdout": text_facts(add_proc.stdout),
+            "stderr": text_facts(add_proc.stderr),
+        }
+
+    message = f"ISC checkpoint: {isa_path.parent.name} \u2014 {', '.join(isc_ids)}"
+    commit_proc = git_run(["commit", "--no-gpg-sign", "-m", message], root)
+    if commit_proc.returncode != 0:
+        return {
+            "status": "failed",
+            "reason": "git commit failed",
+            "exit_code": commit_proc.returncode,
+            "stdout": text_facts(commit_proc.stdout),
+            "stderr": text_facts(commit_proc.stderr),
+        }
+    return {
+        "status": "committed",
+        "message": message,
+        "stdout": text_facts(commit_proc.stdout),
+        "stderr": text_facts(commit_proc.stderr),
+    }
+
+
+def checkpoint_isa(isa_path: Path) -> dict:
+    if not env_enabled("PAI_CODEX_CHECKPOINT_ENABLED"):
+        return {"status": "disabled", "isa_path": str(isa_path)}
+
+    current = parse_isc_state(isa_path)
+    if not current:
+        return {"status": "skipped", "reason": "no ISC checkbox state found", "isa_path": str(isa_path)}
+
+    state = load_isa_state()
+    isas = state.setdefault("isas", {})
+    key = str(isa_path)
+    previous_record = isas.get(key) if isinstance(isas.get(key), dict) else {}
+    previous = previous_record.get("checked") if isinstance(previous_record.get("checked"), dict) else {}
+    transitions = sorted(isc_id for isc_id, checked in current.items() if checked and previous.get(isc_id) is False)
+
+    isas[key] = {
+        "slug": isa_path.parent.name,
+        "isa_path": key,
+        "checked": current,
+        "updated": now(),
+    }
+
+    if not transitions:
+        write_isa_state(state)
+        return {"status": "no_transition", "isa_path": key, "checked_count": sum(1 for checked in current.values() if checked)}
+
+    result = checkpoint_git_commit(isa_path, state, transitions)
+    result.update({"isa_path": key, "isa_slug": isa_path.parent.name, "isc_ids": transitions})
+    return result
 
 
 def run_isasync(isa_path: Path, payload: dict) -> dict:
@@ -207,6 +374,11 @@ try:
     )
 
     for isa_path in isa_paths:
+        checkpoint_result = checkpoint_isa(isa_path)
+        if checkpoint_result.get("status") != "disabled":
+            checkpoint_result["timestamp"] = now()
+            append_jsonl(checkpoint_log_path, checkpoint_result)
+
         result = run_isasync(isa_path, payload)
         result["timestamp"] = now()
         append_jsonl(sync_log_path, result)
