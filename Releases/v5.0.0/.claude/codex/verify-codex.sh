@@ -182,6 +182,7 @@ check_pulse_env_defaults() {
   require_contains "$path" '^export PAI_CODEX_VOICE_ID=$' "voice id empty by default"
   require_contains "$path" '^export PAI_CODEX_LEARNING_ENABLED=0$' "learning disabled by default"
   require_contains "$path" '^export PAI_CODEX_CHECKPOINT_ENABLED=0$' "checkpoint disabled by default"
+  require_contains "$path" '^export PAI_CODEX_ADVISOR_PROVIDER=$' "advisor provider unset by default"
   if rg -q '^export PAI_CODEX_VOICE_ID=.+$' "$path"; then
     fail "non-empty voice id in package pulse.env"
   else
@@ -229,6 +230,23 @@ check_skill_dispatch_integration() {
   require_contains "$root/hooks/skills/dispatch.sh" 'isa_append' "skill dispatcher supports isa_append"
   require_contains "$root/hooks/skills/dispatch.sh" 'command -v python3' "skill dispatcher guards python3"
   require_contains "$root/hooks/skills/isa_append.py" 'codex-execution\.jsonl' "ISA append writes skill execution log"
+  require_file "$root/hooks/skills/context_search.py"
+  require_file "$root/hooks/skills/fabric.sh"
+  require_file "$root/hooks/skills/advisor.sh"
+  require_contains "$root/hooks/skills/dispatch.sh" 'context_search' "skill dispatcher supports context_search"
+  require_contains "$root/hooks/skills/dispatch.sh" 'fabric' "skill dispatcher supports fabric"
+  require_contains "$root/hooks/skills/dispatch.sh" 'advisor' "skill dispatcher supports advisor"
+  require_contains "$root/hooks/skills/advisor.sh" 'PAI_CODEX_ADVISOR_PROVIDER' "advisor requires explicit provider opt-in"
+  require_contains "$root/hooks/skills/advisor.sh" 'PAI_CODEX_ADVISOR_UNAVAILABLE' "advisor fails loudly when unavailable"
+  require_contains "$root/hooks/skills/context_search.py" 'codex-execution\.jsonl' "context_search writes skill execution log"
+}
+
+check_precompact_integration() {
+  local root="$1"
+  require_file "$root/hooks/pre-compact.sh"
+  require_contains "$root/hooks/pre-compact.sh" 'codex-precompact\.jsonl' "PreCompact logs structured snapshot"
+  require_contains "$root/hooks/pre-compact.sh" 'exit 0' "PreCompact never blocks compaction"
+  require_contains "$root/hooks.json.template" 'pre-compact\.sh' "hooks template registers PreCompact"
 }
 
 scan_skill_dispatch_command_refs() {
@@ -240,6 +258,9 @@ scan_skill_dispatch_command_refs() {
   local targets=(
     "$root/hooks/skills/dispatch.sh"
     "$root/hooks/skills/isa_append.py"
+    "$root/hooks/skills/context_search.py"
+    "$root/hooks/skills/fabric.sh"
+    "$root/hooks/skills/advisor.sh"
   )
   local pattern="(^|[^A-Za-z0-9_./-])(${cword}|${nword}|${xword})([[:space:];|&]|$)|${bflag}"
   if rg -n "$pattern" "${targets[@]}" >"$SCAN_TMP" 2>/dev/null; then
@@ -292,9 +313,11 @@ verify_tree() {
   require_file "$root/tests/test-security-runtime.sh"
   require_file "$root/tests/test-checkpoint-runtime.sh"
   require_file "$root/tests/test-skill-dispatch-runtime.sh"
+  require_file "$root/tests/test-lib-parity.sh"
   require_file "$root/tests/run-all.sh"
   require_file "$root/RELEASE_CHECKLIST.md"
   require_file "$root/hooks/probe.sh"
+  require_contains "$root/README.md" 'Classifier Decision' "README records classifier acceptance decision"
   check_pulse_env_defaults "$root/hooks/pulse.env"
   check_pulse_env_sourcing "$root/hooks/post-tool-use.sh"
   check_pulse_env_sourcing "$root/hooks/stop.sh"
@@ -302,6 +325,7 @@ verify_tree() {
   check_security_integration "$root"
   check_checkpoint_integration "$root"
   check_skill_dispatch_integration "$root"
+  check_precompact_integration "$root"
   check_agents_generator "$root"
 
   json_check "$root/hooks.json.template"
@@ -340,6 +364,11 @@ verify_installed() {
   require_file "$HOME/.claude/hooks/codex/lib/pulse_notify.py"
   require_file "$HOME/.claude/hooks/codex/lib/learning.py"
   require_file "$HOME/.claude/hooks/codex/skills/isa_append.py"
+  require_file "$HOME/.claude/hooks/codex/skills/context_search.py"
+  require_file "$HOME/.claude/hooks/codex/skills/fabric.sh"
+  require_file "$HOME/.claude/hooks/codex/skills/advisor.sh"
+  require_file "$HOME/.claude/hooks/codex/pre-compact.sh"
+  require_contains "$HOME/.codex/hooks.json" 'pre-compact\.sh' "installed hooks.json registers PreCompact"
   require_exec "$HOME/.claude/hooks/codex/skills/dispatch.sh"
   require_file "$HOME/.claude/codex/tools/GenerateAgentsMd.ts"
   check_pulse_env_sourcing "$HOME/.claude/hooks/codex/post-tool-use.sh"

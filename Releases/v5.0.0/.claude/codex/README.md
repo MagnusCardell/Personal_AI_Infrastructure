@@ -252,6 +252,21 @@ Command pattern:
 
 `isa_append` appends redacted content to `## Decisions`, `## Changelog`, or `## Verification` in a canonical ISA under `~/.claude/PAI/MEMORY/WORK/*/ISA.md`. It rejects paths outside work memory, non-ISA filenames, symlink escapes, unsupported sections, and empty content.
 
+Additional dispatch routes:
+
+```bash
+# Phase-1 scan of prior PAI work (registry, session names, WORK dirs, ISA titles)
+~/.claude/hooks/codex/skills/dispatch.sh context_search <term> [term...]
+
+# Run a fabric pattern via the locally installed fabric CLI (input on stdin)
+cat input.md | ~/.claude/hooks/codex/skills/dispatch.sh fabric extract_wisdom
+
+# Second-opinion advisor; provider is explicit opt-in configuration
+~/.claude/hooks/codex/skills/dispatch.sh advisor "TASK: ..." "QUESTION: ..."
+```
+
+`context_search` is read-only and degrades gracefully when registries are missing. `fabric` exits with a clear message when the fabric binary is not installed. `advisor` requires `PAI_CODEX_ADVISOR_PROVIDER` to be set (`claude-inference` routes through the live PAI inference tool; `codex-exec` spawns a read-only Codex subprocess); unset, it fails loudly with exit 4 so an absent review is never mistaken for an approving one. Empty advisor output is reported as inconclusive (exit 5), never as approval.
+
 Execution metadata is written to:
 
 ```text
@@ -391,6 +406,17 @@ If `pulse.env` still matches the packaged disabled defaults, uninstall removes i
 
 The package includes `~/.claude/hooks/codex/probe.sh` as a passive diagnostic hook for hook-event troubleshooting. It is not enabled by default in `hooks.json.template`. If you enable it manually, it writes redacted event summaries to `~/.claude/PAI/MEMORY/OBSERVABILITY/codex-runtime-probe.jsonl` and avoids raw prompt or command logging.
 
+## Classifier Decision (Accepted Design)
+
+The prompt classifier in `prompt-processing.sh` is local, deterministic keyword matching. This is an accepted design decision, not a temporary gap:
+
+- **Privacy:** raw prompts are never logged or forwarded to another model (`PAI_PRIVACY=raw_prompt_not_logged_or_forwarded`).
+- **Latency:** classification is effectively instant; a model-inference classifier adds seconds to every prompt.
+- **Cost:** no external billing surface in the hook path.
+- **Known weakness:** context-dependent escalation (a short approval like "yes" after a multi-step proposal) is misclassified in isolation. This is mitigated executor-side: the generated AGENTS.md `Context Override Escalation` section instructs the runtime to inherit mode and tier from conversation context and record the override in the active ISA.
+
+**Revisit trigger:** audit `~/.claude/PAI/MEMORY/OBSERVABILITY/codex-prompt-classification.jsonl` periodically; if observed misclassification materially affects tier selection beyond what executor-side escalation corrects, reopen this decision.
+
 ## What Is Not Included Yet
 
 - Pulse features beyond basic optional notifications.
@@ -401,7 +427,8 @@ The package includes `~/.claude/hooks/codex/probe.sh` as a passive diagnostic ho
 ## Known Limitations
 
 - Hooks are guardrails, not a complete security boundary. Codex sandboxing and approval policy remain authoritative.
-- Prompt classification is deterministic by default and does not forward raw prompts to another model.
+- Prompt classification is deterministic by default and does not forward raw prompts to another model (see Classifier Decision above).
+- The advisor skill is opt-in and inert until `PAI_CODEX_ADVISOR_PROVIDER` is configured.
 - ISA sync runs only when a supported PAI sync hook or tool is present.
 - Pulse notifications are optional and disabled by default.
 - Voice notifications are optional, disabled by default, and require Pulse.

@@ -97,12 +97,13 @@ For full Algorithm runs, include all seven phase headers and record verification
 - If hook-provided mode/tier conflicts with obvious conversation context, explain the effective mode/tier briefly and proceed with the safer contextual classification.
 - When an ISA exists and the mismatch affects execution, record the mode/tier decision in the ISA Decisions section.
 
-## Advisor Unavailable
+## Advisor (Opt-In)
 
-- Advisor via a Claude subprocess is unavailable in the Codex runtime.
-- Do not call a `claude` subprocess for Advisor, review, or escalation.
-- For E4/E5 Advisor needs, substitute local reasoning patterns such as FirstPrinciples and SystemsThinking.
-- Name any missing Advisor coverage as a gap rather than faking a cross-runtime review.
+- Advisor runs only through the dispatcher: `${HOME}/.claude/hooks/codex/skills/dispatch.sh advisor "TASK: ..." "QUESTION: ..."`.
+- The provider is explicit configuration: `PAI_CODEX_ADVISOR_PROVIDER=claude-inference` (routes through the live PAI inference tool) or `codex-exec` (read-only Codex subprocess). Unset means unavailable.
+- Never call a vendor CLI subprocess for Advisor, review, or escalation outside this dispatcher.
+- An unavailable or empty advisor result is a named gap, not approval — say so instead of faking a cross-runtime review.
+- When no provider is configured, substitute local reasoning patterns such as FirstPrinciples and SystemsThinking and name the missing Advisor coverage.
 
 ## Algorithm And ISA Rules
 
@@ -143,10 +144,14 @@ For full Algorithm runs, include all seven phase headers and record verification
 ## Skill Invocation
 
 - Package skills are invoked explicitly through `${HOME}/.claude/hooks/codex/skills/dispatch.sh`.
-- Available package skill: `isa_append`.
-- Example: `${HOME}/.claude/hooks/codex/skills/dispatch.sh isa_append <ISA.md> decisions "<content>"`.
+- Available package skills: `isa_append`, `context_search`, `fabric`, `advisor`.
+- Examples:
+  - `${HOME}/.claude/hooks/codex/skills/dispatch.sh isa_append <ISA.md> decisions "<content>"`
+  - `${HOME}/.claude/hooks/codex/skills/dispatch.sh context_search <term> [term...]`
+  - `cat input.md | ${HOME}/.claude/hooks/codex/skills/dispatch.sh fabric extract_wisdom`
+  - `${HOME}/.claude/hooks/codex/skills/dispatch.sh advisor "TASK: ..." "QUESTION: ..."`
 - Parent Codex remains responsible for deciding when a skill is appropriate.
-- Do not call a `claude` subprocess for skill dispatch.
+- Do not call a vendor CLI subprocess for skill dispatch outside the dispatcher.
 
 ## Answer Contracts
 
