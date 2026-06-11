@@ -23,6 +23,7 @@ TESTS=(
   "$SCRIPT_DIR/test-security-runtime.sh"
   "$SCRIPT_DIR/test-checkpoint-runtime.sh"
   "$SCRIPT_DIR/test-skill-dispatch-runtime.sh"
+  "$SCRIPT_DIR/test-lib-parity.sh"
 )
 
 PASS_COUNT=0
