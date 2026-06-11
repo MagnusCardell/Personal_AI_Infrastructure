@@ -8,7 +8,10 @@ usage() {
 usage: dispatch.sh SKILL_NAME [args...]
 
 Available skills:
-  isa_append
+  isa_append      append decisions/changelog/verification to an ISA
+  context_search  Phase-1 scan of prior PAI work (registry, WORK dirs, ISA titles)
+  fabric          run a fabric pattern via the local fabric CLI (input on stdin)
+  advisor         second-opinion review via PAI_CODEX_ADVISOR_PROVIDER (opt-in)
 EOF
 }
 
@@ -28,6 +31,15 @@ fi
 case "$skill" in
   isa_append|ISA_APPEND)
     exec python3 "$SKILL_DIR/isa_append.py" "$@"
+    ;;
+  context_search|CONTEXT_SEARCH)
+    exec python3 "$SKILL_DIR/context_search.py" "$@"
+    ;;
+  fabric|FABRIC)
+    exec bash "$SKILL_DIR/fabric.sh" "$@"
+    ;;
+  advisor|ADVISOR)
+    exec bash "$SKILL_DIR/advisor.sh" "$@"
     ;;
   *)
     echo "unknown skill: $skill" >&2
