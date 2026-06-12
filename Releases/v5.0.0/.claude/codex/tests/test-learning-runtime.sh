@@ -84,21 +84,21 @@ learning_count() {
 disabled_home="$(make_home disabled)"
 write_isa "$disabled_home" disabled-isa complete "- learned: Disabled learning should not write."
 printf '%s\n' "$stop_payload" |
-  HOME="$disabled_home" "$PKG_DIR/hooks/stop.sh" |
+  PAI_DIR="" HOME="$disabled_home" "$PKG_DIR/hooks/stop.sh" |
   json_ok
 [[ -z "$(learning_file "$disabled_home")" ]] || { echo "learning file written while disabled" >&2; exit 1; }
 
 incomplete_home="$(make_home incomplete)"
 write_isa "$incomplete_home" incomplete-isa verify "- learned: Incomplete ISA should not write."
 printf '%s\n' "$stop_payload" |
-  HOME="$incomplete_home" PAI_CODEX_LEARNING_ENABLED=1 "$PKG_DIR/hooks/stop.sh" |
+  PAI_DIR="" HOME="$incomplete_home" PAI_CODEX_LEARNING_ENABLED=1 "$PKG_DIR/hooks/stop.sh" |
   json_ok
 [[ -z "$(learning_file "$incomplete_home")" ]] || { echo "learning file written for non-complete ISA" >&2; exit 1; }
 
 complete_home="$(make_home complete)"
 write_isa "$complete_home" complete-isa complete "- learned: Explicit Changelog learning is captured."
 printf '%s\n' "$stop_payload" |
-  HOME="$complete_home" PAI_CODEX_LEARNING_ENABLED=1 "$PKG_DIR/hooks/stop.sh" |
+  PAI_DIR="" HOME="$complete_home" PAI_CODEX_LEARNING_ENABLED=1 "$PKG_DIR/hooks/stop.sh" |
   json_ok
 complete_file="$(learning_file "$complete_home")"
 test -f "$complete_file"
@@ -119,13 +119,13 @@ assert record["content_hash"], record
 PY
 
 printf '%s\n' "$stop_payload" |
-  HOME="$complete_home" PAI_CODEX_LEARNING_ENABLED=1 "$PKG_DIR/hooks/stop.sh" |
+  PAI_DIR="" HOME="$complete_home" PAI_CODEX_LEARNING_ENABLED=1 "$PKG_DIR/hooks/stop.sh" |
   json_ok
 [[ "$(learning_count "$complete_file")" == "1" ]] || { echo "learning record duplicated" >&2; exit 1; }
 
 write_isa "$complete_home" secret-isa learn "- learned: secret marker password=supersecretvalue must be redacted."
 printf '%s\n' "$stop_payload" |
-  HOME="$complete_home" PAI_CODEX_LEARNING_ENABLED=1 "$PKG_DIR/hooks/stop.sh" |
+  PAI_DIR="" HOME="$complete_home" PAI_CODEX_LEARNING_ENABLED=1 "$PKG_DIR/hooks/stop.sh" |
   json_ok
 [[ "$(learning_count "$complete_file")" == "2" ]] || { echo "expected second learning record" >&2; exit 1; }
 ! rg -q 'supersecretvalue' "$complete_file"
@@ -137,7 +137,7 @@ for name in bash dirname mkdir; do
   ln -s "$(command -v "$name")" "$fallback_home/bin/$name"
 done
 printf '%s\n' "$stop_payload" |
-  HOME="$fallback_home" PATH="$fallback_home/bin" PAI_CODEX_LEARNING_ENABLED=1 "$PKG_DIR/hooks/stop.sh" |
+  PAI_DIR="" HOME="$fallback_home" PATH="$fallback_home/bin" PAI_CODEX_LEARNING_ENABLED=1 "$PKG_DIR/hooks/stop.sh" |
   json_ok
 [[ -z "$(learning_file "$fallback_home")" ]] || { echo "learning file written without python3" >&2; exit 1; }
 

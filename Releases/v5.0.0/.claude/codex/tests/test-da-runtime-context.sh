@@ -53,7 +53,7 @@ EOF
 
 output="$(
   printf '{"hook_event_name":"SessionStart","cwd":"/tmp"}\n' |
-    HOME="$TMP_HOME" "$PKG_DIR/hooks/session-start.sh"
+    PAI_DIR="" HOME="$TMP_HOME" "$PKG_DIR/hooks/session-start.sh"
 )"
 
 printf '%s\n' "$output" | python3 -m json.tool >/dev/null
@@ -75,7 +75,7 @@ rm -f "$TMP_HOME/.claude/PAI/USER/DA_IDENTITY.md"
 rm -f "$TMP_HOME/.claude/PAI/ALGORITHM/test-algorithm.md"
 partial_output="$(
   printf '{"hook_event_name":"SessionStart","cwd":"/tmp"}\n' |
-    HOME="$TMP_HOME" "$PKG_DIR/hooks/session-start.sh"
+    PAI_DIR="" HOME="$TMP_HOME" "$PKG_DIR/hooks/session-start.sh"
 )"
 
 printf '%s\n' "$partial_output" | python3 -m json.tool >/dev/null

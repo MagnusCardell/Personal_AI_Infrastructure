@@ -44,14 +44,14 @@ Create a minimal valid ISA.
 - [ ] ISC-1: Validates with the bundled validator.
 EOF
 
-HOME="$TMP_HOME" "$VALIDATOR" "$valid_isa" >/dev/null
+PAI_DIR="" HOME="$TMP_HOME" "$VALIDATOR" "$valid_isa" >/dev/null
 
 bad_isa="$TMP_HOME/.claude/PAI/MEMORY/WORK/test-isa/BAD.md"
 cat > "$bad_isa" <<'EOF'
 # Missing canonical ISA shape
 EOF
 
-if HOME="$TMP_HOME" "$VALIDATOR" "$bad_isa" >/dev/null 2>&1; then
+if PAI_DIR="" HOME="$TMP_HOME" "$VALIDATOR" "$bad_isa" >/dev/null 2>&1; then
   echo "malformed ISA unexpectedly passed validation" >&2
   exit 1
 fi
@@ -73,7 +73,7 @@ cat > "$patch_payload" <<EOF
 }
 EOF
 
-HOME="$TMP_HOME" "$PKG_DIR/hooks/post-tool-use.sh" < "$patch_payload" | python3 -m json.tool >/dev/null
+PAI_DIR="" HOME="$TMP_HOME" "$PKG_DIR/hooks/post-tool-use.sh" < "$patch_payload" | python3 -m json.tool >/dev/null
 rg -q 'detected_isa_paths' "$TMP_HOME/.claude/PAI/MEMORY/OBSERVABILITY/codex-posttool.jsonl"
 rg -q "$valid_isa" "$TMP_HOME/.claude/PAI/MEMORY/OBSERVABILITY/codex-posttool.jsonl"
 
@@ -88,7 +88,7 @@ cat > "$unrelated_payload" <<EOF
 }
 EOF
 
-HOME="$TMP_HOME" "$PKG_DIR/hooks/post-tool-use.sh" < "$unrelated_payload" | python3 -m json.tool >/dev/null
+PAI_DIR="" HOME="$TMP_HOME" "$PKG_DIR/hooks/post-tool-use.sh" < "$unrelated_payload" | python3 -m json.tool >/dev/null
 python3 - "$TMP_HOME/.claude/PAI/MEMORY/OBSERVABILITY/codex-posttool.jsonl" <<'PY'
 from __future__ import annotations
 
@@ -102,14 +102,14 @@ PY
 
 native_output="$(
   printf '{"prompt":"who am I?"}\n' |
-    HOME="$TMP_HOME" "$PKG_DIR/hooks/prompt-processing.sh"
+    PAI_DIR="" HOME="$TMP_HOME" "$PKG_DIR/hooks/prompt-processing.sh"
 )"
 printf '%s\n' "$native_output" | python3 -m json.tool >/dev/null
 rg -q 'PAI_MODE=NATIVE' <<<"$native_output"
 
 algorithm_output="$(
   printf '{"prompt":"start an Algorithm run"}\n' |
-    HOME="$TMP_HOME" "$PKG_DIR/hooks/prompt-processing.sh"
+    PAI_DIR="" HOME="$TMP_HOME" "$PKG_DIR/hooks/prompt-processing.sh"
 )"
 printf '%s\n' "$algorithm_output" | python3 -m json.tool >/dev/null
 rg -q 'PAI_MODE=ALGORITHM' <<<"$algorithm_output"

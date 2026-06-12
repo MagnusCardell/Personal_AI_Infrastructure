@@ -101,7 +101,7 @@ wait_for_count() {
 stop_payload='{"hook_event_name":"Stop","turn_id":"pulse-stop","last_assistant_message":"done"}'
 
 printf '%s\n' "$stop_payload" |
-  HOME="$TMP_HOME" PAI_CODEX_PULSE_ENABLED=0 PAI_CODEX_PULSE_URL="$server_url" "$PKG_DIR/hooks/stop.sh" |
+  PAI_DIR="" HOME="$TMP_HOME" PAI_CODEX_PULSE_ENABLED=0 PAI_CODEX_PULSE_URL="$server_url" "$PKG_DIR/hooks/stop.sh" |
   json_ok
 
 [[ "$(event_count)" == "0" ]] || {
@@ -110,11 +110,11 @@ printf '%s\n' "$stop_payload" |
 }
 
 printf '%s\n' "$stop_payload" |
-  HOME="$TMP_HOME" PAI_CODEX_PULSE_ENABLED=1 PAI_CODEX_PULSE_URL="http://127.0.0.1:1" "$PKG_DIR/hooks/stop.sh" |
+  PAI_DIR="" HOME="$TMP_HOME" PAI_CODEX_PULSE_ENABLED=1 PAI_CODEX_PULSE_URL="http://127.0.0.1:1" "$PKG_DIR/hooks/stop.sh" |
   json_ok
 
 printf '%s\n' "$stop_payload" |
-  HOME="$TMP_HOME" PAI_CODEX_PULSE_ENABLED=1 PAI_CODEX_PULSE_URL="$server_url" "$PKG_DIR/hooks/stop.sh" |
+  PAI_DIR="" HOME="$TMP_HOME" PAI_CODEX_PULSE_ENABLED=1 PAI_CODEX_PULSE_URL="$server_url" "$PKG_DIR/hooks/stop.sh" |
   json_ok
 
 wait_for_count 1
@@ -176,7 +176,7 @@ cat > "$post_payload" <<EOF
 }
 EOF
 
-HOME="$TMP_HOME" PATH="$TMP_HOME/bin:$PATH" PAI_CODEX_PULSE_ENABLED=1 PAI_CODEX_PULSE_URL="$server_url" \
+PAI_DIR="" HOME="$TMP_HOME" PATH="$TMP_HOME/bin:$PATH" PAI_CODEX_PULSE_ENABLED=1 PAI_CODEX_PULSE_URL="$server_url" \
   "$PKG_DIR/hooks/post-tool-use.sh" < "$post_payload" | json_ok
 
 wait_for_count 2

@@ -27,7 +27,7 @@ json_ok() {
 
 run_hook() {
   local payload="$1"
-  printf '%s\n' "$payload" | HOME="$TMP_HOME" "$PKG_DIR/hooks/pre-tool-use.sh"
+  printf '%s\n' "$payload" | PAI_DIR="" HOME="$TMP_HOME" "$PKG_DIR/hooks/pre-tool-use.sh"
 }
 
 assert_deny() {

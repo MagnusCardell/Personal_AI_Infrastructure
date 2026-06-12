@@ -101,7 +101,7 @@ wait_for_count() {
 stop_payload='{"hook_event_name":"Stop","turn_id":"voice-stop","last_assistant_message":"done"}'
 
 printf '%s\n' "$stop_payload" |
-  HOME="$TMP_HOME" PAI_CODEX_PULSE_ENABLED=1 PAI_CODEX_PULSE_URL="$server_url" "$PKG_DIR/hooks/stop.sh" |
+  PAI_DIR="" HOME="$TMP_HOME" PAI_CODEX_PULSE_ENABLED=1 PAI_CODEX_PULSE_URL="$server_url" "$PKG_DIR/hooks/stop.sh" |
   json_ok
 
 wait_for_count 1
@@ -121,7 +121,7 @@ assert "voice" not in payload, payload
 PY
 
 printf '%s\n' "$stop_payload" |
-  HOME="$TMP_HOME" \
+  PAI_DIR="" HOME="$TMP_HOME" \
   PAI_CODEX_PULSE_ENABLED=1 \
   PAI_CODEX_PULSE_URL="$server_url" \
   PAI_CODEX_VOICE_ENABLED=1 \
@@ -149,7 +149,7 @@ assert "voice" not in payload, payload
 PY
 
 printf '%s\n' "$stop_payload" |
-  HOME="$TMP_HOME" \
+  PAI_DIR="" HOME="$TMP_HOME" \
   PAI_CODEX_PULSE_ENABLED=1 \
   PAI_CODEX_PULSE_URL="$server_url" \
   PAI_CODEX_VOICE_ENABLED=1 \
@@ -214,7 +214,7 @@ cat > "$post_payload" <<EOF
 }
 EOF
 
-HOME="$TMP_HOME" PATH="$TMP_HOME/bin:$PATH" \
+PAI_DIR="" HOME="$TMP_HOME" PATH="$TMP_HOME/bin:$PATH" \
   PAI_CODEX_PULSE_ENABLED=1 \
   PAI_CODEX_PULSE_URL="$server_url" \
   PAI_CODEX_VOICE_ENABLED=1 \
@@ -242,14 +242,14 @@ assert "voice_id" not in payload, payload
 PY
 
 printf '%s\n' "$stop_payload" |
-  HOME="$TMP_HOME" \
+  PAI_DIR="" HOME="$TMP_HOME" \
   PAI_CODEX_PULSE_ENABLED=1 \
   PAI_CODEX_PULSE_URL="http://127.0.0.1:1" \
   PAI_CODEX_VOICE_ENABLED=1 \
   "$PKG_DIR/hooks/stop.sh" |
   json_ok
 
-HOME="$TMP_HOME" PATH="$TMP_HOME/bin:$PATH" \
+PAI_DIR="" HOME="$TMP_HOME" PATH="$TMP_HOME/bin:$PATH" \
   PAI_CODEX_PULSE_ENABLED=1 \
   PAI_CODEX_PULSE_URL="http://127.0.0.1:1" \
   PAI_CODEX_VOICE_ENABLED=1 \
@@ -259,7 +259,7 @@ HOME="$TMP_HOME" PATH="$TMP_HOME/bin:$PATH" \
 
 secret_value="s""k-testsecretvalue000000000000000000"
 printf '%s\n' '{"hook_event_name":"Stop","turn_id":"voice-secret","last_assistant_message":"password=do-not-say"}' |
-  HOME="$TMP_HOME" \
+  PAI_DIR="" HOME="$TMP_HOME" \
   PAI_CODEX_PULSE_ENABLED=1 \
   PAI_CODEX_PULSE_URL="$server_url" \
   PAI_CODEX_VOICE_ENABLED=1 \
