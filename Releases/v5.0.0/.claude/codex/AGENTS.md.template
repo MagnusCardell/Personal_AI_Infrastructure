@@ -118,6 +118,7 @@ For full Algorithm runs, include all seven phase headers and record verification
   - at least one criterion in `- [ ] ISC-N:` or `- [x] ISC-N:` form
   - `## Verification` entries in `- ISC-N:` form before completed criteria are marked `[x]`
 - Validate basic ISA structure with `${HOME}/.agents/skills/pai-isa/scripts/validate-isa.sh <ISA.md>` when the skill is installed globally.
+- The validator also enforces tier-required sections from `effort:`: E1 Goal+Criteria; E2 adds Problem and Test Strategy; E3 adds Vision, Out of Scope, Constraints, Features; E4/E5 require all twelve sections. Declare the tier you actually populated.
 - Mark ISA criteria complete only after verification evidence exists.
 - Do not write `MEMORY/LEARNING` unless completion is explicit or clearly evidenced.
 - Do not mutate `USER` files unless the user explicitly asks for that state change.
@@ -144,9 +145,11 @@ For full Algorithm runs, include all seven phase headers and record verification
 ## Skill Invocation
 
 - Package skills are invoked explicitly through `${HOME}/.claude/hooks/codex/skills/dispatch.sh`.
-- Available package skills: `isa_append`, `context_search`, `fabric`, `advisor`.
+- Available package skills: `isa_scaffold`, `isa_append`, `iterative_depth`, `context_search`, `fabric`, `advisor`.
 - Examples:
+  - `${HOME}/.claude/hooks/codex/skills/dispatch.sh isa_scaffold --tier E2 "<task>"`
   - `${HOME}/.claude/hooks/codex/skills/dispatch.sh isa_append <ISA.md> decisions "<content>"`
+  - `${HOME}/.claude/hooks/codex/skills/dispatch.sh iterative_depth --depth 4 "<problem>"`
   - `${HOME}/.claude/hooks/codex/skills/dispatch.sh context_search <term> [term...]`
   - `cat input.md | ${HOME}/.claude/hooks/codex/skills/dispatch.sh fabric extract_wisdom`
   - `${HOME}/.claude/hooks/codex/skills/dispatch.sh advisor "TASK: ..." "QUESTION: ..."`

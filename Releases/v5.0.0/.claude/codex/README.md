@@ -255,6 +255,12 @@ Command pattern:
 Additional dispatch routes:
 
 ```bash
+# Create a deterministic starter task ISA (all twelve sections, refuses overwrite)
+~/.claude/hooks/codex/skills/dispatch.sh isa_scaffold --tier E2 "<task>"
+
+# Deterministic multi-lens requirement exploration (candidate criteria, not verified facts)
+~/.claude/hooks/codex/skills/dispatch.sh iterative_depth --depth 4 "<problem>"
+
 # Phase-1 scan of prior PAI work (registry, session names, WORK dirs, ISA titles)
 ~/.claude/hooks/codex/skills/dispatch.sh context_search <term> [term...]
 

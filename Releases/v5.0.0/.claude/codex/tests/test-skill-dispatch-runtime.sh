@@ -188,12 +188,12 @@ test ! -e "$PAI_DIR/MEMORY/OBSERVABILITY/codex-isa-state.json"
 test ! -e "$PAI_DIR/MEMORY/OBSERVABILITY/codex-checkpoint.jsonl"
 
 security_payload='{"tool_name":"Bash","cwd":"'"$TMP_HOME"'","tool_input":{"command":"printf safe"}}'
-printf '%s\n' "$security_payload" | HOME="$TMP_HOME" "$PKG_DIR/hooks/pre-tool-use.sh" > "$OUT"
+printf '%s\n' "$security_payload" | PAI_DIR="" HOME="$TMP_HOME" "$PKG_DIR/hooks/pre-tool-use.sh" > "$OUT"
 json_ok < "$OUT"
 assert_json_empty_file "$OUT"
 
 checkpoint_payload='{"tool_name":"apply_patch","cwd":"'"$TMP_HOME"'","tool_input":{"command":"*** Begin Patch\n*** End Patch\n"}}'
-printf '%s\n' "$checkpoint_payload" | HOME="$TMP_HOME" PAI_CODEX_CHECKPOINT_ENABLED=0 "$PKG_DIR/hooks/post-tool-use.sh" > "$OUT"
+printf '%s\n' "$checkpoint_payload" | PAI_DIR="" HOME="$TMP_HOME" PAI_CODEX_CHECKPOINT_ENABLED=0 "$PKG_DIR/hooks/post-tool-use.sh" > "$OUT"
 json_ok < "$OUT"
 assert_json_empty_file "$OUT"
 
@@ -273,5 +273,42 @@ json_ok < "$OUT"
 assert_json_empty_file "$OUT"
 test -s "$PAI_DIR/MEMORY/OBSERVABILITY/codex-precompact.jsonl"
 rg -q '"event": "PreCompact"' "$PAI_DIR/MEMORY/OBSERVABILITY/codex-precompact.jsonl"
+
+# --- isa_scaffold route ---
+HOME="$TMP_HOME" PAI_DIR="$PAI_DIR" "$DISPATCH" isa_scaffold --tier E2 --slug scaffold-test "Scaffold dispatch test task" > "$OUT"
+json_ok < "$OUT"
+SCAFFOLD_ISA="$WORK_DIR/scaffold-test/ISA.md"
+test -f "$SCAFFOLD_ISA"
+[[ "$(rg -c '^## ' "$SCAFFOLD_ISA")" -eq 12 ]]
+rg -q '^effort: E2$' "$SCAFFOLD_ISA"
+rg -q '^- \[ \] ISC-1:' "$SCAFFOLD_ISA"
+rg -q '"skill": "isa_scaffold"' "$SKILL_LOG"
+
+if HOME="$TMP_HOME" PAI_DIR="$PAI_DIR" "$DISPATCH" isa_scaffold --slug scaffold-test "same slug again" > "$OUT" 2>&1; then
+  echo "isa_scaffold overwrite unexpectedly succeeded" >&2
+  exit 1
+fi
+rg -q 'already exists' "$OUT"
+
+# --- iterative_depth route ---
+HOME="$TMP_HOME" PAI_DIR="$PAI_DIR" "$DISPATCH" iterative_depth --depth 3 "Harden webhook retry in sender.py" > "$OUT"
+json_ok < "$OUT"
+python3 - "$OUT" <<'PY'
+import json, sys
+from pathlib import Path
+
+result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert len(result["lenses_used"]) == 3, result["lenses_used"]
+assert result["candidate_criteria"], "no candidate criteria"
+assert "Lens order was driven by" in result["key_insight"], result["key_insight"]
+assert "sender.py" in json.dumps(result["passes"]), "artifact not surfaced by Literal lens"
+PY
+rg -q '"skill": "iterative_depth"' "$SKILL_LOG"
+
+if HOME="$TMP_HOME" PAI_DIR="$PAI_DIR" "$DISPATCH" iterative_depth --depth 9 "too deep" > "$OUT" 2>&1; then
+  echo "iterative_depth depth=9 unexpectedly succeeded" >&2
+  exit 1
+fi
+rg -q 'depth must be between 0 and 8' "$OUT"
 
 echo "skill dispatch runtime test passed"
