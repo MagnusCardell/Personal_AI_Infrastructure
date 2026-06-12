@@ -56,6 +56,37 @@ if PAI_DIR="" HOME="$TMP_HOME" "$VALIDATOR" "$bad_isa" >/dev/null 2>&1; then
   exit 1
 fi
 
+mkdir -p "$TMP_HOME/.claude/PAI/MEMORY/WORK/tier-gate"
+tier_isa="$TMP_HOME/.claude/PAI/MEMORY/WORK/tier-gate/ISA.md"
+cat > "$tier_isa" <<'EOF'
+---
+task: Tier gate fixture
+slug: tier-gate
+effort: E3
+phase: verify
+progress: 0/1
+mode: ALGORITHM
+started: 2026-06-12T00:00:00Z
+updated: 2026-06-12T00:00:00Z
+---
+
+## Goal
+
+E3-labeled ISA missing tier-required sections.
+
+## Criteria
+
+- [ ] ISC-1: Should fail the tier gate.
+EOF
+
+tier_out="$TMP_HOME/tier-gate-out.txt"
+if PAI_DIR="" HOME="$TMP_HOME" "$VALIDATOR" "$tier_isa" > "$tier_out" 2>&1; then
+  echo "E3-labeled minimal ISA unexpectedly passed tier gate" >&2
+  exit 1
+fi
+rg -q 'missing required section for E3: ## Vision' "$tier_out"
+rg -q 'missing required section for E3: ## Features' "$tier_out"
+
 rg -q 'validate-isa.sh' "$PKG_DIR/AGENTS.md.template"
 rg -q 'frontmatter delimiter' "$PKG_DIR/AGENTS.md.template"
 rg -q '## Goal' "$PKG_DIR/AGENTS.md.template"
