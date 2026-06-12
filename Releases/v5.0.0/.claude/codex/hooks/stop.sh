@@ -121,6 +121,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import os
+import re
 import sys
 
 from log_event import append_jsonl, load_json_file, now, safe_error
@@ -138,14 +139,93 @@ def last_assistant_len(payload: dict) -> int:
     return 0
 
 
+def last_assistant_message(payload: dict) -> str:
+    for key in ("last_assistant_message", "lastAssistantMessage", "assistant_message"):
+        value = payload.get(key)
+        if isinstance(value, str):
+            return value
+    return ""
+
+
+def clean_voice_candidate(value: str) -> str:
+    value = re.sub(r"\[[^\]]+\]\([^)]+\)", lambda match: match.group(0).split("]", 1)[0][1:], value)
+    value = re.sub(r"^[\s>*#-]+", "", value)
+    value = re.sub(r"^\d+[.)]\s+", "", value)
+    value = re.sub(r"[*_`~|]+", "", value)
+    value = re.sub(r"\s+", " ", value).strip(" -:")
+    if not value:
+        return ""
+    parts = re.split(r"(?<=[.!?])\s+", value, maxsplit=1)
+    sentence = parts[0].strip()
+    if len(sentence) > 180:
+        sentence = sentence[:177].rstrip(" ,;:") + "..."
+    if sentence and sentence[-1] not in ".!?":
+        sentence += "."
+    return sentence
+
+
+def useful_voice_candidate(value: str) -> str:
+    candidate = clean_voice_candidate(value)
+    if len(candidate) < 20:
+        return ""
+    lower = candidate.lower()
+    if lower.startswith(("pai_mode=", "pai_tier=", "objective=", "source:")):
+        return ""
+    if lower.rstrip(".") in {"observe", "think", "plan", "build", "execute", "verify", "learn"}:
+        return ""
+    if lower.startswith(("no memory written", "no durable learning written")):
+        return ""
+    return candidate
+
+
+def extract_turn_voice_message(payload: dict) -> tuple[str, str]:
+    text = last_assistant_message(payload)
+    if not text:
+        return "", "missing"
+
+    text = re.sub(r"<system-reminder>[\s\S]*?</system-reminder>", " ", text)
+    text = re.sub(r"```[\s\S]*?```", " ", text)
+
+    voice_matches = list(re.finditer(r"^\s*\U0001F5E3️?\s*(?:[A-Za-z][\w -]{0,32}:)?\s*(.+?)$", text, re.I | re.M))
+    for match in reversed(voice_matches):
+        candidate = useful_voice_candidate(match.group(1))
+        if candidate:
+            return candidate, "voice_line"
+
+    labeled_patterns = (
+        ("summary", r"(?:📋\s*)?\*{0,2}SUMMARY:?\*{0,2}\s*(.+?)(?:\n|$)"),
+        ("change", r"(?:🔧\s*)?\*{0,2}CHANGE:?\*{0,2}\s*(.+?)(?:\n|$)"),
+    )
+    for source, pattern in labeled_patterns:
+        matches = list(re.finditer(pattern, text, re.I))
+        for match in reversed(matches):
+            candidate = useful_voice_candidate(match.group(1))
+            if candidate:
+                return candidate, source
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith(("```", "---")):
+            continue
+        candidate = useful_voice_candidate(line)
+        if candidate:
+            return candidate, "first_sentence"
+
+    return "", "none"
+
+
 try:
     payload = load_json_file(input_path)
+    turn_voice_message, turn_voice_source = extract_turn_voice_message(payload)
     pulse_result = notify(
         "codex.turn.complete",
         "PAI Codex turn complete",
+        voice_message=turn_voice_message or None,
         details={
             "turn_id_present": bool(payload.get("turn_id") or payload.get("turnId")),
             "last_assistant_message_length": last_assistant_len(payload),
+            "voice_message_source": turn_voice_source,
+            "voice_message_length": len(turn_voice_message),
         },
     )
     append_jsonl(
@@ -157,6 +237,8 @@ try:
             "cwd": payload.get("cwd") or os.getcwd(),
             "stop_hook_active": True,
             "last_assistant_message_length": last_assistant_len(payload),
+            "voice_message_source": turn_voice_source,
+            "voice_message_length": len(turn_voice_message),
             "pulse": pulse_result,
         },
     )

@@ -120,7 +120,27 @@ assert "voice_id" not in payload, payload
 assert "voice" not in payload, payload
 PY
 
-printf '%s\n' "$stop_payload" |
+summary_payload="$(
+  python3 - <<'PY'
+from __future__ import annotations
+
+import json
+
+print(json.dumps({
+    "hook_event_name": "Stop",
+    "turn_id": "voice-summary",
+    "last_assistant_message": (
+        "PAI_MODE=ALGORITHM\n"
+        "PAI_TIER=E3\n\n"
+        "Implemented dynamic Codex voice summaries for turn completion.\n\n"
+        "VERIFY\n"
+        "The voice runtime test passed."
+    ),
+}))
+PY
+)"
+
+printf '%s\n' "$summary_payload" |
   PAI_DIR="" HOME="$TMP_HOME" \
   PAI_CODEX_PULSE_ENABLED=1 \
   PAI_CODEX_PULSE_URL="$server_url" \
@@ -143,6 +163,34 @@ entries = [json.loads(line) for line in Path(sys.argv[1]).read_text(encoding="ut
 payload = entries[1]
 assert payload["event"] == "codex.turn.complete", payload
 assert payload["voice_enabled"] is True, payload
+assert payload["message"] == "Implemented dynamic Codex voice summaries for turn completion.", payload
+assert payload["details"]["voice_message_source"] == "first_sentence", payload
+assert payload["details"]["voice_message_length"] == len(payload["message"]), payload
+PY
+
+printf '%s\n' "$stop_payload" |
+  PAI_DIR="" HOME="$TMP_HOME" \
+  PAI_CODEX_PULSE_ENABLED=1 \
+  PAI_CODEX_PULSE_URL="$server_url" \
+  PAI_CODEX_VOICE_ENABLED=1 \
+  PAI_CODEX_VOICE_EVENTS=turn_complete \
+  PAI_CODEX_VOICE_MESSAGE_TURN_COMPLETE="Codex turn finished." \
+  "$PKG_DIR/hooks/stop.sh" |
+  json_ok
+
+wait_for_count 3
+
+python3 - "$received_file" <<'PY'
+from __future__ import annotations
+
+from pathlib import Path
+import json
+import sys
+
+entries = [json.loads(line) for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()]
+payload = entries[2]
+assert payload["event"] == "codex.turn.complete", payload
+assert payload["voice_enabled"] is True, payload
 assert payload["message"] == "Codex turn finished.", payload
 assert "voice_id" not in payload, payload
 assert "voice" not in payload, payload
@@ -158,7 +206,7 @@ printf '%s\n' "$stop_payload" |
   "$PKG_DIR/hooks/stop.sh" |
   json_ok
 
-wait_for_count 3
+wait_for_count 4
 
 python3 - "$received_file" <<'PY'
 from __future__ import annotations
@@ -168,7 +216,7 @@ import json
 import sys
 
 entries = [json.loads(line) for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()]
-payload = entries[2]
+payload = entries[3]
 assert payload["voice_enabled"] is True, payload
 assert payload["voice_id"] == "voice_test_id_123", payload
 PY
@@ -223,7 +271,7 @@ PAI_DIR="" HOME="$TMP_HOME" PATH="$TMP_HOME/bin:$PATH" \
   "$PKG_DIR/hooks/post-tool-use.sh" < "$post_payload" |
   json_ok
 
-wait_for_count 4
+wait_for_count 5
 
 python3 - "$received_file" <<'PY'
 from __future__ import annotations
@@ -233,7 +281,7 @@ import json
 import sys
 
 entries = [json.loads(line) for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()]
-payload = entries[3]
+payload = entries[4]
 assert payload["event"] == "codex.algorithm.isa_updated", payload
 assert payload["voice_enabled"] is True, payload
 assert payload["message"] == "Codex updated the ISA.", payload
@@ -268,7 +316,7 @@ printf '%s\n' '{"hook_event_name":"Stop","turn_id":"voice-secret","last_assistan
   "$PKG_DIR/hooks/stop.sh" |
   json_ok
 
-wait_for_count 5
+wait_for_count 6
 ! rg -q --fixed-strings "$secret_value" "$received_file"
 ! rg -q --fixed-strings "$secret_value" "$TMP_HOME/.claude/PAI/MEMORY/OBSERVABILITY"
 

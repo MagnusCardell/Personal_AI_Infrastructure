@@ -93,16 +93,23 @@ def _safe_voice_id() -> str | None:
     return None
 
 
-def _safe_voice_message(event: str, fallback: str) -> str:
-    raw = os.environ.get(VOICE_MESSAGE_ENV.get(event, ""), "").strip()
-    message = raw or DEFAULT_VOICE_MESSAGES.get(event, fallback)
+def _clean_voice_message(raw: str, fallback: str) -> str:
+    message = re.sub(r"\s+", " ", raw).strip()
     if any(pattern.search(message) for pattern in SECRET_LIKE):
-        return DEFAULT_VOICE_MESSAGES.get(event, fallback)
-    message = re.sub(r"\s+", " ", message).strip()
-    return message[:180] if message else DEFAULT_VOICE_MESSAGES.get(event, fallback)
+        return fallback
+    return message[:180] if message else fallback
 
 
-def _voice_intent(event: str, fallback_message: str) -> dict[str, Any]:
+def _safe_voice_message(event: str, fallback: str, preferred: str | None = None) -> str:
+    raw = os.environ.get(VOICE_MESSAGE_ENV.get(event, ""), "").strip()
+    default_message = DEFAULT_VOICE_MESSAGES.get(event, fallback)
+    configured = _clean_voice_message(raw or default_message, default_message)
+    if preferred:
+        return _clean_voice_message(preferred, configured)
+    return configured
+
+
+def _voice_intent(event: str, fallback_message: str, preferred_message: str | None = None) -> dict[str, Any]:
     if not _voice_enabled():
         return {"voice_enabled": False}
     selected = _voice_event_tokens()
@@ -110,7 +117,7 @@ def _voice_intent(event: str, fallback_message: str) -> dict[str, Any]:
         return {"voice_enabled": False}
     intent: dict[str, Any] = {
         "voice_enabled": True,
-        "message": _safe_voice_message(event, fallback_message),
+        "message": _safe_voice_message(event, fallback_message, preferred_message),
     }
     voice_id = _safe_voice_id()
     if voice_id:
@@ -118,8 +125,15 @@ def _voice_intent(event: str, fallback_message: str) -> dict[str, Any]:
     return intent
 
 
-def _payload(event: str, message: str, *, source: str, details: dict[str, Any] | None) -> dict[str, Any]:
-    voice = _voice_intent(event, message)
+def _payload(
+    event: str,
+    message: str,
+    *,
+    source: str,
+    details: dict[str, Any] | None,
+    voice_message: str | None = None,
+) -> dict[str, Any]:
+    voice = _voice_intent(event, message, voice_message)
     payload: dict[str, Any] = {
         "source": source,
         "event": event,
@@ -134,13 +148,23 @@ def _payload(event: str, message: str, *, source: str, details: dict[str, Any] |
     return payload
 
 
-def notify(event: str, message: str, *, source: str = "pai-codex", details: dict[str, Any] | None = None) -> dict[str, Any]:
+def notify(
+    event: str,
+    message: str,
+    *,
+    source: str = "pai-codex",
+    details: dict[str, Any] | None = None,
+    voice_message: str | None = None,
+) -> dict[str, Any]:
     if not pulse_enabled():
         return {"enabled": False, "attempted": False, "success": False, "reason": "disabled"}
 
     try:
         endpoint = _safe_url(pulse_url())
-        body = json.dumps(_payload(event, message, source=source, details=details), sort_keys=True).encode("utf-8")
+        body = json.dumps(
+            _payload(event, message, source=source, details=details, voice_message=voice_message),
+            sort_keys=True,
+        ).encode("utf-8")
         request = urllib.request.Request(
             endpoint,
             data=body,
