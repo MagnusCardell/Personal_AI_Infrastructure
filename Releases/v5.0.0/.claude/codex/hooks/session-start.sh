@@ -3,6 +3,14 @@ set -euo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PAI_DIR="${PAI_DIR:-$HOME/.claude/PAI}"
+case "${PAI_CODEX_CONTEXT_MODE:-compact}" in
+  full)
+    context_mode="full"
+    ;;
+  *)
+    context_mode="compact"
+    ;;
+esac
 OBS_DIR="$PAI_DIR/MEMORY/OBSERVABILITY"
 mkdir -p "$OBS_DIR"
 export PYTHONPATH="$HOOK_DIR/lib${PYTHONPATH:+:$PYTHONPATH}"
@@ -16,7 +24,7 @@ TMP_INPUT="$(mktemp "${TMPDIR:-/tmp}/pai-codex-session-start.XXXXXX")"
 trap 'rm -f "$TMP_INPUT"' EXIT
 cat > "$TMP_INPUT"
 
-python3 - "$TMP_INPUT" "$PAI_DIR" "$OBS_DIR/codex-hooks.jsonl" <<'PY'
+python3 - "$TMP_INPUT" "$PAI_DIR" "$OBS_DIR/codex-hooks.jsonl" "$context_mode" <<'PY'
 from __future__ import annotations
 
 from pathlib import Path
@@ -29,13 +37,35 @@ from pai_context import load_pai_context
 
 input_path = Path(sys.argv[1])
 log_path = Path(sys.argv[3]).expanduser()
+context_mode = sys.argv[4]
 
 
-try:
-    payload = load_json_file(input_path)
-    ctx = load_pai_context()
+def build_compact_context(ctx: dict[str, object]) -> str:
+    lines = [
+        f"PAI_RUNTIME_CONTEXT={ctx['status']}",
+        f"PAI_DIR={ctx['pai_dir']}",
+        "PAI_MODE_DEFAULT=NATIVE for identity, project, Telos, and status questions",
+        "PAI_ALGORITHM_MODE=Use ALGORITHM for execution-oriented work and live ISA updates",
+        f"PAI_ALGORITHM_POINTER={ctx['algorithm_pointer']}",
+        f"PAI_ALGORITHM_FILE={ctx['algorithm_path']}",
+        f"PAI_CONTEXT_MISSING={'; '.join(ctx['missing_files']) if ctx['missing_files'] else 'none'}",
+        "PAI_CONTEXT_MODE=compact (PAI_CODEX_CONTEXT_MODE=full embeds summaries)",
+    ]
+    for key, label in (
+        ("principal", "PRINCIPAL"),
+        ("da", "DA"),
+        ("projects", "PROJECTS"),
+        ("telos", "TELOS"),
+    ):
+        gist = ctx[f"{key}_gist"]
+        if gist is None:
+            continue
+        lines.append(f"PAI_{label}_FILE={ctx[f'{key}_path']} | {gist}")
+    return "\n".join(lines)
 
-    context = "\n".join(
+
+def build_full_context(ctx: dict[str, object]) -> str:
+    return "\n".join(
         [
             f"PAI_RUNTIME_CONTEXT={ctx['status']}",
             f"PAI_DIR={ctx['pai_dir']}",
@@ -65,6 +95,13 @@ try:
             ctx["algorithm_summary"],
         ]
     )
+
+
+try:
+    payload = load_json_file(input_path)
+    ctx = load_pai_context()
+
+    context = build_full_context(ctx) if context_mode == "full" else build_compact_context(ctx)
 
     append_jsonl(
         log_path,

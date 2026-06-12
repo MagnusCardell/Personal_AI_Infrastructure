@@ -34,6 +34,12 @@ The runtime context helper reads:
 - `~/.claude/PAI/MEMORY/OBSERVABILITY`
 - `~/.claude/PAI/MEMORY/LEARNING`
 
+## Context Injection Mode
+
+Codex renders hook `additionalContext` as a visible message in the transcript (openai/codex#16933) and fires SessionStart together with the first prompt (#15266). To keep prompt submission readable, SessionStart injects a **compact** context header by default: the runtime header lines plus one `path | gist` line per user file (~12 lines). The model reads the full files on demand via the injected paths, and the generated AGENTS.md already embeds principal/DA summaries.
+
+Set `PAI_CODEX_CONTEXT_MODE=full` in the hook environment to restore full embedded summaries (the pre-compact behavior, ~90 lines). Any other value (or unset) means compact.
+
 ## Install Modes
 
 Default mode is PAI-local staging:

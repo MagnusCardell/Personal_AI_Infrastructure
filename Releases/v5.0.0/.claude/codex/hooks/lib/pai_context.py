@@ -10,6 +10,7 @@ import re
 DEFAULT_FILE_LIMIT = 2500
 DEFAULT_SUMMARY_LIMIT = 900
 ALGORITHM_LIMIT = 1600
+GIST_LIMIT = 120
 
 
 SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -47,6 +48,17 @@ def _truncate(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return text[:limit].rstrip() + f"\n[truncated:{len(text) - limit}]"
+
+
+def _gist_from_read_text(text: str) -> str | None:
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        gist = _redact(line.lstrip("#").strip())
+        if gist:
+            return gist[:GIST_LIMIT]
+    return None
 
 
 def read_bounded(path: Path, *, limit: int = DEFAULT_FILE_LIMIT) -> ReadResult:
@@ -147,6 +159,10 @@ def load_pai_context() -> dict[str, Any]:
         "da_path": str(paths["da"]),
         "projects_path": str(paths["projects"]),
         "telos_path": str(paths["telos"]),
+        "principal_gist": _gist_from_read_text(reads["principal"].text) if reads["principal"].ok else None,
+        "da_gist": _gist_from_read_text(reads["da"].text) if reads["da"].ok else None,
+        "projects_gist": _gist_from_read_text(reads["projects"].text) if reads["projects"].ok else None,
+        "telos_gist": _gist_from_read_text(reads["telos"].text) if reads["telos"].ok else None,
         "principal_summary": summarize_markdown(reads["principal"].text),
         "da_summary": summarize_markdown(reads["da"].text),
         "projects_summary": summarize_markdown(reads["projects"].text, limit=1200),

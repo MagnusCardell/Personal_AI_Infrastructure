@@ -62,14 +62,41 @@ additional="$(
 )"
 
 rg -q 'PAI_RUNTIME_CONTEXT=available' <<<"$additional"
-rg -q 'PRINCIPAL_TEST_MARKER' <<<"$additional"
-rg -q 'DA_TEST_MARKER' <<<"$additional"
-rg -q 'PROJECTS_TEST_MARKER' <<<"$additional"
-rg -q 'TELOS_TEST_MARKER' <<<"$additional"
 rg -q 'PAI_ALGORITHM_POINTER=test-algorithm.md' <<<"$additional"
-rg -q 'ALGORITHM_TEST_MARKER' <<<"$additional"
+rg -q 'PAI_CONTEXT_MODE=compact' <<<"$additional"
+rg -q 'PAI_PRINCIPAL_FILE=.*PRINCIPAL_IDENTITY\.md \| Principal' <<<"$additional"
+rg -q 'PAI_DA_FILE=.*DA_IDENTITY\.md \| Runtime Assistant' <<<"$additional"
+rg -q 'PAI_PROJECTS_FILE=.*PROJECTS/PROJECTS\.md \| Active Projects' <<<"$additional"
+rg -q 'PAI_TELOS_FILE=.*PRINCIPAL_TELOS\.md \| Telos' <<<"$additional"
+! rg -q 'PAI_PRINCIPAL_CONTEXT=' <<<"$additional"
+! rg -q '^Source:' <<<"$additional"
+! rg -q 'PRINCIPAL_TEST_MARKER' <<<"$additional"
+! rg -q 'DA_TEST_MARKER' <<<"$additional"
+! rg -q 'PROJECTS_TEST_MARKER' <<<"$additional"
+! rg -q 'TELOS_TEST_MARKER' <<<"$additional"
+! rg -q 'ALGORITHM_TEST_MARKER' <<<"$additional"
 ! rg -q 'supersecretvalue' <<<"$additional"
+printf '%s' "$additional" | python3 -c 'import sys; data=sys.stdin.read(); assert len(data) <= 1500, len(data)'
 ! rg -q 'supersecretvalue' "$TMP_HOME/.claude/PAI/MEMORY/OBSERVABILITY" 2>/dev/null
+
+full_output="$(
+  printf '{"hook_event_name":"SessionStart","cwd":"/tmp"}\n' |
+    PAI_CODEX_CONTEXT_MODE=full PAI_DIR="" HOME="$TMP_HOME" "$PKG_DIR/hooks/session-start.sh"
+)"
+
+printf '%s\n' "$full_output" | python3 -m json.tool >/dev/null
+full_additional="$(
+  printf '%s\n' "$full_output" | python3 -c 'import json, sys; print(json.load(sys.stdin)["hookSpecificOutput"]["additionalContext"])'
+)"
+
+rg -q 'PAI_RUNTIME_CONTEXT=available' <<<"$full_additional"
+rg -q 'PRINCIPAL_TEST_MARKER' <<<"$full_additional"
+rg -q 'DA_TEST_MARKER' <<<"$full_additional"
+rg -q 'PROJECTS_TEST_MARKER' <<<"$full_additional"
+rg -q 'TELOS_TEST_MARKER' <<<"$full_additional"
+rg -q 'PAI_ALGORITHM_POINTER=test-algorithm.md' <<<"$full_additional"
+rg -q 'ALGORITHM_TEST_MARKER' <<<"$full_additional"
+! rg -q 'supersecretvalue' <<<"$full_additional"
 
 rm -f "$TMP_HOME/.claude/PAI/USER/DA_IDENTITY.md"
 rm -f "$TMP_HOME/.claude/PAI/ALGORITHM/test-algorithm.md"
@@ -84,7 +111,12 @@ partial_additional="$(
 )"
 rg -q 'PAI_RUNTIME_CONTEXT=partial' <<<"$partial_additional"
 rg -q 'PAI_CONTEXT_MISSING=' <<<"$partial_additional"
+rg -q 'PAI_CONTEXT_MODE=compact' <<<"$partial_additional"
 rg -q 'DA_IDENTITY.md' <<<"$partial_additional"
 rg -q 'test-algorithm.md' <<<"$partial_additional"
+rg -q 'PAI_PRINCIPAL_FILE=.*PRINCIPAL_IDENTITY\.md \| Principal' <<<"$partial_additional"
+rg -q 'PAI_PROJECTS_FILE=.*PROJECTS/PROJECTS\.md \| Active Projects' <<<"$partial_additional"
+rg -q 'PAI_TELOS_FILE=.*PRINCIPAL_TELOS\.md \| Telos' <<<"$partial_additional"
+! rg -q 'PAI_DA_FILE=' <<<"$partial_additional"
 
 echo "DA runtime context test passed"
