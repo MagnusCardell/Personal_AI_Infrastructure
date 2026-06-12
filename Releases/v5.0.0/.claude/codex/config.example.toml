@@ -1,0 +1,22 @@
+# Example Codex settings for PAI runtime support.
+# Copy or merge into ~/.codex/config.toml only when enabling Codex globally.
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[features]
+hooks = true
+
+[sandbox_workspace_write]
+# Use absolute paths for your machine.
+writable_roots = [
+  "/ABSOLUTE/PATH/TO/.claude/PAI",
+  "/ABSOLUTE/PATH/TO/.claude/hooks/codex",
+]
+
+[tui]
+# Footer status line: closest native match to the PAI-for-Claude statusline
+# (model, remaining context, git branch, directory). Reorder or trim with the
+# /statusline picker. PAI-specific items (Algorithm phase, learning signals)
+# need command-backed items — not yet supported upstream (openai/codex#20244).
+status_line = ["model-with-reasoning", "context-remaining", "git-branch", "current-dir"]
